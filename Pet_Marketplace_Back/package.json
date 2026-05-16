@@ -1,0 +1,13 @@
+{
+  "name": "pet-marketplace-back",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Backend NestJS — Pet Marketplace UK (Fase 1, sem pagamento).",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "echo \"[bloco0] NestJS será inicializado no Bloco 1\" && exit 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"[bloco0] ESLint será configurado no Bloco 1\" && exit 0"
+  },
+  "license": "UNLICENSED"
+}

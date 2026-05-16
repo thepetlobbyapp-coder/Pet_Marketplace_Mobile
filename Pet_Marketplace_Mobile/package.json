@@ -1,0 +1,13 @@
+{
+  "name": "pet-marketplace-mobile",
+  "private": true,
+  "version": "0.0.0",
+  "description": "App mobile React Native + Expo — Pet Marketplace UK (en-GB).",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "echo \"[bloco0] Expo será inicializado no Bloco 3\" && exit 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"[bloco0] ESLint será configurado no Bloco 3\" && exit 0"
+  },
+  "license": "UNLICENSED"
+}

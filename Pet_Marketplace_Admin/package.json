@@ -1,0 +1,13 @@
+{
+  "name": "pet-marketplace-admin",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Painel admin Next.js — Pet Marketplace UK (en-GB).",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "echo \"[bloco0] Next.js será inicializado no Bloco 9\" && exit 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"[bloco0] ESLint será configurado no Bloco 9\" && exit 0"
+  },
+  "license": "UNLICENSED"
+}
