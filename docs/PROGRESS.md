@@ -111,3 +111,45 @@ Aprovar decisões D-001..D-004 e iniciar **Bloco 0 — Fundação do repositóri
 
 ### Próximo passo recomendado
 Iniciar **Bloco 1 — Backend base** (NestJS, health check, Supabase, auth, RBAC, erros, logging, módulos) em `Pet_Marketplace_Back/`. Agentes: B_BackendDomain, A_Architecture, S_Seguranca, O_Observability.
+
+---
+
+## Checkpoint 003 — Plano do Bloco 1 (Backend base)
+
+- **Data/hora:** 2026-05-16 (Europe/London)
+- **Tarefa atual:** Plano do Bloco 1 produzido e revisado. **Sem implementação.**
+- **Agentes envolvidos:** C10_Maestro (orquestra), B_BackendDomain (autor), C_Cetico + V_Agent_ImpactValidator (revisão), S_Seguranca + O_Observability (consultores), PR_PromptOps (prompt cirúrgico)
+
+### Documentos lidos (adicionais)
+- `docs/05_SPEC_API.md`, `docs/11_SPEC_PRIVACY_DATA_SAFETY.md`, `.codex/C10_Maestro/C10_Agent_ProjectRules.md`, `.codex/PR_PromptOps/PR_Agent_PromptRefiner_v2.md`
+
+### Resumo
+Plano do Bloco 1 cobre: estrutura de módulos (config, common/erros, logging, guards, auth, users, health, audit — esqueleto), dependências, padrão de erro/logging com redaction de PII, Auth Supabase + RBAC pelo backend, validação de env por Zod, rate limit (mecanismo), health check, Swagger. Recorte explícito Bloco 1 vs. blocos 2–10. Demais módulos do `docs/05` ficam `PLANNED` (não roteados, p/ não criar telas/rotas falsas — regra Play Store).
+
+### Decisões registradas
+- **D-006:** Supabase Auth emite token; backend valida e é autoridade de RBAC (guards próprios).
+- **D-007:** Contrato congelado: base `/api/v1`; envelope de erro `{error:{code,message,details}}`; tabela HTTP `docs/05` §2.
+- **D-008:** Logging pino estruturado + redaction de PII desde o Bloco 1.
+- **D-009:** Sem chaves Supabase → Auth/DB `BLOCKED`; Bloco 1 prossegue com health/erro/logging/throttler/estrutura.
+
+### Revisão (C_Cetico / V_Agent_ImpactValidator)
+- Aprovado **sem bloqueios**, com mitigações: guard degradado (503) sem desabilitar auth; só health/auth/users mínimos expostos; filtro/logging/guards únicos e reutilizáveis; contrato `/api/v1` congelado para não quebrar Mobile/Admin.
+
+### Arquivos criados / alterados
+- Criados: nenhum de código (fase de plano). Alterado: `docs/PROGRESS.md` (este checkpoint).
+
+### Comandos executados
+- Nenhum comando de build/git nesta etapa (apenas leitura de docs/agentes). `pnpm sync` rodado para propagar este checkpoint.
+
+### Testes rodados
+- Nenhum (etapa de planejamento).
+
+### Erros encontrados
+- Nenhum.
+
+### Pendências
+- `[NECESSÁRIO]` chaves Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`) para Auth/DB end-to-end.
+- Aprovação do usuário para iniciar a **implementação** do Bloco 1.
+
+### Próximo passo recomendado
+Com aprovação, executar a implementação do Bloco 1 conforme este plano (escopo: `Pet_Marketplace_Back/`), seguida de `pnpm typecheck/lint/build/test` + smoke `GET /api/v1/health`, e Checkpoint 004.
