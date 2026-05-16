@@ -37,3 +37,6 @@ GoogleService-Info.plist
 
 # Supabase local
 .supabase/
+
+# Claude Code local harness
+.claude/
