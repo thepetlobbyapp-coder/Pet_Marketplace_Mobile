@@ -29,8 +29,9 @@ push, câmera, etc.) exige refazer este passo antes de release.
   `127.0.0.1`, `10.0.2.2` (dev/emulador).
 - Camada complementar mantida: `src/config/env.ts` lança em produção se a
   URL não for HTTPS (app-layer; **não removida**).
-- Implementado via config plugin local `plugins/with-network-security.js`
-  (`@expo/config-plugins`, **sem nova dependência**).
+- Implementado via config plugin local `plugins/with-network-security.js`.
+  `@expo/config-plugins` fica declarado explicitamente em `devDependencies`
+  para compatibilidade com pnpm/native build.
 
 ## Target SDK / API
 

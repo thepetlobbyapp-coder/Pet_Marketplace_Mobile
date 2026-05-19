@@ -1,13 +1,14 @@
 /**
- * Config plugin local (sem nova dependência — @expo/config-plugins já vem
- * com `expo`). Endurece o transporte no nível do SO Android (S2):
+ * Local config plugin. `@expo/config-plugins` is declared explicitly in
+ * devDependencies so pnpm native builds can resolve it reliably.
  *
- *  - base-config: cleartext PROIBIDO por padrão (release = só HTTPS).
- *  - domain-config: cleartext permitido SOMENTE para loopback/emulador
- *    (localhost, 127.0.0.1, 10.0.2.2) → dev local contra
- *    http://localhost:3000 continua funcionando.
+ * Android transport hardening (S2):
+ * - base-config: cleartext disabled by default (release = HTTPS only).
+ * - domain-config: cleartext allowed only for loopback/emulator
+ *   (localhost, 127.0.0.1, 10.0.2.2), so local dev against
+ *   http://localhost:3000 still works.
  *
- * Complementa (não substitui) o guard JS em src/config/env.ts.
+ * Complements, but does not replace, the JS guard in src/config/env.ts.
  */
 const {
   withAndroidManifest,
