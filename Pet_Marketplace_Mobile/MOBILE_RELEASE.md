@@ -18,25 +18,31 @@
 | VersionCode | inteiro incremental | ⚪ Bloco 3 |
 | Canal inicial | Internal Testing → Closed → Production | ⚪ release |
 
-## Estado atual (Bloco 1)
+## Estado atual (Bloco 3 — 2026-05-18)
 
-- ✅ Camada base de sessão consumindo `GET /api/v1/me` (sem Expo).
+- ✅ App Expo SDK 55 inicializado (Expo Router, TS, Jest, ESLint 9).
+- ✅ Camada base de sessão ligada à UI: SecureStore → `/api/v1/me` →
+  SessionProvider → guards de rota (sign-in/profile).
+- ✅ i18n en-GB (zero texto hardcoded/pt-BR no app).
+- ✅ Estados loading/blocked(403)/offline-erro/retry/sign-out tratados.
+- ✅ typecheck, lint, test (9), `expo export` Android: todos verdes.
 - ✅ Sem secrets/keystore no repo; `.env.example` só com vars públicas.
-- ✅ Sem log de token/PII; erros ao usuário são genéricos.
-- ⚪ App, UI, navegação, EAS, ícone/splash — Bloco 3.
-- ⚪ Exclusão de conta — depende do backend Bloco 4.
+- ✅ HTTPS forçado em produção (`src/config/env.ts` lança se não-HTTPS).
+- 🟡 Ícone/splash usam default Expo (assets reais pendentes).
+- ⚪ EAS Build AAB assinado / Internal Testing — release.
+- ⚪ Login real (backend) e exclusão de conta — blocos futuros (4).
 
 ## Checklist técnico Android (docs/10 §2)
 
-- [ ] **[GATE]** Package name definitivo e nome do app em en-GB. ⚪ Bloco 3
-- [ ] Ícone adaptativo + splash. ⚪ Bloco 3
-- [ ] VersionCode incremental / VersionName semântico. ⚪ Bloco 3
-- [ ] Build **AAB** via EAS, assinatura gerenciada. ⚪ release
-- [ ] **[GATE]** Sem logs sensíveis. ✅ base ok — revalidar com UI
-- [ ] **[GATE]** Sem secrets / chave privada no repo. ✅ verificado
-- [ ] **[GATE]** Sem crash em login/cadastro/fluxo principal. ⚪ Bloco 3
-- [ ] Funciona em telas/densidades comuns. ⚪ Bloco 3
-- [ ] **[GATE]** `EXPO_PUBLIC_API_BASE_URL` de produção é **HTTPS** (hoje dev = `http://localhost`). ⚠️ fixar no Bloco 3
+- [x] **[GATE]** Package name definitivo (`app.thepetlobby.petmarketplace`) e nome do app en-GB (`Pet Marketplace`). ✅
+- [ ] Ícone adaptativo + splash. 🟡 default Expo; assets reais pendentes
+- [x] VersionCode (`1`) / VersionName (`0.1.0`). ✅ definidos em `app.json`
+- [ ] Build **AAB** via EAS, assinatura gerenciada. ⚪ release (EAS)
+- [x] **[GATE]** Sem logs sensíveis. ✅ revalidado com UI/SecureStore
+- [x] **[GATE]** Sem secrets / chave privada no repo. ✅ verificado
+- [ ] **[GATE]** Sem crash em login/cadastro/fluxo principal. 🟡 testes verdes; falta device real
+- [ ] Funciona em telas/densidades comuns. ⚪ device real (Bloco smoke)
+- [ ] **[GATE]** `EXPO_PUBLIC_API_BASE_URL` de produção é **HTTPS**. 🟡 enforcement em código (`env.ts` lança); falta setar URL prod real
 
 ## Checklist de conteúdo Play Console (docs/10 §3)
 

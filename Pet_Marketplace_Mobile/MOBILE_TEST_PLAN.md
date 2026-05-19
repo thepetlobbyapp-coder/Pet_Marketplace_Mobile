@@ -6,16 +6,23 @@
 >
 > Legenda: ✅ coberto · 🟡 parcial · ⚪ pendente · **[GATE]** bloqueia release.
 
-## 1. Estado atual (Bloco 1)
+## 1. Estado atual (Bloco 3 — 2026-05-18)
 
-Sem runner oficial (chega no Bloco 3). Specs zero-dep em `src/__tests__/`
-executados via harness — **16/16 passando**, typecheck strict limpo.
+Runner oficial **jest-expo** configurado. Os specs zero-dep do harness
+(`src/__tests__/`) rodam **sem reescrita** via bridge
+(`src/__jest__/harness-bridge.jest.test.ts` → `runAllSuites()`).
+Resultado: **4 suites / 9 testes jest passando** (16 specs do harness
+dentro da bridge); typecheck strict + lint + `expo export` Android verdes.
 
 | Spec | Cobre | Status |
 |---|---|---|
-| `me.contract.test.ts` | parse seguro de `/me`, roles múltiplas, descarte de campos proibidos | ✅ |
-| `session-state.test.ts` | bootstrap: token ok / 401 limpa sessão / 403 bloqueia / offline / sem token | ✅ |
-| `roles.test.ts` | RBAC: tutor fallback, admin nunca obrigatório no mobile | ✅ |
+| `me.contract.test.ts` (harness) | parse seguro de `/me`, roles múltiplas, descarte de campos proibidos | ✅ |
+| `session-state.test.ts` (harness) | bootstrap: token ok / 401 / 403 / offline / sem token | ✅ |
+| `roles.test.ts` (harness) | RBAC: tutor fallback, admin nunca obrigatório | ✅ |
+| `harness-bridge.jest.test.ts` | roda os 16 specs do harness sob jest | ✅ |
+| `token-store.jest.test.ts` | SecureStore: roundtrip, falha de leitura/limpeza | ✅ |
+| `session-provider.jest.test.tsx` | wiring real: token→authenticated / 401→limpa / sem token | ✅ |
+| `routing.jest.test.ts` | guard: rota inicial e acesso protegido por sessão | ✅ |
 
 ## 2. Matriz de testes
 
@@ -24,11 +31,11 @@ executados via harness — **16/16 passando**, typecheck strict limpo.
 | Restauração de sessão (`/me`) | unit | alta | token válido/expirado, offline | ✅ |
 | RBAC tutor/provider/admin | unit | alta | múltiplas roles não quebram | ✅ |
 | Contrato `/me` defensivo | unit | alta | não depende de campos proibidos | ✅ |
-| Login / cadastro | integration/e2e | alta | sem crash (gate Play) | ⚪ Bloco 3 |
-| Navegação pública/protegida | integration | alta | guard por sessão/role | ⚪ Bloco 3 |
+| Login / cadastro | integration/e2e | alta | sem crash (gate Play) | ⚪ backend login pendente |
+| Navegação pública/protegida | integration | alta | guard por sessão/role | ✅ `routing.jest.test.ts` |
 | Exclusão de conta | integration/e2e | alta | confirma, desloga, bloqueia re-login | ⚪ Bloco 4 |
-| Persistência de token (SecureStore) | integration/device | alta | sobrevive reabertura | ⚪ Bloco 3 |
-| API base URL por ambiente | integration | alta | HTTPS em produção | ⚪ Bloco 3 |
+| Persistência de token (SecureStore) | integration | alta | set/get/clear + falha tolerada | ✅ `token-store.jest.test.ts` |
+| API base URL por ambiente | unit | alta | HTTPS em produção (lança) | ✅ enforcement em `env.ts` |
 | Booking (sem duplicar em retry) | integration | alta | idempotência | ⚪ bloco booking |
 | Chat texto | integration | média | estados vazio/erro/denúncia | ⚪ bloco chat |
 
@@ -52,8 +59,12 @@ authenticated/unauthenticated/blocked/error`) — falta ligar à UI no Bloco 3.
 - [ ] Exclusão de conta · [ ] Build EAS gera AAB assinado
 - [ ] Nenhum texto pt-BR no app final · [ ] Sem promessa de pagamento/seguro/verificação
 
-## 6. Como rodar hoje (sem runner)
+## 6. Como rodar
 
-`pnpm dlx tsx` efêmero importando os specs + `runAllSuites()` do harness.
-Bloco 3 substitui por runner oficial **sem reescrever os testes** (harness
-neutro). Não depender de Supabase/contas reais em nenhum teste.
+- `pnpm test` — jest-expo (todas as suites, inclui a bridge do harness).
+- `pnpm run typecheck` — tsc strict.
+- `pnpm run lint` — ESLint 9 flat (config Expo).
+- `pnpm exec expo export --platform android` — valida que o app bundla.
+
+Nenhum teste depende de Supabase/contas reais (SecureStore e `fetch`
+são mockados).

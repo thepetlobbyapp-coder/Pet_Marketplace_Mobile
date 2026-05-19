@@ -9,8 +9,8 @@
 
 | Categoria | No device? | Storage permitido | Status |
 |---|---|---|---|
-| Token de sessão | sim, protegido | **SecureStore** (nunca AsyncStorage) | ⚪ Bloco 3 (client já injeta token via callback) |
-| Perfil seguro do usuário (id, email, roles, status, locale) | sim | memória / store; persistência mínima | 🟡 tipos prontos (`src/types/me.ts`) |
+| Token de sessão | sim, protegido | **SecureStore** (nunca AsyncStorage) | ✅ `src/session/token-store.ts` (Expo SecureStore, WHEN_UNLOCKED) |
+| Perfil seguro do usuário (id, email, roles, status, locale) | sim | memória (Context); sem persistência sensível | ✅ `SessionProvider` mantém só `MeUser` seguro em memória |
 | Resumo de perfis (tutor/provider safe) | sim | memória / store | ✅ allow-list em `src/api/me.ts` |
 | Telefone, endereço completo, coordenadas | **nunca** | nenhum | ✅ não modelado / descartado no parse |
 | Senhas / API keys privadas | **nunca** | nenhum | ✅ |
@@ -48,7 +48,9 @@ saúde completa do pet.
 
 ## 5. Transporte e backend
 
-- **[GATE]** Produção: `EXPO_PUBLIC_API_BASE_URL` **HTTPS** obrigatório (hoje dev = `http://localhost`).
+- **[GATE]** Produção: `EXPO_PUBLIC_API_BASE_URL` **HTTPS** obrigatório.
+  ✅ Enforcement em código: `getApiBaseUrl()` lança se produção e não-HTTPS.
+  ⚪ Falta apenas definir a URL de produção real (HTTPS) no ambiente.
 - ✅ Token enviado só via header `Authorization: Bearer`, nunca em querystring/log.
 - ✅ Erros do backend não vazam detalhe interno ao usuário (mensagens seguras locais).
 - ✅ 401 → limpa sessão local; 403 → bloqueia sem expor motivo sensível.
@@ -62,11 +64,11 @@ saúde completa do pet.
 
 ## 7. Checklist de gate
 
-- [ ] **[GATE]** Secrets privados não estão no app nem no repo. ✅ verificado (Bloco 1)
-- [ ] **[GATE]** Token em SecureStore. ⚪ Bloco 3
-- [ ] **[GATE]** `.env.example` sem valores reais. ✅
-- [ ] **[GATE]** Permissões mínimas e justificadas. ⚪ Bloco 3
-- [ ] **[GATE]** Erros ao usuário não vazam detalhes internos. ✅ base ok
-- [ ] **[GATE]** Endereço/coordenadas de terceiros nunca expostos. ✅ por design
-- [ ] HTTPS em produção. ⚠️ fixar Bloco 3
-- [ ] Sentry/analytics (se houver) com mascaramento. ⚪
+- [x] **[GATE]** Secrets privados não estão no app nem no repo. ✅ verificado
+- [x] **[GATE]** Token em SecureStore. ✅ `token-store.ts` (testado)
+- [x] **[GATE]** `.env.example` sem valores reais. ✅
+- [x] **[GATE]** Permissões mínimas e justificadas. ✅ `app.json` `permissions: []`
+- [x] **[GATE]** Erros ao usuário não vazam detalhes internos. ✅ i18n + códigos seguros
+- [x] **[GATE]** Endereço/coordenadas de terceiros nunca expostos. ✅ por design (allow-list)
+- [x] HTTPS em produção. ✅ enforcement em código; ⚪ falta URL prod real
+- [ ] Sentry/analytics (se houver) com mascaramento. ⚪ não adicionado (Fase 1)
