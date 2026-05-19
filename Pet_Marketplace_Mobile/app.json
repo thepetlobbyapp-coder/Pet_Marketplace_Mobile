@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Pet Marketplace",
+    "slug": "pet-marketplace",
+    "scheme": "petmarketplace",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "app.thepetlobby.petmarketplace",
+      "versionCode": 1,
+      "permissions": []
+    },
+    "ios": {
+      "bundleIdentifier": "app.thepetlobby.petmarketplace",
+      "supportsTablet": false
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "note": "Fase 1: sem camera/microfone/arquivos/localizacao/push. Ver MOBILE_SECURITY.md"
+    }
+  }
+}

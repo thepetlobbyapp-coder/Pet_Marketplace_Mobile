@@ -50,7 +50,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         },
         signal: controller.signal,
       });
-    } catch (cause) {
+    } catch {
       // fetch rejeita por rede caida OU abort (timeout).
       if (controller.signal.aborted) {
         throw new ApiError({
