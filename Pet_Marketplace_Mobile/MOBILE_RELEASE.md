@@ -27,7 +27,8 @@
 - ✅ Estados loading/blocked(403)/offline-erro/retry/sign-out tratados.
 - ✅ typecheck, lint, test (9), `expo export` Android: todos verdes.
 - ✅ Sem secrets/keystore no repo; `.env.example` só com vars públicas.
-- ✅ HTTPS forçado em produção (`src/config/env.ts` lança se não-HTTPS).
+- ✅ HTTPS forçado em produção: app-layer (`src/config/env.ts`) **+ SO** (S2: `usesCleartextTraffic=false` + network security config).
+- ✅ Permissões auditadas e travadas (S1: `blockedPermissions`; ver `PLAYSTORE_COMPLIANCE.md`).
 - 🟡 Ícone/splash usam default Expo (assets reais pendentes).
 - ⚪ EAS Build AAB assinado / Internal Testing — release.
 - ⚪ Login real (backend) e exclusão de conta — blocos futuros (4).
@@ -42,7 +43,8 @@
 - [x] **[GATE]** Sem secrets / chave privada no repo. ✅ verificado
 - [ ] **[GATE]** Sem crash em login/cadastro/fluxo principal. 🟡 testes verdes; falta device real
 - [ ] Funciona em telas/densidades comuns. ⚪ device real (Bloco smoke)
-- [ ] **[GATE]** `EXPO_PUBLIC_API_BASE_URL` de produção é **HTTPS**. 🟡 enforcement em código (`env.ts` lança); falta setar URL prod real
+- [ ] **[GATE]** `EXPO_PUBLIC_API_BASE_URL` de produção é **HTTPS**. 🟡 enforcement app-layer (`env.ts`) + SO (S2, manifest comprovado); ⚪ falta URL prod real + prova final em build EAS
+- [x] **[GATE]** Permissões Android mínimas. ✅ S1: manifest gerado auditado + `blockedPermissions` (`PLAYSTORE_COMPLIANCE.md`); ⚪ prova final de `targetSdk≥35` só em build EAS
 
 ## Checklist de conteúdo Play Console (docs/10 §3)
 

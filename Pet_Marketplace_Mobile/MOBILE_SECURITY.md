@@ -37,7 +37,7 @@ saúde completa do pet.
 | Câmera / microfone / arquivos / contatos | não usados na Fase 1 | não | — |
 | Notificações | só se push for ativado | não | app funciona sem push |
 
-⚠️ **[GATE]** Auditar libs do Bloco 3: nenhuma deve declarar permissão sensível implícita no manifest.
+✅ **[GATE]** Manifest auditado (S1, 2026-05-18 via `expo prebuild`): só `INTERNET` mantida; `READ/WRITE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`, `VIBRATE` bloqueadas via `app.json` `blockedPermissions` (`tools:node="remove"` no manifest gerado). Evidência: `PLAYSTORE_COMPLIANCE.md`. Reauditar a cada nova dep nativa.
 
 ## 4. Logs
 
@@ -50,6 +50,8 @@ saúde completa do pet.
 
 - **[GATE]** Produção: `EXPO_PUBLIC_API_BASE_URL` **HTTPS** obrigatório.
   ✅ Enforcement em código: `getApiBaseUrl()` lança se produção e não-HTTPS.
+  ✅ Enforcement no SO (S2): `usesCleartextTraffic=false` + network security
+  config (cleartext só loopback/emulador) via `plugins/with-network-security.js`.
   ⚪ Falta apenas definir a URL de produção real (HTTPS) no ambiente.
 - ✅ Token enviado só via header `Authorization: Bearer`, nunca em querystring/log.
 - ✅ Erros do backend não vazam detalhe interno ao usuário (mensagens seguras locais).
@@ -67,8 +69,8 @@ saúde completa do pet.
 - [x] **[GATE]** Secrets privados não estão no app nem no repo. ✅ verificado
 - [x] **[GATE]** Token em SecureStore. ✅ `token-store.ts` (testado)
 - [x] **[GATE]** `.env.example` sem valores reais. ✅
-- [x] **[GATE]** Permissões mínimas e justificadas. ✅ `app.json` `permissions: []`
+- [x] **[GATE]** Permissões mínimas e justificadas. ✅ S1: manifest gerado auditado, `blockedPermissions` aplicado (ver `PLAYSTORE_COMPLIANCE.md`)
 - [x] **[GATE]** Erros ao usuário não vazam detalhes internos. ✅ i18n + códigos seguros
 - [x] **[GATE]** Endereço/coordenadas de terceiros nunca expostos. ✅ por design (allow-list)
-- [x] HTTPS em produção. ✅ enforcement em código; ⚪ falta URL prod real
+- [x] HTTPS em produção. ✅ enforcement em código **+ SO** (S2); ⚪ falta URL prod real + prova em build EAS
 - [ ] Sentry/analytics (se houver) com mascaramento. ⚪ não adicionado (Fase 1)

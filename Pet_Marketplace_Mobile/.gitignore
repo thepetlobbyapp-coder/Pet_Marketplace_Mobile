@@ -1,0 +1,12 @@
+# Native gerado por expo prebuild — NUNCA commitar (mantém Expo managed).
+/android/
+/ios/
+
+# Expo / build
+.expo/
+dist/
+web-build/
+
+# Artefatos efêmeros de validação
+.tmp-export/
+.tmp-*/
