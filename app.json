@@ -7,7 +7,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "android": {
       "package": "app.thepetlobby.petmarketplace",
       "versionCode": 1,
@@ -32,7 +34,12 @@
       "typedRoutes": true
     },
     "extra": {
-      "note": "Fase 1: sem camera/microfone/arquivos/localizacao/push. Ver MOBILE_SECURITY.md"
-    }
+      "note": "Fase 1: sem camera/microfone/arquivos/localizacao/push. Ver MOBILE_SECURITY.md",
+      "router": {},
+      "eas": {
+        "projectId": "f28262e9-c276-4bbb-9c07-ebc49fbb900a"
+      }
+    },
+    "owner": "israel_souza"
   }
 }
