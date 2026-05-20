@@ -1,0 +1,100 @@
+# MOBILE_RELEASE — Pet Marketplace (Mobile, UK, Fase 1)
+
+> Gate de publicação Play Store. Fonte de regra: `docs/10_SPEC_PLAYSTORE_RELEASE.md`
+> e `docs/07_SPEC_MOBILE.md`. Este arquivo vive na raiz do app (NÃO em `docs/`,
+> que é sobrescrito por `scripts/sync-shared.sh`). Editar aqui.
+>
+> Legenda: ✅ feito · 🟡 parcial · ⚪ pendente · ⚠️ risco/bloqueador
+> **Regra de ouro:** nenhuma submissão à Play Store enquanto houver ⚪/⚠️ em
+> item marcado **[GATE]**.
+
+## Identidade do App
+
+| Campo | Valor | Status |
+|---|---|---|
+| Package name | `a definir` (ex.: `app.thepetlobby.petmarketplace`) — definitivo, imutável | ⚪ Bloco 3 |
+| App name (en-GB) | `a definir` | ⚪ Bloco 3 |
+| VersionName | semântico, ex. `0.1.0` | ⚪ Bloco 3 |
+| VersionCode | inteiro incremental | ⚪ Bloco 3 |
+| Canal inicial | Internal Testing → Closed → Production | ⚪ release |
+
+## Estado atual (Bloco 3 — 2026-05-18)
+
+- ✅ App Expo SDK 55 inicializado (Expo Router, TS, Jest, ESLint 9).
+- ✅ Camada base de sessão ligada à UI: SecureStore → `/api/v1/me` →
+  SessionProvider → guards de rota (sign-in/profile).
+- ✅ i18n en-GB (zero texto hardcoded/pt-BR no app).
+- ✅ Estados loading/blocked(403)/offline-erro/retry/sign-out tratados.
+- ✅ typecheck, lint, test (9), `expo export` Android: todos verdes.
+- ✅ Sem secrets/keystore no repo; `.env.example` só com vars públicas.
+- ✅ HTTPS forçado em produção: app-layer (`src/config/env.ts`) **+ SO** (S2: `usesCleartextTraffic=false` + network security config).
+- ✅ Permissões auditadas e travadas (S1: `blockedPermissions`; ver `PLAYSTORE_COMPLIANCE.md`).
+- 🟡 Ícone/splash usam default Expo (assets reais pendentes).
+- ⚪ EAS Build AAB assinado / Internal Testing — release.
+- ⚪ Login real (backend) e exclusão de conta — blocos futuros (4).
+
+## Checklist técnico Android (docs/10 §2)
+
+- [x] **[GATE]** Package name definitivo (`app.thepetlobby.petmarketplace`) e nome do app en-GB (`Pet Marketplace`). ✅
+- [ ] Ícone adaptativo + splash. 🟡 default Expo; assets reais pendentes
+- [x] VersionCode (`1`) / VersionName (`0.1.0`). ✅ definidos em `app.json`
+- [ ] Build **AAB** via EAS, assinatura gerenciada. ⚪ release (EAS)
+- [x] **[GATE]** Sem logs sensíveis. ✅ revalidado com UI/SecureStore
+- [x] **[GATE]** Sem secrets / chave privada no repo. ✅ verificado
+- [ ] **[GATE]** Sem crash em login/cadastro/fluxo principal. 🟡 testes verdes; falta device real
+- [ ] Funciona em telas/densidades comuns. ⚪ device real (Bloco smoke)
+- [ ] **[GATE]** `EXPO_PUBLIC_API_BASE_URL` de produção é **HTTPS**. 🟡 enforcement app-layer (`env.ts`) + SO (S2, manifest comprovado); ⚪ falta URL prod real + prova final em build EAS
+- [x] **[GATE]** Permissões Android mínimas. ✅ S1: manifest gerado auditado + `blockedPermissions` (`PLAYSTORE_COMPLIANCE.md`); ⚪ prova final de `targetSdk≥35` só em build EAS
+
+## Checklist de conteúdo Play Console (docs/10 §3)
+
+- [ ] Short + full description (en-GB). ⚪
+- [ ] Screenshots reais + feature graphic. ⚪
+- [ ] Categoria correta + e-mail de suporte. ⚪
+- [ ] **[GATE]** Política de privacidade pública (URL) coerente com docs/11. ⚪
+- [ ] Países de distribuição (UK) + público-alvo + classificação. ⚪
+- [ ] **[GATE]** Data Safety preenchido e **coerente com o app real**. ⚪
+- [ ] **[GATE]** Account deletion declarado (in-app + canal externo). ⚪ Bloco 4
+- [ ] **[GATE]** App access: contas de teste tutor/provider + instruções en-GB. ⚪
+
+## App Access para revisão (docs/10 §4)
+
+- [ ] Conta tutor de teste + senha estável.
+- [ ] Conta provider de teste + senha estável.
+- [ ] Ambiente estável e seedado; sem OTP impossível para revisor.
+- [ ] Nota ao revisor: "No real payment is processed in this app."
+- ⚠️ Não usar Supabase/contas reais; criar contas dedicadas de revisão.
+
+## Permissões (docs/10 §6, docs/07 §6)
+
+- [ ] **[GATE]** Fase 1 **sem** câmera, microfone, arquivos, contatos, localização background.
+- [ ] Busca por endereço digitado/geocodificado — **sem** permissão de localização.
+- [ ] Notificações só quando push for ativado (não na Fase 1 se não usado).
+- [ ] Toda permissão pedida no momento de uso, justificada em en-GB, com fallback.
+
+## Qualidade mínima — não enviar se houver (docs/10 §9)
+
+- [ ] crash em login/cadastro · [ ] tela vazia sem explicação · [ ] botão principal sem ação
+- [ ] permissão sem justificativa · [ ] política de privacidade ausente
+- [ ] Data Safety inconsistente · [ ] conta de teste inválida · [ ] conteúdo placeholder
+- [ ] **texto em português no app final** · [ ] promessa de pagamento/seguro/verificação
+
+## Etapas de release (docs/10 §10)
+
+1. Build local → 2. Emulador → 3. Device Android real → 4. EAS development →
+5. EAS preview/internal → 6. Internal Testing fechado → 7. Corrigir crashes →
+8. Preencher Play Console → 9. Submeter Internal → 10. Validar review →
+11. Closed Testing → 12. Produção.
+
+## Smoke antes de cada build de loja
+
+- [ ] Abrir app instalado · [ ] Login/logout · [ ] Restauração de sessão (token válido/expirado)
+- [ ] 401 limpa sessão · [ ] 403 bloqueia sem detalhe · [ ] Sem internet (estado claro)
+- [ ] Fluxo principal tutor · [ ] Fluxo principal provider · [ ] Exclusão de conta
+
+## Referências
+
+- User Data: https://support.google.com/googleplay/android-developer/answer/10144311
+- Data Safety: https://support.google.com/googleplay/android-developer/answer/10787469
+- Account deletion: https://support.google.com/googleplay/android-developer/answer/13327111
+- Core App Quality: https://developer.android.com/docs/quality-guidelines/core-app-quality

@@ -8,6 +8,7 @@ dist/
 build/
 .expo/
 .expo-shared/
+web-build/
 *.tsbuildinfo
 coverage/
 
@@ -29,6 +30,8 @@ Thumbs.db
 !.vscode/extensions.json
 
 # Mobile native secrets
+/android/
+/ios/
 *.keystore
 *.jks
 google-services.json
@@ -36,3 +39,7 @@ GoogleService-Info.plist
 
 # Local agent/debug artifacts
 .codex/BUG_Debugger/
+
+# Local validation artifacts
+.tmp-export/
+.tmp-*/
