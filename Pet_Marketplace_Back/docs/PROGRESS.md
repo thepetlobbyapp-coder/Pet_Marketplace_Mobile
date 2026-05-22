@@ -1147,3 +1147,51 @@ Considerar Bloco 4A fechado em local + DigitalOcean e abrir planejamento do Bloc
 ### Proximo passo recomendado
 Decidir se o Bloco 4B deve ser deployado na DigitalOcean e validado contra o
 banco real, e se um bloco seguinte deve cobrir a criacao de `tutor_profiles`.
+
+---
+
+## Checkpoint 023 - Bloco 4B deployado no Backend DigitalOcean
+
+- **Data/hora:** 2026-05-22 (America/Sao_Paulo)
+- **Tarefa atual:** Publicar e validar a Pets API (Bloco 4B) no Backend remoto.
+- **Agentes envolvidos:** E_DigitalOceanEnvironment, B_BackendDomain, V_Validation
+
+### Resumo
+- Delta do Bloco 4B aplicado na arvore de publicacao
+  `.publish/Pet_Marketplace_Back_DO_fix` (clone de
+  `thepetlobbyapp-coder/Pet_Marketplace_Back`, branch `main`).
+- Apenas os arquivos do Bloco 4B foram sincronizados (3 modificados + modulo
+  `src/pets/` + `test/pets.e2e-spec.ts`); nenhum runtime fix de DO foi tocado.
+- Commit publicado: `e9f93f2` (`feat: add tutor pets API (bloco 4B)`).
+- Deployment ativo: `23eb0637-0bea-4807-ba87-bc73d66c461c`, App Platform
+  `stingray-app`, dominio `https://stingray-app-vyfrt.ondigitalocean.app`.
+
+### Resultado das validacoes
+- Arvore de publicacao: `pnpm typecheck` / `pnpm lint` / `pnpm build` - passou.
+- Arvore de publicacao: `pnpm test:e2e` - passou (3 suites, 21 testes).
+- DigitalOcean `GET /api/v1/health` - HTTP 200.
+- Logs do deploy confirmaram `Mapped` das rotas `GET/POST/PATCH/DELETE`
+  `/api/v1/pets` e `/api/v1/pets/:id`.
+- Remoto `GET /api/v1/pets` autenticado - HTTP 200, corpo `[]`.
+- Remoto `GET /api/v1/pets` sem token - HTTP 401 `UNAUTHENTICATED`.
+- Remoto `POST/PATCH/DELETE /api/v1/pets` - HTTP 404 `NOT_FOUND` (usuario de
+  teste sem `tutor_profile`; comportamento esperado da lacuna do Checkpoint 022).
+
+### Validacao parcial assumida (decisao do usuario)
+- O usuario de teste autentica com sucesso mas nao possui `tutor_profile`, logo
+  o happy-path remoto de criar/editar/apagar pet e o teste negativo de allowlist
+  nao sao alcancaveis (o guard `requireTutorProfile` responde 404 antes).
+- Por decisao explicita, nenhum `tutor_profile` foi criado para o teste.
+- O happy-path completo `POST/PATCH/DELETE` sera validado contra producao
+  depois do Bloco 4C, que deve entregar o bootstrap de `tutor_profile`.
+
+### Guardrails mantidos
+- Nenhuma migration aplicada; nenhuma env var, plano, RLS ou auth rule alterada.
+- Mobile e Admin nao foram tocados.
+- Service role apenas server-side; nenhum segredo impresso.
+- A cobertura e2e local (3 suites, 21 testes) ja exercita owner access, payload
+  invalido e bloqueio de allowlist com `tutor_profile` mockado.
+
+### Proximo passo recomendado
+Executar o Bloco 4C (bootstrap de `tutor_profile` do usuario autenticado) e,
+em seguida, completar a validacao remota do happy-path da Pets API.
