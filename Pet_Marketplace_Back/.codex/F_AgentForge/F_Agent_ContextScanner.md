@@ -51,7 +51,8 @@ Frontend       → .codex/D_Design/D_Agent_Design.md
 Banco de dados → (verificar migrations, schemas, models)
 Seguranca      → .codex/S_Seguranca/S_Agent_SecurityValidator.toml
 Performance    → .codex/P_Performance/P_Agent_PerformanceValidator.toml
-DevOps/Infra   → .codex/E_Environment/E_Agent_Environment.md
+DevOps/Infra   → .codex/E_Environment/E_Agent_Environment.md (Vercel)
+DevOps/Infra   → .codex/E_Environment/E_Agent_DigitalOceanEnvironment.md (DigitalOcean)
 Mobile         → .codex/M_MobilePlaystore/M_Agent_MobilePlaystore.md
 Testes/QA      → .codex/Q_Quality/Q_Agent_TestEngineer.md
 BI/Metricas    → .codex/BI_Dashboards/BI_Agent_DashboardDesigner.md

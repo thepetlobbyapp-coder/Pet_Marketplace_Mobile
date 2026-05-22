@@ -175,6 +175,7 @@ Sempre escolher o agente mais adequado para cada momento:
 | Confirmar que a implementação foi bem feita | `V_Validation/V_Agent_FinalValidator.toml` |
 | Fechar um ciclo e documentar | `C10_Maestro/C10_DOCUMENTADOR.md` |
 | Configurar variáveis de ambiente Vercel | `E_Environment/E_Agent_Environment.md` |
+| Configurar variáveis, planos e App Platform DigitalOcean | `E_Environment/E_Agent_DigitalOceanEnvironment.md` |
 | Criar app React Native + Expo | `M_MobilePlaystore/M_Agent_MobilePlaystore.md` |
 | Validar performance e escalabilidade | `P_Performance/P_Agent_PerformanceValidator.toml` |
 | Definir testes e regressões | `Q_Quality/Q_Agent_TestEngineer.md` |

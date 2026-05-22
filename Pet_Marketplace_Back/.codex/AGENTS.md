@@ -15,7 +15,7 @@ Todo agente deve usar o prefixo semantico no nome da pasta e do arquivo:
 | `B_` | Backend, API e dominio | reservado |
 | `BI_` | Business Intelligence, metricas e dashboards | `BI_Dashboards/BI_Agent_DashboardDesigner.md` |
 | `D_` | Design, UX e frontend visual | `D_Design/D_Agent_Design.md` |
-| `E_` | Environment, secrets e deploy vars | `E_Environment/E_Agent_Environment.md` |
+| `E_` | Environment, secrets e deploy vars | `E_Environment/E_Agent_Environment.md`, `E_Environment/E_Agent_DigitalOceanEnvironment.md` |
 | `M_` | Mobile React Native + Expo | `M_MobilePlaystore/M_Agent_MobilePlaystore.md` |
 | `O_` | Observabilidade, deploy e operacao | `O_Observability/O_Agent_DeployObservability.md` |
 | `P_` | Performance e escalabilidade | `P_Performance/P_Agent_PerformanceValidator.toml` |
@@ -89,7 +89,7 @@ Use o prefixo para marcar rapido no chat:
 - `@A` para arquitetura.
 - `@BI` para dashboards, metricas e business intelligence.
 - `@D` para design/frontend visual.
-- `@E` para environment/Vercel/secrets.
+- `@E` para environment/Vercel/DigitalOcean/secrets.
 - `@M` para mobile Expo/Play Store.
 - `@P` para performance.
 - `@PR` para transformar ideias em prompts cirurgicos.
