@@ -1195,3 +1195,416 @@ banco real, e se um bloco seguinte deve cobrir a criacao de `tutor_profiles`.
 ### Proximo passo recomendado
 Executar o Bloco 4C (bootstrap de `tutor_profile` do usuario autenticado) e,
 em seguida, completar a validacao remota do happy-path da Pets API.
+
+---
+
+## Checkpoint 024 - Plano Backend 4C Tutor profile minimo
+
+- **Data/hora:** 2026-05-22 11:14 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Diagnosticar contrato existente para Tutor profile antes de Mobile avancar.
+- **Escopo:** leitura de controllers/DTOs/services/tipos, diagnostico remoto sem token e documentacao. Nenhum codigo Backend, migration, RLS, deploy, secret ou dado real foi alterado.
+
+### Diagnostico
+- `GET /api/v1/me` ja retorna `profiles.tutor` quando existe `tutor_profiles` para o usuario.
+- `PATCH /api/v1/me` continua limitado a `locale`.
+- `SupabaseAdminService.loadTutorProfile(userId)` le `id,display_name` de `tutor_profiles`.
+- Nao existe controller, DTO ou metodo publico para criar/editar `tutor_profiles`.
+- A tabela `tutor_profiles` existe e `user_id` ja e `unique`, portanto o contrato pode ser implementado sem migration nova se o recorte ficar em `display_name`.
+
+### Diagnostico HTTP remoto sem token
+- `GET /api/v1/me` -> HTTP 401 `UNAUTHENTICATED`.
+- `GET /api/v1/pets` -> HTTP 401 `UNAUTHENTICATED`.
+- `GET /api/v1/tutor-profile` -> HTTP 404 `NOT_FOUND`.
+- `GET /api/v1/tutor-profiles` -> HTTP 404 `NOT_FOUND`.
+- `GET /api/v1/profiles/tutor` -> HTTP 404 `NOT_FOUND`.
+- `GET /api/v1/me/tutor-profile` -> HTTP 404 `NOT_FOUND`.
+
+### Contrato proposto
+- Criar controller autenticado sob `me/tutor-profile`:
+  - `POST /api/v1/me/tutor-profile`: cria tutor profile do usuario autenticado.
+  - `PATCH /api/v1/me/tutor-profile`: atualiza tutor profile do usuario autenticado.
+- Manter leitura primaria pelo contrato atual:
+  - `GET /api/v1/me` deve refletir o tutor profile criado/editado.
+
+### Payload permitido
+- `displayName: string`.
+
+### Campos proibidos
+- `id`
+- `userId` / `user_id`
+- `defaultAddressId` / `default_address_id`
+- `address`, `location`, `coordinates`
+- `phone`, `email`
+- `roles`, `status`
+- `provider`, `pets`
+- `createdAt`, `updatedAt`, `deletedAt`
+- `metadata`
+- qualquer campo fora da allowlist.
+
+### Validacoes
+- Auth obrigatoria via guard atual.
+- Usuario precisa estar ativo e nao deletado, conforme fluxo atual de auth.
+- Body deve ser objeto JSON.
+- Allowlist estrita.
+- `POST`: `displayName` obrigatorio; retorna `409` seguro se ja existir tutor profile.
+- `PATCH`: pelo menos um campo permitido; retorna `404` seguro se nao existir tutor profile.
+- `displayName`: trim, string nao vazia, limite sugerido 80 caracteres.
+- Escrita sempre escopada por `CurrentUser.id`; cliente nunca informa `user_id`.
+- Resposta segura: `{ id, displayName, createdAt?, updatedAt? }` ou `MeResponseDto`, sem `user_id`, endereco, telefone, roles/status editaveis, tokens ou service role.
+
+### Riscos
+- Este bloco desbloqueia o happy-path remoto da Pets API; validar em seguida com usuario de teste aprovado.
+- Conflito por `tutor_profiles.user_id unique` deve virar erro de dominio seguro, nao 500.
+- Nao misturar default address/geolocalizacao neste bloco.
+- Nao misturar provider onboarding neste bloco.
+
+### Testes necessarios
+- E2E de create com usuario autenticado sem tutor profile.
+- E2E de update com tutor profile existente.
+- E2E de `/me` refletindo `profiles.tutor` apos create/update.
+- E2E de duplicate create retornando conflito seguro.
+- E2E de patch sem perfil retornando 404 seguro.
+- E2E de body invalido: vazio, nao objeto, `displayName` vazio/tipo invalido/longo.
+- E2E de allowlist rejeitando campos proibidos.
+- Assercao de resposta sem `user_id`, endereco, telefone, tokens, service role, roles/status editaveis.
+
+### Checkpoint
+- Proximo passo correto e implementar Backend 4C apenas apos aprovacao explicita.
+- Mobile nao deve implementar Tutor profile antes deste contrato existir.
+- Nenhuma validacao `pnpm` foi rodada porque este checkpoint alterou apenas documentacao.
+
+---
+
+## Checkpoint 025 - Backend 4C Tutor profile minimo implementado
+
+- **Data/hora:** 2026-05-22 11:22 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Implementar o contrato minimo de `me/tutor-profile`.
+- **Escopo:** Backend local e docs. Nenhum deploy, segredo, env privada, migration, RLS, schema, Mobile ou Admin foi alterado.
+
+### Contrato implementado
+- `POST /api/v1/me/tutor-profile`
+  - Cria `tutor_profiles` para o usuario autenticado quando ainda nao existe.
+  - Retorna `409 CONFLICT` seguro se o usuario ja possui tutor profile.
+- `PATCH /api/v1/me/tutor-profile`
+  - Atualiza `displayName` do tutor profile do usuario autenticado.
+  - Retorna `404 NOT_FOUND` seguro se o usuario ainda nao possui tutor profile.
+- `GET /api/v1/me`
+  - Mantido como fonte de leitura; os testes cobrem que `profiles.tutor` reflete create/update.
+
+### Payload e resposta
+- Payload permitido:
+  - `displayName`
+- Validacoes:
+  - body objeto JSON;
+  - allowlist estrita;
+  - `displayName` string, trim, nao vazio, ate 80 caracteres;
+  - body vazio rejeitado no `PATCH`.
+- Resposta segura:
+  - `id`
+  - `displayName`
+  - `createdAt`
+  - `updatedAt`
+- Campos proibidos seguem fora da resposta: `user_id`, endereco/localizacao, telefone, tokens, service role, metadata, roles/status editaveis.
+
+### Implementacao
+- Novo DTO/helper manual:
+  - `src/users/dto/tutor-profile.dto.ts`
+- Rotas adicionadas ao controller existente:
+  - `src/users/users.controller.ts`
+- Escritas server-side com Supabase service role encapsulada:
+  - `SupabaseAdminService.createOwnTutorProfile`
+  - `SupabaseAdminService.updateOwnTutorProfile`
+- Nao houve migration/schema change porque a tabela `tutor_profiles` e `user_id unique` ja existem.
+
+### Testes adicionados
+- Create de tutor profile para usuario sem perfil.
+- Update de `displayName` para usuario com perfil.
+- `/me` refletindo `profiles.tutor` apos create/update.
+- Create duplicado com `409`.
+- Patch sem perfil com `404`.
+- Bodies invalidos: nao objeto, vazio, `displayName` vazio/tipo invalido/longo.
+- Campos fora da allowlist rejeitados.
+- Resposta sem campos internos/sensiveis.
+
+### Validacoes
+- `pnpm typecheck` - passou.
+- `pnpm lint` - passou.
+- `pnpm build` - passou.
+- `pnpm test:e2e` - passou (3 suites, 32 testes).
+- Observacao: os comandos emitiram apenas o aviso de engine local `node v24.12.0` versus `node 22.x` declarado no Backend.
+
+### Guardrails mantidos
+- Nenhum token, service role, `DATABASE_URL`, senha ou JWT foi impresso.
+- Nenhum deploy foi feito.
+- Nenhum dado real foi criado.
+- Nenhum escopo de provider, endereco, pets Mobile, booking, chat, upload ou pagamentos foi aberto.
+
+### Proximo passo recomendado
+Revisar e aprovar deploy do Backend 4C na DigitalOcean. Depois do deploy, validar remotamente create/update de tutor profile, confirmar `/me` com `profiles.tutor` e completar o happy-path remoto da Pets API.
+
+---
+
+## Checkpoint 026 - Backend 4C publicado na DigitalOcean
+
+- **Data/hora:** 2026-05-22 11:38 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Publicar o contrato `POST/PATCH /api/v1/me/tutor-profile` no Backend remoto e validar com usuario de teste aprovado.
+- **Escopo:** `.publish/Pet_Marketplace_Back_DO_fix`, repo fonte do Backend, DigitalOcean App Platform e smokes HTTP remotos. Nenhum Mobile/Admin/secret/env privada/migration/RLS/schema foi alterado.
+
+### Publicacao
+- Repo fonte: `thepetlobbyapp-coder/Pet_Marketplace_Back`, branch `main`.
+- Commit publicado: `76d6f75` (`feat: add tutor profile bootstrap API`).
+- App Platform: `stingray-app`.
+- Service: `pet-marketplace-back`.
+- Dominio: `https://stingray-app-vyfrt.ondigitalocean.app`.
+- Deploy ativo: `1e0c8309-7f5c-4925-9308-48f97ce9c5a9`.
+
+### Validacoes pre-push
+- Arvore de publicacao `pnpm typecheck` - passou.
+- Arvore de publicacao `pnpm lint` - passou.
+- Arvore de publicacao `pnpm build` - passou.
+- Arvore de publicacao `pnpm test:e2e` - passou (3 suites, 32 testes).
+- Observacao: aviso nao bloqueante de engine local `node v24.12.0` versus `node 22.x`.
+
+### Validacoes remotas
+- `GET /api/v1/health` - HTTP 200, `status=ok`.
+- `OPTIONS /api/v1/me/tutor-profile` metodo `POST`, `Origin: http://localhost:8082` - HTTP 204 com CORS ok.
+- `OPTIONS /api/v1/me/tutor-profile` metodo `PATCH`, `Origin: http://localhost:8082` - HTTP 204 com CORS ok.
+- Token salvo estava expirado; renovacao feita somente em memoria com usuario de teste aprovado, sem imprimir token.
+- `GET /api/v1/me` autenticado antes do create - HTTP 200, sem `profiles.tutor`.
+- `POST /api/v1/me/tutor-profile` - HTTP 201.
+- `GET /api/v1/me` apos create - HTTP 200, com `profiles.tutor`.
+- `PATCH /api/v1/me/tutor-profile` temporario - HTTP 200.
+- `GET /api/v1/me` apos PATCH - HTTP 200, alteracao refletida.
+- Restauracao do displayName de teste criado - HTTP 200.
+- `PATCH /api/v1/me/tutor-profile` com campos proibidos (`userId`, `defaultAddressId`, `metadata`) - HTTP 400 `VALIDATION_ERROR`.
+
+### Guardrails
+- Nenhum token, senha, service role, `DATABASE_URL` ou JWT foi impresso.
+- Nenhuma env privada foi alterada.
+- Nenhuma migration/RLS/schema foi criada ou aplicada.
+- Nenhum Mobile/Admin foi tocado.
+- O unico dado real criado foi o `tutor_profile` do usuario de teste aprovado, necessario para validar o contrato 4C publicado.
+
+### Proximo passo recomendado
+Validar o happy-path remoto da Pets API com o usuario de teste agora com `tutor_profile`, sem tocar Mobile. Depois disso, planejar separadamente o menor recorte Mobile que consome o Tutor profile real.
+
+---
+
+## Checkpoint 027 - Pets API happy-path remoto validado
+
+- **Data/hora:** 2026-05-22 11:43 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Completar a validacao remota da Pets API agora que o usuario de teste possui `tutor_profile`.
+- **Escopo:** chamadas HTTP ao Backend DigitalOcean e docs. Nenhum codigo, deploy, env privada, migration, RLS, schema, Mobile ou Admin foi alterado.
+
+### Baseline
+- `GET /api/v1/health` - HTTP 200, `status=ok`.
+- Token de teste renovado somente em memoria; nenhum token/JWT foi impresso ou salvo.
+- `GET /api/v1/me` autenticado - HTTP 200.
+- `/me` confirmou usuario `active`, role `tutor` e `profiles.tutor` presente.
+
+### Happy-path validado
+- `GET /api/v1/pets` inicial - HTTP 200, `0` pets.
+- `POST /api/v1/pets` - HTTP 201, criou pet temporario controlado.
+- `GET /api/v1/pets` apos create - HTTP 200, pet criado presente.
+- `PATCH /api/v1/pets/:id` - HTTP 200, alteracao de `name` refletida.
+- `GET /api/v1/pets` apos patch - HTTP 200, confirmou nome atualizado.
+- `DELETE /api/v1/pets/:id` - HTTP 204.
+- `GET /api/v1/pets` final - HTTP 200, `0` pets; pet temporario nao aparece.
+
+### Negativos validados
+- `PATCH /api/v1/pets/:id` com `deletedAt` - HTTP 400 `VALIDATION_ERROR`.
+- `POST /api/v1/pets` com `tutorProfileId` - HTTP 400 `VALIDATION_ERROR`.
+- `GET /api/v1/pets` sem token - HTTP 401 `UNAUTHENTICATED`.
+
+### Guardrails
+- Nenhum segredo foi impresso.
+- IDs foram mascarados no smoke.
+- Nenhum dado temporario de pet ficou ativo.
+- Nenhum Mobile/Admin foi tocado.
+- Nenhuma alteracao de schema/RLS/migration/deploy foi feita.
+
+### Proximo passo recomendado
+Com Backend 4B/4C remotos validados, planejar o menor recorte Mobile real: editar Tutor profile `displayName` ou listar/criar pets usando contratos existentes, com decisao explicita antes de implementar.
+
+---
+
+## Checkpoint 028 - Backend 4E endereco/localizacao minima
+
+- **Data/hora:** 2026-05-22 13:31 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Implementar contrato Backend minimo de enderecos proprios.
+- **Escopo:** Backend local e docs de progresso. Mobile/Admin/deploy/secrets/env privada/migrations/RLS/schema/geocoding/Search/Booking/provider onboarding nao foram tocados.
+
+### Contrato implementado
+- `GET /api/v1/addresses`
+  - Lista enderecos do usuario autenticado.
+  - Retorna somente campos seguros.
+- `POST /api/v1/addresses`
+  - Cria endereco/regiao do proprio usuario.
+  - Escrita sempre escopada por `CurrentUser.id`.
+  - Suporta `setAsDefaultTutorAddress=true` apenas quando o usuario tem tutor profile.
+- `PATCH /api/v1/addresses/:id`
+  - Atualiza endereco do proprio usuario.
+  - Retorna `404 NOT_FOUND` se o endereco nao existir ou nao pertencer ao usuario.
+
+### Payload permitido
+- `label`
+- `countryCode`
+- `city`
+- `postcode`
+- `publicAreaLabel`
+- `latitude`
+- `longitude`
+- `locationPrecision`
+- `setAsDefaultTutorAddress`
+
+### Guardrails de validacao
+- Body precisa ser objeto JSON.
+- Allowlist estrita rejeita campos fora do contrato.
+- `latitude` e `longitude` sao obrigatorios no `POST` e devem ser atualizados juntos no `PATCH`.
+- Coordenadas precisam ser numericas, finitas e dentro do range UK aproximado: latitude `49..61`, longitude `-9..2`.
+- `countryCode` aceita apenas `GB`.
+- `locationPrecision` aceita apenas `postcode` ou `approximate`; `exact` e rejeitado neste bloco.
+- Strings passam por `trim`; limites aplicados: label 60, city 120, postcode 16, publicAreaLabel 160.
+- `POST` exige pelo menos um campo legivel entre `postcode`, `city` e `publicAreaLabel`.
+- `provider_profiles.base_address_id` nao e tocado.
+- `/addresses/geocode` nao foi criado.
+
+### Resposta segura
+- Retorna: `id`, `label`, `countryCode`, `city`, `postcode`, `publicAreaLabel`, `locationPrecision`, `isDefaultTutorAddress`, `createdAt`, `updatedAt`.
+- Nao retorna: `user_id`, `line1`, `formatted_address`, `location`, coordenadas, `default_address_id`, `base_address_id`, dados de provider, telefone/e-mail, tokens/secrets ou metadata.
+
+### Implementacao
+- Criado `AddressesModule`.
+- Criado `AddressesController`.
+- Criados DTOs/helpers de create, update, response e campos.
+- `database.types.ts` recebeu a tabela `addresses` e enum `location_precision`.
+- `SupabaseAdminService` recebeu list/create/update de enderecos proprios.
+- Persistencia de `location` usa EWKT `SRID=4326;POINT(lng lat)` para preencher a coluna PostGIS existente sem migration nova.
+
+### Arquivos alterados
+- `Pet_Marketplace_Back/src/app.module.ts`
+- `Pet_Marketplace_Back/src/addresses/addresses.module.ts`
+- `Pet_Marketplace_Back/src/addresses/addresses.controller.ts`
+- `Pet_Marketplace_Back/src/addresses/dto/address-fields.ts`
+- `Pet_Marketplace_Back/src/addresses/dto/address-response.dto.ts`
+- `Pet_Marketplace_Back/src/addresses/dto/create-address-request.dto.ts`
+- `Pet_Marketplace_Back/src/addresses/dto/update-address-request.dto.ts`
+- `Pet_Marketplace_Back/src/common/supabase/database.types.ts`
+- `Pet_Marketplace_Back/src/common/supabase/supabase-admin.service.ts`
+- `Pet_Marketplace_Back/test/addresses.e2e-spec.ts`
+- `Pet_Marketplace_Back/docs/PROGRESS.md`
+- `docs/PROGRESS.md`
+
+### Validacoes
+- Backend `pnpm typecheck` - passou.
+- Backend `pnpm lint` - passou.
+- Backend `pnpm build` - passou.
+- Backend `pnpm test:e2e` - passou (4 suites, 48 testes).
+- Observacao: os comandos emitiram apenas o aviso de engine local `node v24.12.0` versus `node 22.x` declarado no Backend.
+
+### Diagnostico remoto seguro
+- Sem deploy neste ciclo.
+- `GET /api/v1/addresses` sem token no Backend remoto atual ainda retorna HTTP 404, como esperado antes da publicacao.
+- Nenhum token, senha, JWT, email completo, Authorization header, service role, `DATABASE_URL` ou secret foi impresso.
+
+### Proximo passo recomendado
+Revisar diff e, se aprovado, publicar o Backend 4E na DigitalOcean. Apos deploy, validar remotamente que `/api/v1/addresses` passa de 404 para 401 sem token e executar smoke autenticado controlado de create/list/patch, removendo qualquer dado temporario manualmente se necessario.
+
+---
+
+## Checkpoint 029 - Validacao pre-deploy Backend 4E
+
+- **Data/hora:** 2026-05-22 13:42 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Validar impacto, seguranca, performance e plano de publicacao do Backend 4E antes de deploy.
+- **Escopo:** leitura de diff/codigo/testes/docs, validacoes locais, probe remoto sem token e query read-only de PostGIS. Nenhum deploy, Mobile, Admin, secret/env privada, migration/RLS/schema, geocoding, Search, Booking ou provider onboarding foi alterado.
+
+### Veredito
+- Resultado: **APROVADO PARA DEPLOY**, com smoke remoto autenticado obrigatorio apos publicacao.
+- Nenhum bloqueio pre-deploy foi encontrado.
+
+### Validacao por camadas
+- Contrato/API: `GET/POST/PATCH /api/v1/addresses` e aditivo; nao quebra `/me`, `/pets` ou `/me/tutor-profile`.
+- Interface interna: segue padrao local de controllers, DTOs manuais, `DomainException`, `ErrorCode`, `SupabaseAdminService` e e2e.
+- Banco/schema: usa tabela `addresses` existente; sem migration. `location` e preenchida por EWKT e uma query read-only confirmou cast PostGIS OK.
+- Mobile/consumidores: nenhum consumidor Mobile existe ainda; Mobile/Admin seguem intocados.
+- Seguranca: auth global obrigatoria; usuario `blocked/deleted` segue bloqueado; escrita/leitura escopada por `CurrentUser.id`; resposta nao expoe coordenadas, PostGIS raw, endereco completo, `user_id`, telefone/e-mail, provider data ou secrets.
+- Performance: queries por `addresses.user_id` usam indice existente; `addresses_location_gix` segue reservado para Search futura; sem N+1 relevante. Sem paginacao aprovado neste recorte por baixo volume esperado de enderecos proprios.
+- Observabilidade: logs registram apenas codigo de erro Supabase e mensagem generica, sem payload/PII.
+
+### Validacoes executadas
+- Backend `pnpm typecheck` - passou.
+- Backend `pnpm lint` - passou.
+- Backend `pnpm build` - passou.
+- Backend `pnpm test:e2e` - passou (4 suites, 48 testes).
+- Read-only PostGIS: cast `SRID=4326;POINT(lng lat)` para `geography` retornou OK.
+- Probe remoto sem token: `GET /api/v1/addresses` ainda retorna HTTP 404 antes do deploy, esperado.
+- Observacao: comandos locais emitiram apenas o aviso conhecido de engine `node v24.12.0` versus `node 22.x`.
+
+### Plano de deploy recomendado
+1. Revisar diff final do Backend 4E.
+2. Preparar arvore de publicacao usada nos ciclos anteriores.
+3. Rodar na arvore de publicacao: `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test:e2e`.
+4. Publicar somente apos aprovacao explicita do usuario.
+5. Validar remoto sem token:
+   - `GET /api/v1/addresses` deve passar de HTTP 404 para HTTP 401.
+6. Validar CORS/preflight se o proximo ciclo for Mobile.
+7. Smoke autenticado controlado:
+   - `GET /addresses`
+   - `POST /addresses` com endereco temporario aproximado
+   - `PATCH /addresses/:id`
+   - `GET /addresses` final confirmando resposta segura
+   - limpar/remover dado temporario manualmente se necessario, ja que nao ha DELETE publico neste contrato.
+
+### Rollback
+- Reverter deploy do Backend para o commit anterior publicado.
+- Nao ha rollback de banco porque nao houve migration/schema/RLS.
+- Caso algum endereco temporario seja criado no smoke, remover manualmente via caminho administrativo seguro, sem imprimir dados sensiveis.
+
+---
+
+## Checkpoint 030 - Backend 4E publicado na DigitalOcean
+
+- **Data/hora:** 2026-05-22 13:53 -03:00 (America/Sao_Paulo)
+- **Tarefa atual:** Publicar o contrato minimo `GET/POST/PATCH /api/v1/addresses` no Backend remoto e validar com usuario de teste aprovado.
+- **Escopo:** `.publish/Pet_Marketplace_Back_DO_fix`, repo fonte do Backend, DigitalOcean App Platform e smokes HTTP remotos. Nenhum Mobile/Admin/secret/env privada/migration/RLS/schema/geocoding/Search/Booking/provider onboarding foi alterado.
+
+### Publicacao
+- Repo fonte: `thepetlobbyapp-coder/Pet_Marketplace_Back`, branch `main`.
+- Commit publicado: `fbb2cc0` (`feat: add own addresses API`).
+- App Platform: `stingray-app`.
+- Service: `pet-marketplace-back`.
+- Dominio: `https://stingray-app-vyfrt.ondigitalocean.app`.
+- Deploy ativo: `80f76f3e-be41-4672-9874-52354560f192`.
+- Deploy anterior: `1e0c8309-7f5c-4925-9308-48f97ce9c5a9`, agora `SUPERSEDED`.
+
+### Validacoes pre-push
+- Arvore de publicacao `pnpm typecheck` - passou.
+- Arvore de publicacao `pnpm lint` - passou.
+- Arvore de publicacao `pnpm build` - passou.
+- Arvore de publicacao `pnpm test:e2e` - passou (4 suites, 48 testes).
+- Observacao: aviso nao bloqueante de engine local `node v24.12.0` versus `node 22.x`.
+
+### Validacoes remotas
+- `GET /api/v1/health` - HTTP 200.
+- `GET /api/v1/addresses` sem token - HTTP 401.
+- `OPTIONS /api/v1/addresses` metodo `POST`, `Origin: http://localhost:8082`, headers `authorization,content-type` - HTTP 204 com CORS ok.
+- Smoke autenticado, token somente em memoria:
+  - `GET /api/v1/me` - HTTP 200.
+  - `GET /api/v1/addresses` inicial - HTTP 200, 0 enderecos.
+  - `POST /api/v1/addresses` - HTTP 201.
+  - `PATCH /api/v1/addresses/:id` - HTTP 200.
+  - `GET /api/v1/addresses` apos create/patch - HTTP 200, endereco temporario visivel.
+  - `POST /api/v1/addresses` com `locationPrecision: exact` - HTTP 400 `VALIDATION_ERROR`.
+  - `POST /api/v1/addresses` com campos proibidos - HTTP 400 `VALIDATION_ERROR`.
+- Respostas nao expuseram `user_id`, `line1`, `formatted_address`, `location`, coordenadas, `default_address_id`, `base_address_id`, provider data, telefone/e-mail, tokens ou metadata.
+- Cleanup confirmado: endereco temporario removido via service role em memoria; lista autenticada final voltou a HTTP 200 com 0 enderecos.
+
+### Guardrails
+- Nenhum token, senha, JWT, Authorization header, e-mail completo, service role, `DATABASE_URL` ou secret foi impresso.
+- Nenhuma env privada foi alterada.
+- Nenhuma migration/RLS/schema foi criada ou aplicada.
+- Nenhum Mobile/Admin foi tocado.
+- Geocoding, Search, Booking e provider onboarding seguem fora.
+
+### Proximo passo recomendado
+Planejar o menor recorte Mobile 4E para Profile/onboarding consumir o contrato remoto de enderecos, mantendo coordenadas exatas fora da UI e sem abrir Search/geocoding/provider onboarding.

@@ -1,5 +1,10 @@
 # Auditoria Detalhada dos Agentes
 
+Nota de versao: esta auditoria registra a lapidacao de 2026-05-05 e foi
+preservada como historico. O contrato operacional atual do portfolio esta em
+`AGENTS.md`, e o plano/guia atualizado de 2026-05-22 esta em
+`PLANO_LAPIDACAO_E_GUIA_AGENTES_2026-05-22.md`.
+
 Data da auditoria: 2026-05-05
 
 Atualizacao de lapidacao: 2026-05-05
@@ -109,6 +114,30 @@ Riscos encontrados:
 
 Recomendacao:
 - Usar com validacao atualizada quando for operar em producao.
+
+### `E_Environment/E_Agent_DigitalOceanEnvironment.md`
+
+Status: criado para cobrir DigitalOcean com foco em App Platform, variaveis,
+secrets, app spec, planos, custo e validacao frontend/backend.
+
+O que faz bem:
+- Separa app-level envs de component-level envs.
+- Exige scope correto (`BUILD_TIME`, `RUN_TIME`, `RUN_AND_BUILD_TIME`) e tipo
+  correto (`GENERAL`, `SECRET`).
+- Usa documentacao oficial como base, mas exige verificacao live de planos antes
+  de recomendar custo em producao.
+- Cobre App Platform, Droplets, Managed Databases, Spaces e Load Balancers no
+  nivel necessario para escolher arquitetura/plano.
+
+Riscos encontrados:
+- Planos e precos da DigitalOcean mudam; o snapshot local nao deve ser tratado
+  como verdade eterna.
+- App Platform e Droplets tem responsabilidades operacionais diferentes. O agente
+  precisa declarar esse trade-off antes de recomendar self-managed.
+
+Recomendacao:
+- Usar este agente quando o projeto estiver na DigitalOcean ou migrando para ela.
+- Para Vercel, continuar usando `E_Environment/E_Agent_Environment.md`.
 
 ### `C10_Maestro/C10_CAMISA10.md`
 

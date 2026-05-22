@@ -1,5 +1,9 @@
 # Guia Completo do Codex Agent Kit
 
+Nota de versao: este guia foi gerado em 2026-05-05 e esta preservado como
+referencia historica. Para o portfolio atualizado, use primeiro `AGENTS.md` e
+`PLANO_LAPIDACAO_E_GUIA_AGENTES_2026-05-22.md`.
+
 Gerado em: 2026-05-05
 
 Este guia mapeia todos os arquivos da pasta `.codex`, explica o papel de cada agente/template/referencia e indica quando usar cada um para ser mais assertivo.

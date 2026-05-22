@@ -40,3 +40,9 @@ GoogleService-Info.plist
 
 # Claude Code local harness
 .claude/
+
+# Local agent/debug artifacts
+**/.codex/BUG_Debugger/
+
+# Local publish staging
+.publish/

@@ -180,6 +180,20 @@ Sempre escolher o agente mais adequado para cada momento:
 | Validar performance e escalabilidade | `P_Performance/P_Agent_PerformanceValidator.toml` |
 | Definir testes e regressões | `Q_Quality/Q_Agent_TestEngineer.md` |
 | Planejar observabilidade/deploy | `O_Observability/O_Agent_DeployObservability.md` |
+| Selecionar o time ideal de agentes | `SUP_Supervisor/SUP_PICK_AgentSelector.md` |
+| Validar credenciais antes de acesso externo | `SUP_Supervisor/SUP_CRED_AccessGatekeeper.md` |
+| Validar arquitetura e contratos | `A_Architecture/A_Agent_CrossStackArchitect.md` |
+| Criar backend, API, DTOs e regras de dominio | `B_BackendDomain/B_Agent_BackendDomain.md` |
+| Criar dashboards, metricas e BI | `BI_Dashboards/BI_Agent_DashboardDesigner.md` |
+| Diagnosticar e corrigir bugs | `BUG_Debugger/BUG_Agent_Debugger.md` |
+| Criar agente sob demanda | `F_AgentForge/F_Agent_Foreman.md` |
+| Modelar localizacao, enderecos e proximidade | `GEO_Location/GEO_Agent_Location.md` |
+| Estruturar i18n, ingles de produto e UX writing | `I18N_LocalizationUX/I18N_Agent_LocalizationUX.md` |
+| Planejar denuncias, moderacao e trust & safety | `MOD_TrustSafety/MOD_Agent_TrustSafety.md` |
+| Planejar pagamentos e marketplace financeiro | `PAY_PaymentsMarketplace/PAY_Agent_PaymentsMarketplace.md` |
+| Refinar pedido ou gerar prompt cirurgico | `PR_PromptOps/PR_Agent_PromptRefiner_v2.md` |
+| Revisar compliance UK, Play Store e pet care | `UK_CompliancePetCare/UK_Agent_CompliancePetCare.md` |
+| Auditar processo, riscos, padroes, fluxo e ambientes | `SUP_Supervisor/SUP_INTEGRATION_GUIDE.md` |
 | Qualquer especialidade presente na .codex/ | O agente correspondente |
 
 Quando orientar o usuário a mudar de agente, sempre dizer:

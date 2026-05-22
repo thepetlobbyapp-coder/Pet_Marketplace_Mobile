@@ -12,6 +12,10 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PetsModule } from './pets/pets.module';
+import { AddressesModule } from './addresses/addresses.module';
+import { ProvidersModule } from './providers/providers.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { ConversationsModule } from './conversations/conversations.module';
 
 /**
  * Composição raiz — Bloco 1.
@@ -32,6 +36,10 @@ import { PetsModule } from './pets/pets.module';
     AuthModule,
     UsersModule,
     PetsModule,
+    AddressesModule,
+    ProvidersModule,
+    BookingsModule,
+    ConversationsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

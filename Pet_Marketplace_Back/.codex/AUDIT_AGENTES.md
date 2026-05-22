@@ -1,5 +1,10 @@
 # Auditoria Detalhada dos Agentes
 
+Nota de versao: esta auditoria registra a lapidacao de 2026-05-05 e foi
+preservada como historico. O contrato operacional atual do portfolio esta em
+`AGENTS.md`, e o plano/guia atualizado de 2026-05-22 esta em
+`PLANO_LAPIDACAO_E_GUIA_AGENTES_2026-05-22.md`.
+
 Data da auditoria: 2026-05-05
 
 Atualizacao de lapidacao: 2026-05-05

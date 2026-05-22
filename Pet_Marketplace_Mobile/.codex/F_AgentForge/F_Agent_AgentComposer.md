@@ -168,6 +168,10 @@ Exemplos de costura:
   → Contexto diz "deploy na Vercel"
   → Agente final diz "verificar vercel.json e env vars no dashboard"
 
+- Blueprint diz "verificar deploy"
+  → Contexto diz "deploy na DigitalOcean App Platform"
+  → Agente final diz "verificar app spec, component envs, scopes e instance_size_slug"
+
 ### Passo 4 — Injetar DNA da .codex/
 
 Todo agente criado pela fabrica deve ter o DNA do ecossistema:
