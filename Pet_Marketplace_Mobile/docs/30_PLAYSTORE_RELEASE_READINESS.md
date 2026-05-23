@@ -104,16 +104,21 @@ Declarar no Play Console exatamente o que o app coleta. Estado atual:
 
 ---
 
-## 7. Exclusão de conta — BLOCKER de release
+## 7. Exclusão de conta — BLOCKER **ATIVO** de release
 
 A Play Store exige, para apps com criação de conta:
 1. Caminho **in-app** para solicitar/realizar exclusão de conta e dados.
 2. Link **web funcional** para solicitar exclusão após desinstalar o app.
 
-Estado atual: `app/(tabs)/settings.tsx` tem apenas um card informativo estático.
+**Estado atual: ATIVO.** O commit `4bbcb4b` (Checkpoint 044) habilitou
+`signUp` real via Supabase em `app/(auth)/sign-up.tsx`. O app **passou a
+criar contas** — portanto a exigência de exclusão de conta deixou de ser
+teórica. Hoje `app/(tabs)/settings.tsx` ainda mostra apenas um card
+informativo estático.
 
 **Ação necessária (depende de backend):** ver o prompt de backend ao final
-deste documento. Sem isso, o release de produção fica bloqueado.
+deste documento. Sem isso, o release de produção fica bloqueado. A demo
+ao cliente segue liberada.
 
 ---
 
@@ -156,14 +161,14 @@ Sem lorem ipsum, sem botão morto, sem claim não suportado.
 
 ## 11. Blockers e pendências
 
-| # | Item | Tipo | Bloqueia produção? |
-|---|---|---|---|
-| 1 | Exclusão de conta in-app + link web | Backend + Mobile | **Sim** |
-| 2 | Backends de prestadores/reservas/chat (telas usam `DEMO SEED`) | Backend | Sim — não publicar com dados fake como reais |
-| 3 | PNG dedicado de icon/splash 1024×1024 | Asset/design | Sim |
-| 4 | `eas build` com conta Expo + keystore | Infra | Sim |
-| 5 | Privacy policy publicada em URL pública | Conteúdo/infra | Sim |
-| 6 | Definir faixa etária e público-alvo | Decisão de produto | Sim |
+| # | Item | Tipo | Bloqueia produção? | Estado |
+|---|---|---|---|---|
+| 1 | Exclusão de conta in-app + link web | Backend + Mobile | **Sim** | **ATIVO desde `4bbcb4b`** (sign-up real habilitado) |
+| 2 | Backends de prestadores/reservas/chat (telas usam `DEMO SEED`) | Backend | Sim — não publicar com dados fake como reais | Aberto |
+| 3 | PNG dedicado de icon/splash 1024×1024 | Asset/design | Sim | Aberto |
+| 4 | `eas build` com conta Expo + keystore | Infra | Sim | Aberto |
+| 5 | Privacy policy publicada em URL pública | Conteúdo/infra | Sim | Aberto |
+| 6 | Definir faixa etária e público-alvo | Decisão de produto | Sim | Aberto |
 
 > Itens 1 e 2 dependem do trabalho de backend no Codex. Itens 3–6 são
 > operacionais/de conteúdo e não são código mobile.
