@@ -1794,3 +1794,52 @@ Revisar e aprovar deploy do Backend 4E na DigitalOcean. Depois do deploy, valida
 
 ### Proximo passo recomendado
 Planejar o Bloco 4E Mobile minimo para consumir `GET/POST/PATCH /api/v1/addresses` no Profile/onboarding, ainda sem geocoding, Search, Booking ou provider onboarding.
+
+---
+
+## Checkpoint 043 - Demo de fidelidade visual, Login e alinhamento do design spec
+
+- **Data/hora:** 2026-05-23 (America/Sao_Paulo)
+- **Tarefa atual:** Consolidar tres ciclos de trabalho fora da sequencia de Blocos: fidelidade total das 5 abas + Provider Detail (demo para cliente), Login fiel a marca, e alinhamento do `09_SPEC_DESIGN_SYSTEM.md` a implementacao real.
+- **Escopo:** apenas `Pet_Marketplace_Mobile` (app, src, app.json, eas.json, assets) e docs sincronizados a partir da raiz. Backend, banco, Admin, deploy, secrets nao foram tocados.
+- **Agentes envolvidos:** D_Design, V_ImpactValidator, M_MobilePlaystore, C10_CAMISA10, X_ProcessGuardian, PR_PromptOps.
+
+### Recovery note (regressao corrigida)
+Os ciclos anteriores deste lote foram registrados como "Checkpoint 027" e "Checkpoint 028" em copias desatualizadas de `Pet_Marketplace_Mobile/docs/PROGRESS.md`. A raiz `docs/PROGRESS.md` ja estava em 042 quando isso aconteceu, entao essas entradas foram perdidas do working tree apos `pnpm sync`. O conteudo original permanece em git history (commits `7b53cc2`, `390a8a2`, `3248127`). Este Checkpoint 043 consolida os tres ciclos no canonico correto.
+
+### Cycle A - Fidelidade total das 5 abas + Play Store readiness (commit `7b53cc2`)
+- Tornar Home, Search, Book, Chat, Provider Detail e Profile fieis ao modelo `Pet_Marketplace_Mobile02.jpeg` para demo do cliente.
+- Tokens (`radius`, `shadow`) e fixtures `DEMO SEED` (`src/data/demoFixtures.ts`) adicionados.
+- 15+ componentes novos criados (`CategoryChip`, `CenterTabButton`, `CondoSelector`, `ConversationRow`, `DateStrip`, `FilterPill`, `HeroBanner`, `IconButton`, `InfoRow`, `MessageBubble`, `ProviderCard`, `RatingStars`, `SearchInput`, `SectionHeader`, `TimeChip`).
+- `app.json` endurecido (name "The Pet Lobby", icon, splash, permissions `[]`); criado `eas.json`; criado `docs/30_PLAYSTORE_RELEASE_READINESS.md` com Data Safety e blockers.
+- Profile teve apenas polimento visual (hero); logica de queries/mutations preservada integralmente.
+
+### Cycle B - Login fiel a marca (commit `390a8a2`)
+- Logo The Pet Lobby (cantos arredondados via `borderRadius` + `overflow:'hidden'`) centralizada no topo da Login via novo componente `Brandmark`.
+- Copy pt-BR alinhada ao restante do marketplace (chaves `auth.*` em `i18n/en-GB.ts` preservadas).
+- Botao "Entrar" mais curto (60%, `minWidth: 200`) e centralizado via wrapper local, sem alterar o componente `Button` compartilhado.
+- Novo asset `Pet_Marketplace_Mobile/assets/pet-lobby-logo.png` (caminho canonico Expo).
+- Comportamento de `signIn`, `isAuthConfigured`, validacoes, estados de loading/erro e redirect pos-login preservados integralmente.
+
+### Cycle C - Alinhamento do `09_SPEC_DESIGN_SYSTEM.md` (esta sessao)
+- Auditoria do X_ProcessGuardian identificou divergencia critica entre o spec v1.1 e a implementacao real: idioma declarado en-GB (realidade pt-BR inline nas telas de marketplace + Login), catalogo de componentes desatualizado (~15 ausentes, ~7 listados mas nao implementados), `radius.pill` e tokens de `shadow` nao documentados, paleta sem hex concreto.
+- Gate dos 3 agentes (V_ImpactValidator, M_MobilePlaystore, C10_CAMISA10) aprovou com ressalva comum: editar o canonico (`docs/09_SPEC_DESIGN_SYSTEM.md` na raiz) e propagar via `pnpm sync`, respeitando D-004.
+- Spec atualizado para v1.2: header com idioma como politica explicita, §4 expandida (`space.10`, `radius.pill`, paleta canonica com 17 hex, §4.5 shadow com ressalva do warning Web), §5 reescrita como catalogo real organizado em 7 subsecoes + lista historica de itens nao implementados, §6 nova "Politica de copy e idioma" formalizando a divida tecnica pt-BR inline + en-GB i18n, §8 com marcacao ✅/🚧 por tela, §10 atualizada com padroes recem-descobertos (Image+borderRadius exige overflow:hidden; CTA compacto via wrapper local).
+- `pnpm sync` propagou para os 3 apps; diff pos-sync confirmou identidade Mobile/Back/Admin com a raiz.
+
+### Validacoes
+- `pnpm typecheck` em Cycles A e B - passou.
+- `pnpm lint` em Cycles A e B - passou.
+- Cycle C: nao aplicavel (so docs).
+- `pnpm sync` - propagou canonico corretamente.
+- Diff pos-sync: Mobile = Back = Admin = canonico raiz.
+
+### Ressalvas
+- Telas em `DEMO SEED` nao podem ir para producao apresentando dados ficticios como reais (regra agora explicita no spec §9).
+- Aviso pre-existente `"shadow*" style props are deprecated` no Web continua aberto como follow-up cosmetico.
+- Divida tecnica de localizacao (pt-BR inline vs i18n) documentada na §6 do spec, nao resolvida.
+- Os blockers de release do `docs/30_PLAYSTORE_RELEASE_READINESS.md` (exclusao de conta in-app + link web, backends de marketplace) seguem abertos.
+- Aprendizado de processo: docs/ raiz e canonico; editar copias dos apps e perigoso porque `pnpm sync` sobrescreve. Sempre editar a raiz.
+
+### Proximo passo recomendado
+Com o spec atualizado, qualquer nova tela ou componente deve obrigatoriamente: consultar §5 antes de criar componente, respeitar §6 para idioma, e atualizar §5/§8 deste spec no mesmo ciclo. Em paralelo, voltar a sequencia original do PROGRESS (Bloco 4E Mobile - enderecos) ou priorizar os backends de marketplace que destravam as telas em `DEMO SEED`.
