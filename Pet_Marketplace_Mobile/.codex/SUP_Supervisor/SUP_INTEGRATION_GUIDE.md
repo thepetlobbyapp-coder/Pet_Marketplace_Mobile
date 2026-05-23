@@ -1,6 +1,6 @@
 # Integração dos Agentes de Supervisão
 
-> Guia de como os 7 agentes de supervisão se conectam entre si,
+> Guia de como os 7 agentes de supervisão e o gate GSD se conectam entre si,
 > com o ecossistema .codex/ existente e com o AgentForge.
 
 ---
@@ -9,6 +9,9 @@
 
 ```
 PICK_AgentSelector (seleciona o time antes de tudo)
+  │
+  ▼
+GSD_TDDCLIAuditor (gate de implementacao, TDD e Harness CLI)
   │
   ▼
 X_ProcessGuardian (coordena a supervisão)
@@ -31,6 +34,7 @@ X_ProcessGuardian (coordena a supervisão)
 @STD  → STD_StandardsEnforcer (padrões)
 @ENV  → ENV_StatusRadar (ambientes)
 @CRED → CRED_AccessGatekeeper (credenciais)
+@GSD  → GSD_TDDCLIAuditor (GSD, TDD e Harness CLI)
 ```
 
 ---
@@ -49,6 +53,7 @@ X_ProcessGuardian (coordena a supervisão)
 | Revisar código/padrões | @STD |
 | Comparar ambientes | @ENV |
 | Antes de qualquer acesso a serviço externo | @CRED |
+| Antes e depois de implementação, bugfix ou refatoração comportamental | @GSD |
 | Implementação fora de ordem detectada | @FLOW |
 | Credenciais suspeitas ou inventadas | @CRED |
 | Nenhum agente existente cobre a tarefa | @PICK → aciona @F |
@@ -60,7 +65,7 @@ X_ProcessGuardian (coordena a supervisão)
 ```
 Tarefa chega → PICK_AgentSelector monta o time
                       │
-                      ├── Agentes existentes? → aciona na sequência definida
+                      ├── Agentes existentes? → @GSD define TDD/Harness → executor → @GSD audita
                       │
                       └── Lacuna detectada? → aciona @F (F_Agent_Foreman)
                                                    │
@@ -77,6 +82,10 @@ o trabalho de um agente criado pela fábrica.
 
 O CRED_AccessGatekeeper é pré-requisito para qualquer agente (da fábrica
 ou existente) que precise acessar ambiente, navegador, API ou banco.
+
+O GSD_TDDCLIAuditor é pré-requisito para fechar qualquer implementação,
+bugfix ou refatoração comportamental. Ele não substitui QA nem Validador
+final; ele entrega a prova executável que esses agentes usam.
 
 ---
 
@@ -111,4 +120,5 @@ parte do kit, preserve este bloco para manter a camada de supervisao acionavel.
 | `STD_`  | Fiscalização de padrões (StandardsEnforcer)    |
 | `ENV_`  | Radar de ambientes (StatusRadar)               |
 | `CRED_` | Porteiro de credenciais (AccessGatekeeper)     |
+| `GSD_`  | Delivery discipline, TDD e Harness CLI         |
 ```

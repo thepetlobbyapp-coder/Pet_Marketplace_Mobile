@@ -4,6 +4,10 @@ Este arquivo e o ponto de entrada da pasta `.codex/`. Use-o como catalogo e como
 
 Importante: para o Codex carregar instrucoes automaticamente ao trabalhar na raiz do projeto, copie ou adapte `C10_Maestro/C10_Agent_ProjectRules.md` para `PROJECT_ROOT/AGENTS.md`. A pasta `.codex/` funciona como biblioteca de agentes, templates e validadores para mencionar no chat.
 
+Compatibilidade Claude Code: este kit tambem inclui `CLAUDE.md` e wrappers em
+`.claude/agents/`. Eles nao substituem os agentes originais; apenas permitem que
+Claude Code delegue tarefas aos mesmos papeis usando o formato de subagentes.
+
 ## Padrao de Nomenclatura
 
 Todo agente deve usar o prefixo semantico no nome da pasta e do arquivo:
@@ -16,11 +20,13 @@ Todo agente deve usar o prefixo semantico no nome da pasta e do arquivo:
 | `BI_` | Business Intelligence, metricas e dashboards | `BI_Dashboards/BI_Agent_DashboardDesigner.md` |
 | `BUG_` | Debug cirurgico full-stack | `BUG_Debugger/BUG_Agent_Debugger.md` |
 | `C_` | Cetico cirurgico e revisao de planos | `C_Cetico/C_Agent_Cetico.md` |
-| `D_` | Design, UX e frontend visual | `D_Design/D_Agent_Design.md` |
+| `D_` | Design, UX, frontend visual e replicacao fiel de layout | `D_Design/D_Agent_Design.md`, `D_Design/D_Agent_LayoutReplicator.md` |
 | `E_` | Environment, secrets e deploy vars | `E_Environment/E_Agent_Environment.md`, `E_Environment/E_Agent_DigitalOceanEnvironment.md` |
 | `F_` | Fabrica de agentes sob demanda | `F_AgentForge/F_Agent_Foreman.md` |
 | `GEO_` | Localizacao, enderecos, raio e proximidade | `GEO_Location/GEO_Agent_Location.md` |
+| `GSD_` | Delivery discipline, TDD e auditoria CLI | `GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md` |
 | `I18N_` | Localizacao, ingles de produto e UX writing | `I18N_LocalizationUX/I18N_Agent_LocalizationUX.md` |
+| `IOS_` | iOS nativo, Apple platforms e App Store approval | `IOS_AppleAppstore/IOS_Agent_AppleNativeAppstore.md` |
 | `M_` | Mobile React Native + Expo | `M_MobilePlaystore/M_Agent_MobilePlaystore.md` |
 | `MOD_` | Trust & Safety, denuncias e moderacao | `MOD_TrustSafety/MOD_Agent_TrustSafety.md` |
 | `O_` | Observabilidade, deploy e operacao | `O_Observability/O_Agent_DeployObservability.md` |
@@ -44,14 +50,36 @@ Regra: nomes de pasta e arquivo devem evitar acentos e espacos para funcionar be
 4. `A_Architecture`: valida desenho desacoplado, contratos, fronteiras e riscos antes de codar.
 5. `C_Cetico`: revisa plano contra codigo real antes da implementacao.
 6. `V_Validation/impact_validator`: revisa plano e impacto cross-stack.
-7. `S_Seguranca/security_validator`: entra quando tocar auth, PII, secrets, upload, headers, permissoes ou pagamentos.
-8. `P_Performance/performance_validator`: entra quando tocar hot path, cache, queries, listas grandes, imagens, filas, concorrencia ou custo.
-9. Agente executor especializado: `B_BackendDomain`, `D_Design`, `E_Environment`, `GEO_Location`, `I18N_LocalizationUX`, `M_MobilePlaystore`, `MOD_TrustSafety`, `PAY_PaymentsMarketplace`, `BI_Dashboards`, `BUG_Debugger`, etc.
-10. `Q_Quality`: cria/ajusta plano de testes e cenarios de regressao.
-11. `SUP_Supervisor/SUP_STD_StandardsEnforcer.md` e `SUP_Supervisor/SUP_FLOW_DeliveryInspector.md`: verificam padrao e ordem quando necessario.
-12. `V_Validation/final_validator`: revisa diff final antes de merge/deploy.
-13. `SUP_Supervisor/SUP_X_ProcessGuardian.md`: entra em modo FOCUSED para entregas relevantes ou FULL em auditorias.
-14. `C10_DOCUMENTADOR`: registra LOG, STATUS, ADRs e aprendizados.
+7. `GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md`: transforma o plano em criterio de aceite, TDD proporcional e Harness CLI.
+8. `S_Seguranca/security_validator`: entra quando tocar auth, PII, secrets, upload, headers, permissoes ou pagamentos.
+9. `P_Performance/performance_validator`: entra quando tocar hot path, cache, queries, listas grandes, imagens, filas, concorrencia ou custo.
+10. Agente executor especializado: `B_BackendDomain`, `D_Design`, `E_Environment`, `GEO_Location`, `I18N_LocalizationUX`, `IOS_AppleAppstore`, `M_MobilePlaystore`, `MOD_TrustSafety`, `PAY_PaymentsMarketplace`, `BI_Dashboards`, `BUG_Debugger`, etc.
+11. `GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md`: audita comandos reais, bug sweep e lacunas antes de QA/final.
+12. `Q_Quality`: cria/ajusta plano de testes e cenarios de regressao.
+13. `SUP_Supervisor/SUP_STD_StandardsEnforcer.md` e `SUP_Supervisor/SUP_FLOW_DeliveryInspector.md`: verificam padrao e ordem quando necessario.
+14. `V_Validation/final_validator`: revisa diff final antes de merge/deploy.
+15. `SUP_Supervisor/SUP_X_ProcessGuardian.md`: entra em modo FOCUSED para entregas relevantes ou FULL em auditorias.
+16. `C10_DOCUMENTADOR`: registra LOG, STATUS, ADRs e aprendizados.
+
+## Metodos Canonicos
+
+- SDD oficial do kit: `C10_Maestro/C10_Method_SDD.md`.
+- Harness oficial do kit: `SUP_Supervisor/SUP_Method_Harness.md`.
+- Template de especificacao: `T_Templates/T_Template_SPEC.md`.
+- Template de auditoria CLI: `T_Templates/T_Template_CLI_AUDIT.md`.
+- Template Claude Code: `T_Templates/T_Template_CLAUDE.md`.
+- Estrategia de skills: `C10_Maestro/C10_Skill_Strategy.md`.
+
+## Compatibilidade Claude Code
+
+- `CLAUDE.md`: adaptador para usar este arsenal no Claude Code.
+- `.claude/agents/*.md`: wrappers de subagentes Claude. Cada wrapper aponta
+  para um agente original como fonte da verdade.
+- `C10_Maestro/C10_Agent_ClaudeProjectRules.md`: guia para gerar `CLAUDE.md`
+  em projetos reais.
+
+Regra: mantenha `.codex/` como fonte principal. Atualize wrappers Claude apenas
+quando mudar o nome, descricao ou roteamento de acionamento.
 
 ## Regras Globais Extraidas do Guia Vibe Coding
 
@@ -70,6 +98,9 @@ Todo agente desta pasta deve proteger a base oculta do iceberg, nao apenas a pon
 - Medir antes de otimizar quando possivel; otimizar hot paths, nao preferencias esteticas.
 - Incluir observabilidade: logs estruturados, metricas, traces e alertas para fluxos criticos.
 - Rodar validacoes possiveis antes de fechar: build, lint, typecheck, testes e smoke test.
+- Aplicar SDD em toda entrega relevante: State, Spec, Design, Doubt, Develop, Demonstrate, Document.
+- Aplicar Harness CLI em toda implementacao, bugfix ou refatoracao com risco comportamental.
+- Nunca declarar "sem bugs" quando houver lacunas nao verificadas; declarar a lacuna e baixar o veredito.
 
 ## Politica de Execucao no Codex
 
@@ -78,6 +109,7 @@ Todo agente desta pasta deve proteger a base oculta do iceberg, nao apenas a pon
 - Nenhum agente deve aprovar plano, diff, arquitetura, seguranca, performance ou release apenas por padrao generico. Se faltam arquivos ou contexto, o veredito correto e `QUESTIONAR`.
 - Durante a implementacao: escopo pequeno, sem refatoracao lateral e sem dependencias pesadas sem justificativa.
 - Depois de editar: validar com comandos reais do projeto quando existirem.
+- Depois de implementar: registrar comandos, cwd, exit code, resultado e lacunas no formato Harness.
 - Ao encontrar erro preexistente: documentar claramente, sem mascarar como sucesso.
 - Ao tocar secrets: nunca imprimir valores, nunca criar `NEXT_PUBLIC_` com segredo, nunca hardcodar credencial.
 
@@ -107,7 +139,9 @@ Use o prefixo para marcar rapido no chat:
 - `@E` para environment/Vercel/DigitalOcean/secrets.
 - `@F` para criar agente sob demanda com AgentForge.
 - `@GEO` para localizacao, enderecos, raio e proximidade.
+- `@GSD` para GSD, TDD proporcional, Harness CLI e auditoria de bug antes de fechar implementacao.
 - `@I18N` para i18n, ingles de produto e UX writing.
+- `@IOS` para iOS nativo, Apple platforms, TestFlight e App Store approval.
 - `@M` para mobile Expo/Play Store.
 - `@MOD` para trust & safety, denuncias e moderacao.
 - `@P` para performance.

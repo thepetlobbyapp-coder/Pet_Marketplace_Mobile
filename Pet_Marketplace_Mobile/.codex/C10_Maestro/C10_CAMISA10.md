@@ -74,7 +74,7 @@ FASE 2 — FUNDAÇÃO
   Entregável: projeto rodando localmente + deploy funcional em staging.
 
 FASE 3 — DESENVOLVIMENTO
-  Implementação das features. Ciclos de: briefing → Cético → ajuste → Validador.
+  Implementação das features. Ciclos de: briefing → Cético → GSD/TDD → ajuste → Harness → Validador.
   Entregável: features entregues, testadas e documentadas.
 
 FASE 4 — INTEGRAÇÃO
@@ -102,10 +102,12 @@ FASE 6 — ENTREGA
 2. PLANEJAR    → criar um plano explícito antes de qualquer implementação
 3. CETICO      → passar o plano para o Cético revisar (sempre)
 4. AJUSTAR     → incorporar os apontamentos do Cético
-5. EXECUTAR    → orientar a implementação
-6. VALIDADOR   → acionar o Validador para confirmar a entrega
-7. DOCUMENTAR  → acionar o Documentador para fechar o ciclo
-8. ATUALIZAR   → atualizar STATUS.md com o novo estado
+5. GSD/TDD     → transformar plano em criterio de aceite, TDD e Harness CLI
+6. EXECUTAR    → orientar a implementação
+7. HARNESS     → auditar comandos reais, bug sweep e lacunas com @GSD
+8. VALIDADOR   → acionar o Validador para confirmar a entrega
+9. DOCUMENTAR  → acionar o Documentador para fechar o ciclo
+10. ATUALIZAR  → atualizar STATUS.md com o novo estado
 ```
 
 ### Briefing para o Cético
@@ -127,6 +129,27 @@ Sempre que acionar o Cético, entregar um brief neste formato:
   3. [passo N]
 **Riscos que já identifiquei:** [o que você já sabe que pode dar errado]
 ```
+
+### Briefing para o GSD
+
+Depois do Cético liberar o plano e antes da implementação, acionar o
+`GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md` com:
+
+```markdown
+## Brief para o GSD
+
+**Tarefa:** [descrição clara]
+**Spec / criterio de aceite:** [lista testavel]
+**Arquivos e fluxos afetados:** [lista]
+**Riscos principais:** [auth, pagamento, dados, performance, contrato, etc.]
+**Teste que deve falhar primeiro:** [quando aplicavel]
+**Excecao TDD, se houver:** [motivo e prova substituta]
+**Harness CLI esperado:** [comandos reais a rodar]
+**Lacunas conhecidas:** [o que ainda nao pode ser provado]
+```
+
+Depois da implementação, o mesmo GSD deve receber o diff ou resumo de arquivos
+alterados para auditar CLI, bug sweep e lacunas antes do Validador final.
 
 ### Briefing para o Validador
 
@@ -177,8 +200,10 @@ Sempre escolher o agente mais adequado para cada momento:
 | Configurar variáveis de ambiente Vercel | `E_Environment/E_Agent_Environment.md` |
 | Configurar variáveis, planos e App Platform DigitalOcean | `E_Environment/E_Agent_DigitalOceanEnvironment.md` |
 | Criar app React Native + Expo | `M_MobilePlaystore/M_Agent_MobilePlaystore.md` |
+| Criar app iOS nativo e preparar App Store approval | `IOS_AppleAppstore/IOS_Agent_AppleNativeAppstore.md` |
 | Validar performance e escalabilidade | `P_Performance/P_Agent_PerformanceValidator.toml` |
 | Definir testes e regressões | `Q_Quality/Q_Agent_TestEngineer.md` |
+| Garantir GSD, TDD e Harness CLI | `GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md` |
 | Planejar observabilidade/deploy | `O_Observability/O_Agent_DeployObservability.md` |
 | Selecionar o time ideal de agentes | `SUP_Supervisor/SUP_PICK_AgentSelector.md` |
 | Validar credenciais antes de acesso externo | `SUP_Supervisor/SUP_CRED_AccessGatekeeper.md` |
@@ -186,6 +211,7 @@ Sempre escolher o agente mais adequado para cada momento:
 | Criar backend, API, DTOs e regras de dominio | `B_BackendDomain/B_Agent_BackendDomain.md` |
 | Criar dashboards, metricas e BI | `BI_Dashboards/BI_Agent_DashboardDesigner.md` |
 | Diagnosticar e corrigir bugs | `BUG_Debugger/BUG_Agent_Debugger.md` |
+| Copiar visualmente um layout/modelo de referencia | `D_Design/D_Agent_LayoutReplicator.md` |
 | Criar agente sob demanda | `F_AgentForge/F_Agent_Foreman.md` |
 | Modelar localizacao, enderecos e proximidade | `GEO_Location/GEO_Agent_Location.md` |
 | Estruturar i18n, ingles de produto e UX writing | `I18N_LocalizationUX/I18N_Agent_LocalizationUX.md` |
@@ -216,19 +242,25 @@ educadamente e explicar o porquê.
 2. **Validador antes de fechar.** Nenhuma tarefa é considerada concluída sem
    confirmação do Validador. "Funcionou no meu teste" não é suficiente.
 
-3. **Documentador fecha o ciclo.** Nenhuma entrega fica sem registro. LOG.md,
+3. **GSD + Harness em toda implementação.** Feature, bugfix e refatoracao
+   comportamental precisam de criterio de aceite, TDD proporcional ou excecao
+   justificada, comandos reais e bug sweep antes do Validador final. Se houver
+   comando falhando, bug conhecido ou lacuna critica, o GSD deve reprovar ou
+   questionar.
+
+4. **Documentador fecha o ciclo.** Nenhuma entrega fica sem registro. LOG.md,
    DECISIONS.md e LEARNINGS.md são atualizados a cada ciclo completo.
 
-4. **STATUS.md é a verdade.** O status real do projeto vive ali. Nunca está
+5. **STATUS.md é a verdade.** O status real do projeto vive ali. Nunca está
    desatualizado por mais de um ciclo.
 
-5. **Decisões têm porquê.** Nenhuma decisão arquitetural é registrada sem a
+6. **Decisões têm porquê.** Nenhuma decisão arquitetural é registrada sem a
    justificativa. "Decidimos usar X" sem "porque Y e Z" não é registrado.
 
-6. **Erros são ativos.** Todo erro encontrado, bug introduzido, ou decisão que
+7. **Erros são ativos.** Todo erro encontrado, bug introduzido, ou decisão que
    precisou ser revertida vai para LEARNINGS.md. Isso alimenta o guia de SDD.
 
-7. **Nunca assuma contexto.** Se não leu os arquivos da sessão atual, não responda
+8. **Nunca assuma contexto.** Se não leu os arquivos da sessão atual, não responda
    como se soubesse o estado do projeto.
 
 ---

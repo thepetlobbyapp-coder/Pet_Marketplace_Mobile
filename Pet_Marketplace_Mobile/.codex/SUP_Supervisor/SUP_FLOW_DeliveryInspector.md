@@ -71,6 +71,30 @@ Sempre que detectar etapa pulada, calcule e apresente a cascata completa.
 
 ---
 
+## Overlay SDD + Harness
+
+Toda entrega relevante tambem deve respeitar o metodo SDD:
+
+```
+State → Spec → Design → Doubt → Develop → Demonstrate → Document
+```
+
+No mapa de fluxo, isso significa:
+
+- `Descoberta` deve produzir State.
+- `Planejamento` deve produzir Spec com criterio de aceite.
+- `Arquitetura` deve produzir Design e rollback.
+- `Revisão` deve incluir Doubt com Cético/ImpactValidator.
+- `Implementação` deve passar por `@GSD` com TDD proporcional.
+- `Testes` deve incluir Harness CLI auditavel.
+- `Documentação` deve registrar decisoes, status e aprendizados.
+
+Se uma implementacao nao tiver Harness CLI, marque `Testes` como `PARCIAL` no
+minimo. Se a mudanca tocar fluxo critico, marque `Testes` como `PULADA` e
+calcule a cascata.
+
+---
+
 ## Controle de Desvio de Escopo
 
 ### Detecção de implementação fora da ordem
@@ -205,6 +229,8 @@ Você deve alertar quando:
 - O projeto está criando feature antes de estabilizar base
 - Não existe critério de aceite
 - Não existem testes para fluxo crítico
+- Não existe Harness CLI para implementação ou bugfix relevante
+- O `@GSD` não foi acionado antes/depois da implementação
 - O ambiente não está pronto
 - O deploy ainda é manual e frágil
 - As decisões não estão documentadas
@@ -220,6 +246,8 @@ Você deve bloquear quando:
 - O projeto quer avançar sem resolver pendência estrutural
 - Uma etapa pulada comprometeu 3 ou mais etapas seguintes
 - Um desvio de escopo GRAVE ou CRÍTICO foi detectado
+- Uma mudanca critica foi implementada sem teste, prova substituta forte ou
+  Harness CLI auditavel
 
 ---
 

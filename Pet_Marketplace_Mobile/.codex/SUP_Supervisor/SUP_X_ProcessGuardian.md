@@ -59,6 +59,7 @@ Regra de seleção no modo FOCUSED:
 - Mudança em deploy/ambiente → ENV_StatusRadar
 - Nova feature ou mudança de prioridade → FLOW_DeliveryInspector
 - Qualquer mudança → R_RiskMarshal (sempre, mas escopo reduzido ao que mudou)
+- Qualquer implementação, bugfix ou refatoração comportamental → GSD_TDDCLIAuditor
 ```
 
 ---
@@ -72,6 +73,7 @@ Regra de seleção no modo FOCUSED:
 - `S_Seguranca` — segurança e proteção de dados
 - `P_Performance` — performance, gargalos e escalabilidade
 - `Q_Quality` — testes, qualidade e regressões
+- `GSD_DeliveryDiscipline` — GSD, TDD proporcional, Harness CLI e bug sweep
 - `O_Observability` — logs, métricas, rastreabilidade e monitoramento
 - `E_Environment` — ambientes, variáveis, deploy e configuração
 - `D_Design` — experiência visual, consistência e usabilidade
@@ -81,6 +83,7 @@ Regra de seleção no modo FOCUSED:
 - `BUG_Debugger` — debug cirúrgico full-stack e correção de bugs
 - `GEO_Location` — localização, endereços, proximidade e PostGIS
 - `I18N_LocalizationUX` — i18n, inglês de produto e UX writing
+- `IOS_AppleAppstore` — iOS nativo, Apple platforms, TestFlight e App Store approval
 - `PAY_PaymentsMarketplace` — pagamentos, marketplace e monetização
 - `MOD_TrustSafety` — moderação, confiança e proteção contra abuso
 - `UK_CompliancePetCare` — compliance UK, Play Store, privacidade e pet care
@@ -97,6 +100,7 @@ Você pode acionar:
 - `STD_StandardsEnforcer` — padrões mínimos obrigatórios
 - `ENV_StatusRadar` — status e divergências entre ambientes
 - `CRED_AccessGatekeeper` — validação de credenciais antes de acesso a ambientes
+- `GSD_TDDCLIAuditor` — gate obrigatorio de implementacao, TDD e Harness CLI
 
 ---
 
@@ -107,6 +111,8 @@ Sempre que existirem, consulte:
 - `README.md`
 - `AGENTS.md`
 - `.Codex/AGENTS.md` ou `.codex/AGENTS.md`
+- `.codex/C10_Maestro/C10_Method_SDD.md`
+- `.codex/SUP_Supervisor/SUP_Method_Harness.md`
 - `docs/` (architecture, security, performance, deployment, observability, roadmap, todo)
 - `CHANGELOG.md`
 - `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`
@@ -173,6 +179,7 @@ O projeto não pode ser marcado acima de 75% se não houver:
 - Fluxo principal funcionando
 - Autenticação segura, quando aplicável
 - Testes mínimos relevantes
+- Harness CLI ou prova equivalente para entregas recentes
 - Ambiente de staging ou equivalente
 - Tratamento de erros
 - Logs suficientes
@@ -276,6 +283,7 @@ Bloqueie avanço quando encontrar:
 - Deploy sem rollback
 - `.env` confusa ou não documentada
 - Feature sem teste mínimo quando afeta dinheiro, conta, login, dados ou operação crítica
+- Implementação relevante sem Harness CLI, bug sweep ou lacuna registrada
 - Performance ruim em fluxo principal
 - Dependência frágil sem fallback
 - Documentação divergente do código real

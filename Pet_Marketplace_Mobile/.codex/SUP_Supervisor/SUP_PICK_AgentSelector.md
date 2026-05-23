@@ -72,6 +72,7 @@ Antes de selecionar qualquer agente, decomponha a tarefa:
    [ ] Segurança / dados sensíveis
    [ ] Performance / cache / otimização
    [ ] Testes / QA
+   [ ] GSD / TDD / Harness CLI
    [ ] Deploy / ambientes / CI-CD
    [ ] Observabilidade / logs / métricas
    [ ] Mobile / React Native / Expo
@@ -119,10 +120,12 @@ Catálogo de agentes conhecidos:
 | B_ | BackendDomain | Backend, API, domínio | Especialista |
 | BI_ | DashboardDesigner | Métricas, dashboards, BI | Especialista |
 | BUG_ | Debugger | Debug cirúrgico full-stack | Especialista |
-| D_ | Design | UX, frontend visual, componentes | Especialista |
+| D_ | Design / LayoutReplicator | UX, frontend visual, componentes, copia fiel de layout | Especialista |
 | E_ | Environment | Variáveis, secrets, deploy config | Especialista |
 | GEO_ | Location | Endereços, raio, proximidade, PostGIS | Especialista |
+| GSD_ | TDDCLIAuditor | GSD, TDD proporcional, Harness CLI, bug sweep | Gate |
 | I18N_ | LocalizationUX | Inglês de produto, i18n, UX writing | Especialista |
+| IOS_ | AppleNativeAppstore | iOS nativo, Apple platforms, App Store approval | Especialista |
 | M_ | MobilePlaystore | React Native, Expo, mobile | Especialista |
 | MOD_ | TrustSafety | Denúncias, moderação, abuso, UGC | Especialista |
 | O_ | DeployObservability | Logs, métricas, deploy, operação | Especialista |
@@ -160,6 +163,10 @@ REGRA 2: Sempre incluir validadores para tarefas de risco ALTO ou CRÍTICO.
 
 REGRA 3: Sempre incluir @CRED se a tarefa envolve acesso externo.
   API, banco remoto, navegador, deploy, painel admin = CRED primeiro.
+
+REGRA 3.5: Sempre incluir @GSD em IMPLEMENTAÇÃO, REFATORAÇÃO e CORREÇÃO.
+  @GSD nao substitui executor nem QA. Ele garante criterio de aceite,
+  TDD proporcional, Harness CLI e bug sweep antes do selo final.
 
 REGRA 4: Agente promovido (FP.*) tem prioridade sobre agente genérico
   se foi criado para exatamente esse tipo de tarefa.
@@ -211,20 +218,25 @@ Sequência padrão (adaptar conforme a tarefa):
 2. PLANEJAMENTO
    @C10 ou agente especialista → plano de execução
 
-3. IMPLEMENTAÇÃO
+3. GSD/TDD
+   @GSD → criterio de aceite, teste falhando primeiro ou excecao TDD,
+   Harness CLI planejado
+
+4. IMPLEMENTAÇÃO
    Agentes executores na ordem de dependência
    (banco antes de backend, backend antes de frontend)
 
-4. VALIDAÇÃO CRUZADA
+5. VALIDAÇÃO CRUZADA
+   @GSD → Harness CLI executado, bug sweep e lacunas
    @S (segurança) + @P (performance) — em paralelo se possível
    @STD (padrões) — após implementação
    @Q (testes) — após validações
 
-5. SELO FINAL
+6. SELO FINAL
    @V (validador final)
    @X modo FOCUSED (se tarefa de risco alto)
 
-6. DOCUMENTAÇÃO
+7. DOCUMENTAÇÃO
    @C10_DOCUMENTADOR ou agente de docs
 ```
 
@@ -326,9 +338,10 @@ Depois deste passo: [próximo agente na sequência]
 7. **Se o risco é ALTO ou CRÍTICO, @CRED é obrigatório quando há acesso externo.**
    Sem exceção. Credencial errada em tarefa de risco alto é desastre.
 
-8. **Máximo 6 agentes por tarefa (exceto auditoria FULL).**
-   Se a tarefa precisa de mais de 6, provavelmente deve ser dividida
-   em subtarefas menores. Sinalize ao usuário.
+8. **Máximo 6 especialistas por tarefa (exceto auditoria FULL).**
+   `@GSD` conta como gate obrigatorio de implementacao, nao como especialista
+   de dominio. Se a tarefa precisa de mais de 6 especialistas alem do GSD,
+   provavelmente deve ser dividida em subtarefas menores. Sinalize ao usuário.
 
 9. **Sempre termine com próximo passo concreto.**
    Diga qual agente começa, o que ele faz, e o que vem depois.
@@ -341,19 +354,19 @@ Para acelerar a seleção em tarefas comuns:
 
 ```
 Nova feature (risco baixo):
-  @A → executor → @Q → @V
+  @A → @GSD → executor → @GSD → @Q → @V
 
 Nova feature (risco alto):
-  @CRED → @A → executor → @S → @P → @Q → @V
+  @CRED → @A → @GSD → executor → @GSD → @S → @P → @Q → @V
 
 Correção de bug:
-  executor → @Q → @V (time mínimo)
+  @GSD → executor → @GSD → @Q → @V (time mínimo)
 
 Correção de bug em auth/pagamento:
-  @CRED → executor → @S → @Q → @V
+  @CRED → @GSD → executor → @GSD → @S → @Q → @V
 
 Refatoração:
-  @A → executor → @STD → @Q → @V
+  @A → @GSD → executor → @GSD → @STD → @Q → @V
 
 Deploy:
   @CRED → @ENV → executor → @X (modo FOCUSED)

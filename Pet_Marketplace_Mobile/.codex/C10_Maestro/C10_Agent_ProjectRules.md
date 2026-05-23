@@ -86,6 +86,7 @@ test: [descrição]      → testes
 2. **Seguir o fluxo Camisa10.**
    Nenhum plano vai para execução sem passar pelo Cético.
    Nenhuma entrega é fechada sem o Validador confirmar.
+   Toda implementação deve passar por GSD/TDD e Harness CLI.
 
 3. **Perguntar quando não tiver certeza.**
    Nunca assumir contexto que não foi lido ou informado.
@@ -98,11 +99,16 @@ test: [descrição]      → testes
    Toda validação deve citar arquivos, símbolos, fluxos ou comandos que sustentam
    a conclusão. Se faltar contexto, declarar a lacuna em vez de assumir.
 
-6. **Escrever código defensivo.**
+6. **Aplicar SDD e Harness.**
+   Use `.codex/C10_Maestro/C10_Method_SDD.md` para guiar o ciclo.
+   Use `.codex/SUP_Supervisor/SUP_Method_Harness.md` para provar a entrega
+   com comandos reais, exit code, resultado e lacunas.
+
+7. **Escrever código defensivo.**
    Tratar erros explicitamente. Nunca deixar `catch` vazio.
    Validar entradas antes de processar.
 
-7. **Manter a separação frontend/backend.**
+8. **Manter a separação frontend/backend.**
    Secrets e lógica de negócio: somente no backend.
    `NEXT_PUBLIC_` apenas para valores realmente públicos.
 
@@ -110,18 +116,21 @@ test: [descrição]      → testes
 
 1. **Nunca implementar sem plano revisado pelo Cético.**
 
-2. **Nunca criar arquivos fora da estrutura de pastas definida**
+2. **Nunca fechar implementação sem Harness CLI.**
+   Se comandos reais nao puderem ser rodados, registrar lacuna e prova substituta.
+
+3. **Nunca criar arquivos fora da estrutura de pastas definida**
    sem justificativa explícita e aprovação.
 
-3. **Nunca sobrescrever um arquivo existente sem confirmar.**
+4. **Nunca sobrescrever um arquivo existente sem confirmar.**
    Sempre mostrar o diff antes de aplicar mudanças em arquivos existentes.
 
-4. **Nunca deixar `console.log` de debug em código de produção.**
+5. **Nunca deixar `console.log` de debug em código de produção.**
 
-5. **Nunca colocar valores sensíveis hardcoded no código.**
+6. **Nunca colocar valores sensíveis hardcoded no código.**
    Todo secret vai para variável de ambiente.
 
-6. **Nunca assumir que uma tarefa está concluída.**
+7. **Nunca assumir que uma tarefa está concluída.**
    Concluída = Validador confirmou.
 
 ---
@@ -135,6 +144,7 @@ Consultar a pasta `.codex/` para a lista completa e atualizada.
 | Camisa10 | `.codex/C10_Maestro/C10_CAMISA10.md` | Sempre — orquestra tudo |
 | Cético | `.codex/C_Cetico/C_Agent_Cetico.md` | Antes de implementar |
 | Impact Validator | `.codex/V_Validation/V_Agent_ImpactValidator.toml` | Antes de implementar mudanças relevantes |
+| GSD/TDD CLI Auditor | `.codex/GSD_DeliveryDiscipline/GSD_Agent_TDDCLIAuditor.md` | Toda implementação, bugfix ou refatoração comportamental |
 | Security Validator | `.codex/S_Seguranca/S_Agent_SecurityValidator.toml` | Auth, PII, secrets, permissões, uploads, pagamentos |
 | Performance Validator | `.codex/P_Performance/P_Agent_PerformanceValidator.toml` | Cache, queries, hot paths, listas, concorrência |
 | Final Validator | `.codex/V_Validation/V_Agent_FinalValidator.toml` | Após implementar, antes de merge/deploy |

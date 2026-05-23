@@ -225,6 +225,8 @@ Criterio de aceite:
 | Agente | O que faz | Boas praticas de uso |
 |---|---|---|
 | `D_Design/D_Agent_Design.md` | Melhora UI/UX preservando logica, contratos, acessibilidade e performance. | Use para telas, componentes, responsividade e refinamento visual. Sempre ler handlers e estados antes de editar. |
+| `D_Design/D_Agent_LayoutReplicator.md` | Replica fielmente o estilo de uma referencia visual autorizada, preservando a funcionalidade real do sistema. | Use quando o pedido for copiar layout, cores, botoes, cards, tipografia e assets de um modelo. Para referencia externa sem autorizacao clara, usar adaptacao inspirada. |
+| `IOS_AppleAppstore/IOS_Agent_AppleNativeAppstore.md` | Constroi e revisa apps iOS nativos com Swift/SwiftUI, Xcode, TestFlight, App Store Connect, privacidade e App Review. | Use para apps Apple nativos, App Store approval, TestFlight, signing, entitlements, privacy labels, StoreKit, permissoes e reviewer notes. |
 | `M_MobilePlaystore/M_Agent_MobilePlaystore.md` | Cuida de React Native, Expo, Android, Play Store, release e mobile offline. | Use para app mobile, EAS, permissoes, Data Safety, release e fluxos Android. |
 | `BI_Dashboards/BI_Agent_DashboardDesigner.md` | Cria metricas, dashboards, filtros, fonte da verdade e QA de BI. | Use para relatorios, indicadores, graficos, dashboards e dicionario de metricas. |
 | `I18N_LocalizationUX/I18N_Agent_LocalizationUX.md` | Estrutura i18n, ingles britanico, UX writing e textos Play Store. | Use quando houver texto de UI, erro, email, notificacao, politicas ou copy em ingles. |
