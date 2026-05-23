@@ -1843,3 +1843,51 @@ Os ciclos anteriores deste lote foram registrados como "Checkpoint 027" e "Check
 
 ### Proximo passo recomendado
 Com o spec atualizado, qualquer nova tela ou componente deve obrigatoriamente: consultar §5 antes de criar componente, respeitar §6 para idioma, e atualizar §5/§8 deste spec no mesmo ciclo. Em paralelo, voltar a sequencia original do PROGRESS (Bloco 4E Mobile - enderecos) ou priorizar os backends de marketplace que destravam as telas em `DEMO SEED`.
+
+---
+
+## Checkpoint 044 - Sign-up e Reset-password fieis ao padrao Login (com auth real)
+
+- **Data/hora:** 2026-05-23 (America/Sao_Paulo)
+- **Tarefa atual:** Substituir os placeholders `ComingNextScreen` por sign-up e reset-password reais, com a mesma identidade visual da Login e auth funcional via Supabase.
+- **Escopo:** `Pet_Marketplace_Mobile/src/auth/AuthProvider.tsx` (extensao aditiva), `app/(auth)/sign-up.tsx` e `app/(auth)/reset-password.tsx` (reescrita das telas). Backend, banco, Admin, deploy, secrets, Supabase config e componentes compartilhados nao foram tocados.
+- **Agentes envolvidos:** D_Design, V_ImpactValidator, S_Seguranca, M_MobilePlaystore, C10_CAMISA10.
+
+### Gate dos agentes
+- **V_ImpactValidator:** AFETA-OK (extensao do `AuthContextValue` sem breaking; toca superficie de auth -> recomendou S_Seguranca). Aprovado.
+- **S_Seguranca:** aprovado com 4 ressalvas, todas implementadas (anti email enumeration no reset; senha minima 8; erros genericos no sign-up; sem log de senha).
+- **M_MobilePlaystore:** aprovado, com lembrete formal de que o BLOCKER #1 do `30_PLAYSTORE_RELEASE_READINESS.md` (exclusao de conta in-app + link web) agora esta ativo, pois o app passou a permitir criacao de conta real. Bloqueia release de producao, nao a demo.
+- **C10_CAMISA10:** aprovado, ciclo CETICO -> AJUSTAR -> EXECUTAR -> HARNESS -> VALIDADOR -> DOCUMENTAR seguido.
+
+### O que foi feito
+- `AuthProvider.tsx`:
+  - `AuthResult` ganhou campo opcional `requiresEmailConfirmation`.
+  - `AuthContextValue` estendido (sem breaking) com `signUp(email, password)` e `resetPassword(email)`.
+  - `signUp` retorna `{ ok: true, requiresEmailConfirmation: session === null }` para o consumidor decidir o proximo passo; erros do Supabase viram mensagem generica.
+  - `resetPassword` sempre retorna `{ ok: true }` (anti email enumeration); a UI nunca confirma se o e-mail existe.
+  - signIn/signOut/session/storage preservados intactos.
+- `app/(auth)/sign-up.tsx`: layout fiel ao padrao Login (Brandmark + hero + form + CTA compacto centralizado). Form com E-mail, Senha (min 8), Confirmar senha e Checkbox de termos (com Links para `/legal/terms` e `/legal/privacy`). Validacao inline; CTA desabilitado ate todos os criterios serem satisfeitos. Pos-submit: se a sessao vier null, mostra Alert "Confirme seu e-mail" e leva para Login; caso contrario, faz login automatico via redirect.
+- `app/(auth)/reset-password.tsx`: layout fiel ao padrao Login. Form com E-mail. Pos-submit, troca a tela inteira por um sucesso generico ("Se houver uma conta...") com botao "Voltar ao login". Mensagem nunca confirma existencia da conta.
+- `docs/09_SPEC_DESIGN_SYSTEM.md` §8: Cadastro e Reset marcados como ✅. `pnpm sync` propagou para os 3 apps.
+- Chaves `auth.signUp.*` e `auth.reset.*` em `src/i18n/en-GB.ts` preservadas. Copy nova em pt-BR inline (politica §6 do spec).
+
+### Comportamento preservado
+- `signIn`, `signOut`, `session`, `accessToken`, `isAuthConfigured`, `secureSessionStorage`, `supabaseClient` - intactos.
+- Login (commit `390a8a2`) - nenhuma alteracao.
+- `(tabs)/_layout.tsx` guard - intacto.
+
+### Validacoes
+- `pnpm typecheck` - passou.
+- `pnpm lint` - passou.
+- `pnpm sync` - canonico raiz propagado para os 3 apps; diff pos-sync sem divergencia.
+- Smoke em device/emulador: pendente (executar via Expo Go ou web local conforme rotina das ultimas sessoes).
+
+### Ressalvas e BLOCKERS
+- **BLOCKER ativado:** com sign-up funcional, o app cria contas reais. O BLOCKER #1 do `30_PLAYSTORE_RELEASE_READINESS.md` (exclusao de conta in-app + link web) agora bloqueia release de producao. Demo ao cliente nao e afetada.
+- Reset deep-link: sem `redirectTo` customizado, o usuario clica no e-mail e cai na pagina padrao do Supabase. Configurar deep-link `petmarketplace://reset-confirm` quando houver tela de confirmacao no app fica como follow-up.
+- Confirmacao por e-mail: comportamento depende da config do Supabase project; ambos os caminhos (com/sem confirmacao) sao tratados pelo codigo.
+- Sem novos `shadow*`; warning Web pre-existente nao cresce.
+- Sem testes automatizados (o projeto Mobile nao possui suite de testes); validacao manual via smoke.
+
+### Proximo passo recomendado
+Antes de qualquer release de producao, abrir um ciclo dedicado para resolver o BLOCKER #1: criar `POST /me/deletion-request` no backend (prompt ja redigido no §12 do `30_PLAYSTORE_RELEASE_READINESS.md`) e adicionar entrada de exclusao em `settings.tsx`. Em paralelo, manter a sequencia natural (Bloco 4E Mobile - enderecos).

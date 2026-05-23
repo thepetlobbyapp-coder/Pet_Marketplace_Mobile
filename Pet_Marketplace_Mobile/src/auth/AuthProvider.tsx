@@ -14,6 +14,9 @@ import { getSupabaseClient } from './supabaseClient';
 interface AuthResult {
   message?: string;
   ok: boolean;
+  // Sinaliza ao consumidor que o Supabase project exige confirmacao por
+  // e-mail antes do login (sign-up retornou sucesso, sessao = null).
+  requiresEmailConfirmation?: boolean;
 }
 
 interface AuthContextValue {
@@ -22,6 +25,8 @@ interface AuthContextValue {
   isInitialising: boolean;
   session: Session | null;
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  signUp: (email: string, password: string) => Promise<AuthResult>;
+  resetPassword: (email: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
 }
 
@@ -96,6 +101,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [supabase],
   );
 
+  const signUp = useCallback(
+    async (email: string, password: string): Promise<AuthResult> => {
+      if (!supabase) {
+        return { ok: false, message: t('auth.config.body') };
+      }
+
+      const { data, error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+        // Mensagem generica — nao vazar detalhes do provedor para o usuario.
+        return {
+          ok: false,
+          message:
+            'Nao foi possivel criar a conta. Verifique os dados e tente novamente.',
+        };
+      }
+
+      // Quando o Supabase project exige confirmacao por e-mail, session = null.
+      // Sinalizamos isso para o consumidor decidir o proximo passo.
+      return {
+        ok: true,
+        requiresEmailConfirmation: data.session === null,
+      };
+    },
+    [supabase],
+  );
+
+  const resetPassword = useCallback(
+    async (email: string): Promise<AuthResult> => {
+      if (!supabase) {
+        return { ok: false, message: t('auth.config.body') };
+      }
+
+      // Anti email enumeration: ignoramos o erro especifico do provedor e
+      // sempre devolvemos uma confirmacao generica para o consumidor.
+      await supabase.auth.resetPasswordForEmail(email);
+      return { ok: true };
+    },
+    [supabase],
+  );
+
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();
     setSession(null);
@@ -108,9 +154,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isInitialising,
       session,
       signIn,
+      signUp,
+      resetPassword,
       signOut,
     }),
-    [isInitialising, session, signIn, signOut, supabase],
+    [
+      isInitialising,
+      session,
+      signIn,
+      signUp,
+      resetPassword,
+      signOut,
+      supabase,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

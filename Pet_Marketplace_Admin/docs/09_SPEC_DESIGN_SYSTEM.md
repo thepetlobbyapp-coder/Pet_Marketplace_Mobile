@@ -264,7 +264,7 @@ Obrigatório:
 
 1. ✅ Login (com `Brandmark`).
 2. 🚧 Splash / loading inicial.
-3. 🚧 Cadastro / Reset (visual ainda no padrão antigo).
+3. ✅ Cadastro e Reset (mesmo padrão Login, com auth real via Supabase).
 4. 🚧 Escolha de perfil.
 5. ✅ Home tutor / busca.
 6. ✅ Search com filtros.
