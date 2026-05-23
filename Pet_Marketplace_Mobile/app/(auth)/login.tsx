@@ -2,12 +2,14 @@ import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../src/auth/AuthProvider';
+import { Brandmark } from '../../src/components/Brandmark';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
-import { colors, spacing, typography } from '../../src/design/tokens';
-import { t } from '../../src/i18n';
+import { colors, radius, spacing, typography } from '../../src/design/tokens';
 
+// Copy inline em pt-BR para alinhar com as telas do marketplace.
+// As chaves auth.* de src/i18n/en-GB.ts foram preservadas para uso futuro.
 export default function LoginScreen() {
   const { isAuthConfigured, signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -20,7 +22,7 @@ export default function LoginScreen() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      Alert.alert(t('auth.login.errorTitle'), result.message);
+      Alert.alert('Não foi possível entrar', result.message);
       return;
     }
 
@@ -29,16 +31,23 @@ export default function LoginScreen() {
 
   return (
     <Screen>
+      <View style={styles.brand}>
+        <Brandmark size={88} tagline="Pet care perto de você." />
+      </View>
+
       <View style={styles.hero}>
-        <Text style={styles.kicker}>{t('app.kicker')}</Text>
-        <Text style={styles.title}>{t('auth.login.title')}</Text>
-        <Text style={styles.body}>{t('auth.login.subtitle')}</Text>
+        <Text style={styles.title}>Bem-vindo de volta</Text>
+        <Text style={styles.subtitle}>
+          Entre para gerenciar a conta do seu pet.
+        </Text>
       </View>
 
       {!isAuthConfigured ? (
         <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>{t('auth.config.title')}</Text>
-          <Text style={styles.noticeBody}>{t('auth.config.body')}</Text>
+          <Text style={styles.noticeTitle}>Login indisponível no momento</Text>
+          <Text style={styles.noticeBody}>
+            Tente novamente em alguns instantes.
+          </Text>
         </View>
       ) : null}
 
@@ -47,36 +56,38 @@ export default function LoginScreen() {
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
-          label={t('auth.email.label')}
+          label="E-mail"
           onChangeText={setEmail}
-          placeholder={t('auth.email.placeholder')}
+          placeholder="voce@exemplo.com"
           textContentType="emailAddress"
           value={email}
         />
         <TextField
           autoCapitalize="none"
           autoComplete="password"
-          label={t('auth.password.label')}
+          label="Senha"
           onChangeText={setPassword}
-          placeholder={t('auth.password.placeholder')}
+          placeholder="Digite sua senha"
           secureTextEntry
           textContentType="password"
           value={password}
         />
-        <Button
-          disabled={!isAuthConfigured || !email || !password || isSubmitting}
-          isLoading={isSubmitting}
-          label={t('auth.login.button')}
-          onPress={handleSubmit}
-        />
+        <View style={styles.submitWrap}>
+          <Button
+            disabled={!isAuthConfigured || !email || !password || isSubmitting}
+            isLoading={isSubmitting}
+            label="Entrar"
+            onPress={handleSubmit}
+          />
+        </View>
       </View>
 
       <View style={styles.links}>
         <Link href="/(auth)/sign-up" style={styles.link}>
-          {t('auth.signUp.link')}
+          Criar conta
         </Link>
         <Link href="/(auth)/reset-password" style={styles.link}>
-          {t('auth.reset.link')}
+          Esqueci a senha
         </Link>
       </View>
     </Screen>
@@ -84,31 +95,41 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    gap: spacing[2],
-    marginBottom: spacing[5],
+  brand: {
+    alignItems: 'center',
+    marginBottom: spacing[4],
   },
-  kicker: {
-    color: colors.accent,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+  hero: {
+    alignItems: 'center',
+    gap: spacing[2],
+    marginBottom: spacing[4],
   },
   title: {
     color: colors.text,
     fontSize: typography.display,
     fontWeight: '800',
+    textAlign: 'center',
   },
-  body: {
+  subtitle: {
     color: colors.muted,
     fontSize: typography.body,
     lineHeight: 24,
+    textAlign: 'center',
   },
   form: {
     gap: spacing[4],
   },
+  submitWrap: {
+    alignSelf: 'center',
+    marginTop: spacing[2],
+    minWidth: 200,
+    width: '60%',
+  },
   links: {
-    gap: spacing[3],
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing[6],
+    justifyContent: 'center',
     marginTop: spacing[6],
   },
   link: {
@@ -119,10 +140,10 @@ const styles = StyleSheet.create({
   notice: {
     backgroundColor: colors.warningSurface,
     borderColor: colors.warningBorder,
-    borderRadius: 8,
+    borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing[1],
-    marginBottom: spacing[5],
+    marginBottom: spacing[4],
     padding: spacing[4],
   },
   noticeTitle: {

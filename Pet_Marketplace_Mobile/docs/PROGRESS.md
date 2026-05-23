@@ -1297,3 +1297,47 @@ Commitar o trabalho Mobile seguindo `COMMITS.md` (escopo `mobile`), pois `app/` 
 do Mobile estao integralmente fora de controle de versao. Depois, decidir entre seguir o
 Bloco 4E backend (sequencia original) ou priorizar os backends de marketplace que destravam
 as telas em DEMO SEED.
+
+---
+
+## Checkpoint 028 - Login fiel a marca com logo e CTA compacto
+
+- **Data/hora:** 2026-05-23 (America/Sao_Paulo)
+- **Tarefa atual:** Polir a tela de Login (logo da marca no topo, copy pt-BR, CTA compacto e centralizado, cantos arredondados na logo).
+- **Escopo:** apenas `Pet_Marketplace_Mobile/app/(auth)/login.tsx`, novo componente `Brandmark` e novo asset de logo. Backend, banco, Admin, deploy, secrets e demais telas nao foram tocados.
+- **Agentes envolvidos:** D_Design, V_ImpactValidator, PR_PromptOps (geracao do PROMPT_BRIEF), X_ProcessGuardian (pos-validacao).
+
+### O que foi feito
+- **Asset:** logo copiada de `docs/assets/pet-lobby-paw-marker-logo.png` para `Pet_Marketplace_Mobile/assets/pet-lobby-logo.png` (caminho canonico de assets Expo). O arquivo em `docs/assets/` foi preservado.
+- **Componente novo:** `src/components/Brandmark.tsx` exibe a logo centralizada com `accessibilityLabel="The Pet Lobby"`, `resizeMode="contain"`, wordmark opcional e tagline opcional. Logo com `borderRadius: radius.md` (12px) e `overflow: 'hidden'` para recorte correto em iOS/Web.
+- **Login (`app/(auth)/login.tsx`):** UI reescrita com hierarquia `Brandmark > titulo > subtitulo > formulario > CTA > links`. Copy em pt-BR inline (coerente com Home/Search/Book/Chat/Detalhe). Botao "Entrar" envolto em wrapper `submitWrap` com `alignSelf: 'center'`, `width: '60%'` e `minWidth: 200` (CTA mais curto e centralizado, sem alterar o componente `Button` compartilhado).
+- **Chaves `auth.*` em `src/i18n/en-GB.ts`:** preservadas para uso futuro (apenas deixaram de ser consumidas pela tela de Login).
+
+### Comportamento preservado
+- `useAuth()` (`isAuthConfigured`, `signIn`) - intacto.
+- `handleSubmit` com `setIsSubmitting`, `signIn`, `Alert.alert` em erro e `router.replace('/(tabs)/home')` em sucesso - intacto.
+- Estado desabilitado: `!isAuthConfigured || !email || !password || isSubmitting` - intacto.
+- Props dos `TextField` (autoCapitalize, autoComplete, keyboardType, textContentType, secureTextEntry) - intactos.
+- Aviso quando `!isAuthConfigured` - preservado com copy pt-BR.
+- `Button.tsx`, `Screen.tsx`, `TextField.tsx`, tokens, AuthProvider, supabaseClient - nao tocados.
+
+### Arquivos
+- Criados:
+  - `Pet_Marketplace_Mobile/assets/pet-lobby-logo.png`
+  - `Pet_Marketplace_Mobile/src/components/Brandmark.tsx`
+- Alterados:
+  - `Pet_Marketplace_Mobile/app/(auth)/login.tsx`
+  - `Pet_Marketplace_Mobile/docs/PROGRESS.md` (este checkpoint)
+
+### Validacoes
+- `pnpm typecheck` (tsc --noEmit) - passou.
+- `pnpm lint` (eslint) - passou.
+- Smoke: Metro dev server em `http://localhost:8081` saudavel; bundle web compilando sem erro; Expo Go conectado em `exp://192.168.1.69:8081` recebeu hot reload das mudancas. Sem erros de console.
+
+### Ressalvas
+- Aviso pre-existente `"shadow*" style props are deprecated. Use "boxShadow"` continua aparecendo no Web (tokens `shadow.sm/md/lg`). Nao foi introduzido novo `shadow*` nesta etapa. Follow-up cosmetico, nao bloqueante.
+- Login passa a ter copy pt-BR inline; o restante da infra (settings, sign-up, reset-password, legal) segue `en-GB` via `src/i18n`. Divida tecnica de localizacao a consolidar.
+- Sign-up e Reset-password continuam com o layout antigo (fora do escopo desta tarefa).
+
+### Proximo passo recomendado
+Se a fidelidade da Login estiver aprovada visualmente pelo cliente, replicar o mesmo padrao em `sign-up.tsx` e `reset-password.tsx`. Em paralelo, resolver os blockers de release do `docs/30_PLAYSTORE_RELEASE_READINESS.md` (exclusao de conta, backends de marketplace) antes de qualquer build de producao.
