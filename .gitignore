@@ -50,6 +50,9 @@ GoogleService-Info.plist
 
 # Local agent/debug artifacts
 **/.codex/BUG_Debugger/
+.codex-runtime/
+Pet_Marketplace_Mobile/profile-logout-button.png
+Pet_Marketplace_Mobile/search-smoke-mobile.png
 
 # Local publish staging
 .publish/
