@@ -25,6 +25,15 @@ export interface ProviderListingRow {
   bio: string | null;
 }
 
+export interface ConversationOpenColdStartRow {
+  status: 'ok' | 'rate_limited';
+  id: string | null;
+  provider_id: string | null;
+  last_message_text: string | null;
+  last_message_at: string | null;
+  last_message_from_provider: boolean | null;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -38,6 +47,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          avatar_url: string | null;
         };
         Insert: {
           id: string;
@@ -48,6 +58,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          avatar_url?: string | null;
         };
         Update: {
           email?: string;
@@ -56,6 +67,7 @@ export interface Database {
           locale?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          avatar_url?: string | null;
         };
         Relationships: [];
       };
@@ -74,6 +86,41 @@ export interface Database {
         };
         Update: {
           role?: Database['public']['Enums']['profile_type'];
+        };
+        Relationships: [];
+      };
+      account_deletion_requests: {
+        Row: {
+          id: string;
+          user_id: string;
+          status: Database['public']['Enums']['account_deletion_request_status'];
+          requested_at: string;
+          estimated_completion_at: string;
+          processing_started_at: string | null;
+          completed_at: string | null;
+          internal_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          status?: Database['public']['Enums']['account_deletion_request_status'];
+          requested_at?: string;
+          estimated_completion_at?: string;
+          processing_started_at?: string | null;
+          completed_at?: string | null;
+          internal_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: Database['public']['Enums']['account_deletion_request_status'];
+          estimated_completion_at?: string;
+          processing_started_at?: string | null;
+          completed_at?: string | null;
+          internal_notes?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -299,6 +346,7 @@ export interface Database {
           last_message_from_provider?: boolean;
         };
         Update: {
+          booking_id?: string | null;
           last_message_text?: string | null;
           last_message_at?: string | null;
           last_message_from_provider?: boolean;
@@ -326,6 +374,73 @@ export interface Database {
         };
         Relationships: [];
       };
+      reports: {
+        Row: {
+          id: string;
+          reporter_user_id: string;
+          reported_user_id: string | null;
+          target_type: 'conversation' | 'message';
+          target_id: string;
+          conversation_id: string;
+          message_id: string | null;
+          category: Database['public']['Enums']['report_category'];
+          description: string | null;
+          status: Database['public']['Enums']['report_status'];
+          assigned_admin_id: string | null;
+          internal_note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reporter_user_id: string;
+          reported_user_id?: string | null;
+          target_type: 'conversation' | 'message';
+          target_id: string;
+          conversation_id: string;
+          message_id?: string | null;
+          category: Database['public']['Enums']['report_category'];
+          description?: string | null;
+          status?: Database['public']['Enums']['report_status'];
+          assigned_admin_id?: string | null;
+          internal_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: Database['public']['Enums']['report_status'];
+          assigned_admin_id?: string | null;
+          internal_note?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_blocks: {
+        Row: {
+          id: string;
+          blocker_user_id: string;
+          blocked_user_id: string;
+          conversation_id: string | null;
+          reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          blocker_user_id: string;
+          blocked_user_id: string;
+          conversation_id?: string | null;
+          reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          conversation_id?: string | null;
+          reason?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -346,13 +461,36 @@ export interface Database {
         };
         Returns: ProviderListingRow[];
       };
+      conversations_open_cold_start: {
+        Args: {
+          p_tutor_profile_id: string;
+          p_provider_id: string;
+          p_limit: number;
+          p_window_start: string;
+        };
+        Returns: ConversationOpenColdStartRow[];
+      };
     };
     Enums: {
       user_status: 'active' | 'blocked' | 'deleted';
       profile_type: 'tutor' | 'provider' | 'admin';
+      account_deletion_request_status: 'pending' | 'processing' | 'done';
       provider_status: 'active' | 'paused' | 'blocked' | 'deleted';
       provider_category: 'walk' | 'sitting' | 'transport' | 'boarding';
       booking_status: 'requested' | 'confirmed' | 'cancelled' | 'completed';
+      report_status:
+        | 'open'
+        | 'in_review'
+        | 'action_taken'
+        | 'dismissed'
+        | 'closed';
+      report_category:
+        | 'safety_concern'
+        | 'inappropriate_behaviour'
+        | 'harassment'
+        | 'spam_scam'
+        | 'no_show'
+        | 'other';
       pet_species: 'dog' | 'cat' | 'other';
       pet_size: 'small' | 'medium' | 'large' | 'giant' | 'unknown';
       location_precision: 'exact' | 'postcode' | 'approximate';

@@ -101,6 +101,43 @@ A documentação deve ser mantida junto com o código. Qualquer mudança relevan
 27. `27_SUMARIO_COMPLETO.md` ⭐  
     Resumo visual de tudo; como começar em 3 passos; roadmap de uso.
 
+## Play Store / Release Readiness
+
+30. `30_PLAYSTORE_RELEASE_READINESS.md`
+    Matriz viva de readiness Mobile/Play Store, blockers, smokes e estado por
+    checkpoint.
+
+31. `31_PLAYSTORE_HUMAN_DECISION_PACKAGE.md`
+    Pacote de decisões humano/legal/produto ainda pendentes para Play Console.
+
+32. `32_SPEC_ASSET_ICON_SPLASH.md`
+    Requisitos objetivos para icon/splash 1024x1024 e assets correlatos.
+
+33. `33_PLAYSTORE_APP_ACCESS_REVIEWER_PACKAGE.md`
+    Template seguro de App Access para revisão autenticada.
+
+34. `34_PLAYSTORE_LISTING_SCREENSHOT_PACKAGE.md`
+    Copy proposta, claims permitidos/proibidos e roteiro seguro de screenshots.
+
+35. `35_PLAYSTORE_REVIEW_FIXTURE_READINESS.md`
+    Readiness preliminar da fixture reviewer.
+
+36. `36_PLAYSTORE_REVIEW_FIXTURE_CONFIRMATION.md`
+    Confirmação sanitizada da fixture reviewer reutilizável.
+
+37. `37_PLAYSTORE_LEGAL_DATA_SAFETY_CLOSURE.md`
+    Fechamento Legal/Data Safety com ressalvas e bloqueios humano/legais.
+
+38. `38_PLAYSTORE_FINAL_SCREENSHOTS_READINESS.md`
+    Pacote final preparatório de screenshots `en-GB` após Home real sanitizada.
+
+39. `39_EAS_BUILD_PREFLIGHT_READINESS.md`
+    Preflight técnico para EAS build futuro, sem executar build/submissão.
+
+40. `40_EAS_ASSET_AVATAR_PERMISSION_READINESS.md`
+    Checkpoint 089: decisão de asset 1024 e postura avatar/permissões antes
+    de qualquer EAS real.
+
 ---
 
 ## Decisões principais já travadas

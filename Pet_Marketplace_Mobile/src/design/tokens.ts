@@ -14,6 +14,7 @@ export const colors = {
   danger: '#D92D20', // danger
   dangerSurface: '#FEE4E2',
   successText: '#1FA66A', // success
+  successSurface: '#E3F6EC', // pale green tint used for confirmation pills/icons
   warningSurface: '#FFF8DB',
   warningBorder: '#F0D26A',
   star: '#F6B93B', // rating stars

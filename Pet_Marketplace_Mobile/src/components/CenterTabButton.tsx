@@ -15,7 +15,7 @@ export function CenterTabButton({ onPress }: CenterTabButtonProps) {
   return (
     <View style={styles.slot}>
       <Pressable
-        accessibilityLabel="Agendar serviço"
+        accessibilityLabel="Request booking"
         accessibilityRole="button"
         onPress={onPress}
         style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}

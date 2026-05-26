@@ -7,9 +7,8 @@ import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { colors, radius, spacing, typography } from '../../src/design/tokens';
+import { t } from '../../src/i18n';
 
-// Copy inline em pt-BR para alinhar com as telas do marketplace.
-// As chaves auth.* de src/i18n/en-GB.ts foram preservadas para uso futuro.
 export default function LoginScreen() {
   const { isAuthConfigured, signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -22,7 +21,7 @@ export default function LoginScreen() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      Alert.alert('Não foi possível entrar', result.message);
+      Alert.alert(t('auth.login.errorTitle'), result.message);
       return;
     }
 
@@ -32,22 +31,18 @@ export default function LoginScreen() {
   return (
     <Screen>
       <View style={styles.brand}>
-        <Brandmark size={88} tagline="Pet care perto de você." />
+        <Brandmark size={88} tagline={t('auth.login.tagline')} />
       </View>
 
       <View style={styles.hero}>
-        <Text style={styles.title}>Bem-vindo de volta</Text>
-        <Text style={styles.subtitle}>
-          Entre para gerenciar a conta do seu pet.
-        </Text>
+        <Text style={styles.title}>{t('auth.login.title')}</Text>
+        <Text style={styles.subtitle}>{t('auth.login.subtitle')}</Text>
       </View>
 
       {!isAuthConfigured ? (
         <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>Login indisponível no momento</Text>
-          <Text style={styles.noticeBody}>
-            Tente novamente em alguns instantes.
-          </Text>
+          <Text style={styles.noticeTitle}>{t('auth.config.title')}</Text>
+          <Text style={styles.noticeBody}>{t('auth.config.body')}</Text>
         </View>
       ) : null}
 
@@ -56,18 +51,18 @@ export default function LoginScreen() {
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
-          label="E-mail"
+          label={t('auth.email.label')}
           onChangeText={setEmail}
-          placeholder="voce@exemplo.com"
+          placeholder={t('auth.email.placeholder')}
           textContentType="emailAddress"
           value={email}
         />
         <TextField
           autoCapitalize="none"
           autoComplete="password"
-          label="Senha"
+          label={t('auth.password.label')}
           onChangeText={setPassword}
-          placeholder="Digite sua senha"
+          placeholder={t('auth.password.placeholder')}
           secureTextEntry
           textContentType="password"
           value={password}
@@ -76,7 +71,7 @@ export default function LoginScreen() {
           <Button
             disabled={!isAuthConfigured || !email || !password || isSubmitting}
             isLoading={isSubmitting}
-            label="Entrar"
+            label={t('auth.login.button')}
             onPress={handleSubmit}
           />
         </View>
@@ -84,10 +79,10 @@ export default function LoginScreen() {
 
       <View style={styles.links}>
         <Link href="/(auth)/sign-up" style={styles.link}>
-          Criar conta
+          {t('auth.signUp.link')}
         </Link>
         <Link href="/(auth)/reset-password" style={styles.link}>
-          Esqueci a senha
+          {t('auth.reset.link')}
         </Link>
       </View>
     </Screen>

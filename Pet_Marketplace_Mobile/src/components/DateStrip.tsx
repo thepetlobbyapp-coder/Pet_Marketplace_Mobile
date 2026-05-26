@@ -52,7 +52,7 @@ export function DateStrip({ dates, selectedId, onSelect }: DateStripProps) {
 
 /** Builds the next `count` days starting today, for the demo date picker. */
 export function buildUpcomingDates(count: number): DateOption[] {
-  const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const out: DateOption[] = [];
   const base = new Date();
   for (let index = 0; index < count; index += 1) {

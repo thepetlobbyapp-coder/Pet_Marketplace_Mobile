@@ -16,7 +16,7 @@ export function TimeChip({
 }: TimeChipProps) {
   return (
     <Pressable
-      accessibilityLabel={`Horário ${label}`}
+      accessibilityLabel={`Time ${label}`}
       accessibilityRole="button"
       accessibilityState={{ selected, disabled }}
       disabled={disabled}

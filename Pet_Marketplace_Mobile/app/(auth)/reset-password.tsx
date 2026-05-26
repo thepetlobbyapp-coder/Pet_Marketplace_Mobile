@@ -8,9 +8,8 @@ import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { colors, radius, spacing, typography } from '../../src/design/tokens';
+import { t } from '../../src/i18n';
 
-// Copy inline em pt-BR (politica §6 do 09_SPEC_DESIGN_SYSTEM).
-// Chaves auth.reset.* em src/i18n/en-GB.ts preservadas para o futuro.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ResetPasswordScreen() {
@@ -25,8 +24,7 @@ export default function ResetPasswordScreen() {
 
   async function handleSubmit() {
     setIsSubmitting(true);
-    // resetPassword sempre retorna ok (anti email enumeration). O resultado
-    // do provedor nao influencia a mensagem ao usuario.
+    // resetPassword always returns ok to avoid email enumeration.
     await resetPassword(trimmedEmail);
     setIsSubmitting(false);
     setSubmitted(true);
@@ -35,7 +33,7 @@ export default function ResetPasswordScreen() {
   return (
     <Screen>
       <View style={styles.brand}>
-        <Brandmark size={72} tagline="Pet care perto de voce." />
+        <Brandmark size={72} tagline={t('auth.login.tagline')} />
       </View>
 
       {submitted ? (
@@ -43,15 +41,11 @@ export default function ResetPasswordScreen() {
           <View style={styles.successIcon}>
             <Ionicons color={colors.successText} name="mail" size={36} />
           </View>
-          <Text style={styles.title}>Verifique seu e-mail</Text>
-          <Text style={styles.subtitle}>
-            Se houver uma conta associada a esse e-mail, enviaremos um link
-            para redefinir a senha. O link pode levar alguns minutos para
-            chegar.
-          </Text>
+          <Text style={styles.title}>{t('auth.reset.successTitle')}</Text>
+          <Text style={styles.subtitle}>{t('auth.reset.successBody')}</Text>
           <View style={styles.submitWrap}>
             <Button
-              label="Voltar ao login"
+              label={t('auth.reset.successButton')}
               onPress={() => router.replace('/(auth)/login')}
             />
           </View>
@@ -59,21 +53,16 @@ export default function ResetPasswordScreen() {
       ) : (
         <>
           <View style={styles.hero}>
-            <Text style={styles.title}>Redefinir senha</Text>
-            <Text style={styles.subtitle}>
-              Informe o e-mail da sua conta e enviaremos um link para criar
-              uma nova senha.
-            </Text>
+            <Text style={styles.title}>{t('auth.reset.title')}</Text>
+            <Text style={styles.subtitle}>{t('auth.reset.body')}</Text>
           </View>
 
           {!isAuthConfigured ? (
             <View style={styles.notice}>
               <Text style={styles.noticeTitle}>
-                Redefinicao indisponivel no momento
+                {t('auth.reset.unavailableTitle')}
               </Text>
-              <Text style={styles.noticeBody}>
-                Tente novamente em alguns instantes.
-              </Text>
+              <Text style={styles.noticeBody}>{t('auth.unavailable.body')}</Text>
             </View>
           ) : null}
 
@@ -82,9 +71,9 @@ export default function ResetPasswordScreen() {
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
-              label="E-mail"
+              label={t('auth.email.label')}
               onChangeText={setEmail}
-              placeholder="voce@exemplo.com"
+              placeholder={t('auth.email.placeholder')}
               textContentType="emailAddress"
               value={email}
             />
@@ -93,7 +82,7 @@ export default function ResetPasswordScreen() {
               <Button
                 disabled={!canSubmit}
                 isLoading={isSubmitting}
-                label="Enviar link"
+                label={t('auth.reset.submit')}
                 onPress={handleSubmit}
               />
             </View>
@@ -101,7 +90,7 @@ export default function ResetPasswordScreen() {
 
           <View style={styles.links}>
             <Link href="/(auth)/login" style={styles.link}>
-              Voltar ao login
+              {t('auth.reset.backToLogin')}
             </Link>
           </View>
         </>
@@ -176,7 +165,7 @@ const styles = StyleSheet.create({
   },
   successIcon: {
     alignItems: 'center',
-    backgroundColor: '#E3F6EC',
+    backgroundColor: colors.successSurface,
     borderRadius: radius.pill,
     height: 72,
     justifyContent: 'center',

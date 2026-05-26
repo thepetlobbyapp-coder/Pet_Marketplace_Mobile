@@ -32,7 +32,7 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="provider/[id]"
-          options={{ title: 'Detalhes do prestador' }}
+          options={{ title: t('provider.detail.header') }}
         />
       </Stack>
     </AppProviders>

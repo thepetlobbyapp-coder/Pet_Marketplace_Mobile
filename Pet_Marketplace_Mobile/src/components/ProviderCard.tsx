@@ -1,26 +1,39 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing, typography } from '../design/tokens';
-import type { DemoProvider } from '../data/demoFixtures';
 import { formatDistance } from '../lib/format';
 import { Avatar } from './Avatar';
 import { RatingStars } from './RatingStars';
 
+export interface ProviderCardModel {
+  avatarUri?: string | null;
+  avatarUrl?: string | null;
+  distanceMeters: number | null;
+  id: string;
+  isAvailable: boolean;
+  name: string;
+  rating: number;
+  reviewCount: number;
+  service: string;
+}
+
 interface ProviderCardProps {
-  provider: DemoProvider;
+  provider: ProviderCardModel;
   onPress?: () => void;
 }
 
 export function ProviderCard({ provider, onPress }: ProviderCardProps) {
+  const avatarUri = provider.avatarUrl ?? provider.avatarUri;
+
   return (
     <Pressable
-      accessibilityHint="Abre os detalhes do prestador"
+      accessibilityHint="Opens provider details"
       accessibilityLabel={`${provider.name}, ${provider.service}`}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
     >
-      <Avatar name={provider.name} size={56} uri={provider.avatarUri} />
+      <Avatar name={provider.name} size={56} uri={avatarUri ?? undefined} />
       <View style={styles.body}>
         <Text numberOfLines={1} style={styles.name}>
           {provider.name}
@@ -51,7 +64,7 @@ export function ProviderCard({ provider, onPress }: ProviderCardProps) {
               provider.isAvailable ? styles.statusTextOn : styles.statusTextOff,
             ]}
           >
-            {provider.isAvailable ? 'Disponível' : 'Ocupado'}
+            {provider.isAvailable ? 'Available' : 'Busy'}
           </Text>
         </View>
         <Ionicons color={colors.muted} name="chevron-forward" size={18} />
@@ -114,7 +127,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[1],
   },
   statusOn: {
-    backgroundColor: '#E3F6EC',
+    backgroundColor: colors.successSurface,
   },
   statusOff: {
     backgroundColor: colors.surfaceMuted,

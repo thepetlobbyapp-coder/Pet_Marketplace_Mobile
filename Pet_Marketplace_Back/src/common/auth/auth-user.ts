@@ -28,6 +28,12 @@ export interface AuthUser {
   locale?: string;
   createdAt?: string;
   updatedAt?: string;
+  /**
+   * Storage path of the avatar object (e.g. `{user_id}/avatar.jpg`) when set.
+   * Never expose this directly; turn it into a short-lived signed URL in the
+   * response layer (`MeResponseDto`).
+   */
+  avatarPath?: string | null;
   profiles?: {
     tutor?: TutorProfileSummary;
     provider?: ProviderProfileSummary;

@@ -94,6 +94,16 @@ export default function TabsLayout() {
         name="settings"
         options={{ href: null, title: t('tabs.settings') }}
       />
+      {/* Phase 1 stubs: reachable by deep link but hidden from the
+          bottom bar so the 5-item layout from Mobile02 is preserved. */}
+      <Tabs.Screen
+        name="community"
+        options={{ href: null, title: 'Community' }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{ href: null, title: 'Notifications' }}
+      />
     </Tabs>
   );
 }

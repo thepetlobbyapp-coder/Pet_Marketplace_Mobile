@@ -1,18 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ApiClientError,
+  createAddress,
   createPet,
   createTutorProfile,
   deletePet,
+  getAddresses,
   getPets,
   getMe,
+  updateAddress,
   updatePet,
   updateMe,
   updateTutorProfile,
 } from "../../src/api/client";
-import type { PetResponse, PetSpecies } from "../../src/api/types";
+import type {
+  AddressLocationPrecision,
+  AddressResponse,
+  PetResponse,
+  PetSpecies,
+} from "../../src/api/types";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { Avatar } from "../../src/components/Avatar";
 import { Badge } from "../../src/components/Badge";
@@ -27,9 +36,28 @@ import { t } from "../../src/i18n";
 
 const PET_NAME_LIMIT = 120;
 const PET_SPECIES_OPTIONS: PetSpecies[] = ["dog", "cat", "other"];
+const ADDRESS_LABEL_LIMIT = 60;
+const ADDRESS_CITY_LIMIT = 120;
+const ADDRESS_POSTCODE_LIMIT = 16;
+const ADDRESS_PUBLIC_AREA_LIMIT = 160;
+const ADDRESS_PRECISION_OPTIONS: AddressLocationPrecision[] = [
+  "approximate",
+  "postcode",
+];
+
+interface AddressDraft {
+  city: string;
+  label: string;
+  latitude: string;
+  locationPrecision: AddressLocationPrecision;
+  longitude: string;
+  postcode: string;
+  publicAreaLabel: string;
+  setAsDefaultTutorAddress: boolean;
+}
 
 export default function ProfileScreen() {
-  const { accessToken, session } = useAuth();
+  const { accessToken, session, signOut } = useAuth();
   const queryClient = useQueryClient();
   const meQueryKey = useMemo(
     () => ["me", session?.user.id],
@@ -37,6 +65,10 @@ export default function ProfileScreen() {
   );
   const petsQueryKey = useMemo(
     () => ["pets", session?.user.id],
+    [session?.user.id],
+  );
+  const addressesQueryKey = useMemo(
+    () => ["addresses", session?.user.id],
     [session?.user.id],
   );
   const [localeDraft, setLocaleDraft] = useState<string | null>(null);
@@ -55,6 +87,15 @@ export default function ProfileScreen() {
     null,
   );
   const [petMessage, setPetMessage] = useState<string | null>(null);
+  const [newAddressDraft, setNewAddressDraft] = useState<AddressDraft>(() =>
+    createEmptyAddressDraft(),
+  );
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editingAddressDraft, setEditingAddressDraft] = useState<AddressDraft>(
+    () => createEmptyAddressDraft(),
+  );
+  const [addressMessage, setAddressMessage] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const meQuery = useQuery({
     enabled: Boolean(accessToken),
@@ -67,6 +108,13 @@ export default function ProfileScreen() {
     enabled: Boolean(accessToken && meQuery.data),
     queryKey: petsQueryKey,
     queryFn: () => getPets(accessToken),
+    retry: 1,
+  });
+
+  const addressesQuery = useQuery({
+    enabled: Boolean(accessToken && meQuery.data),
+    queryKey: addressesQueryKey,
+    queryFn: () => getAddresses(accessToken),
     retry: 1,
   });
 
@@ -101,6 +149,37 @@ export default function ProfileScreen() {
       await queryClient.invalidateQueries({ queryKey: meQueryKey });
       setTutorDisplayNameDraft(null);
       setTutorProfileMessage(t("profile.tutorProfileSaveSuccess"));
+    },
+  });
+
+  const createAddressMutation = useMutation({
+    mutationFn: () =>
+      createAddress(accessToken, buildCreateAddressRequest(newAddressDraft)),
+    onError: (error) => {
+      setAddressMessage(formatAddressError(error));
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: addressesQueryKey });
+      setNewAddressDraft(createEmptyAddressDraft());
+      setAddressMessage(t("profile.addressesCreateSuccess"));
+    },
+  });
+
+  const updateAddressMutation = useMutation({
+    mutationFn: (address: AddressResponse) =>
+      updateAddress(
+        accessToken,
+        address.id,
+        buildUpdateAddressRequest(editingAddressDraft, address),
+      ),
+    onError: (error) => {
+      setAddressMessage(formatAddressError(error));
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: addressesQueryKey });
+      setEditingAddressId(null);
+      setEditingAddressDraft(createEmptyAddressDraft());
+      setAddressMessage(t("profile.addressesUpdateSuccess"));
     },
   });
 
@@ -159,20 +238,36 @@ export default function ProfileScreen() {
   const trimmedNewPetName = newPetName.trim();
   const editingPet = petsQuery.data?.find((pet) => pet.id === editingPetId);
   const trimmedEditingPetName = editingPetName.trim();
+  const editingAddress = addressesQuery.data?.find(
+    (address) => address.id === editingAddressId,
+  );
   const isNewPetNameValid =
-    trimmedNewPetName.length > 0 &&
-    trimmedNewPetName.length <= PET_NAME_LIMIT;
+    trimmedNewPetName.length > 0 && trimmedNewPetName.length <= PET_NAME_LIMIT;
   const isEditingPetNameValid =
     trimmedEditingPetName.length > 0 &&
     trimmedEditingPetName.length <= PET_NAME_LIMIT;
+  const isNewAddressReadable = hasReadableAddress(newAddressDraft);
+  const areNewAddressCoordinatesValid =
+    hasValidAddressCoordinates(newAddressDraft);
+  const isEditingAddressReadable = hasReadableAddress(editingAddressDraft);
   const hasEditingPetNameChanges =
     Boolean(editingPet) && trimmedEditingPetName !== editingPet?.name;
+  const hasEditingAddressChanges =
+    Boolean(editingAddress) &&
+    hasAddressDraftChanges(editingAddressDraft, editingAddress);
   const shouldShowTutorDisplayNameError =
     tutorDisplayNameDraft !== null && !isTutorDisplayNameValid;
-  const shouldShowNewPetNameError =
-    newPetName.length > 0 && !isNewPetNameValid;
+  const shouldShowNewPetNameError = newPetName.length > 0 && !isNewPetNameValid;
   const shouldShowEditingPetNameError =
-    editingPetId !== null && editingPetName.length > 0 && !isEditingPetNameValid;
+    editingPetId !== null &&
+    editingPetName.length > 0 &&
+    !isEditingPetNameValid;
+  const shouldShowNewAddressReadableError =
+    hasAnyAddressDraftValue(newAddressDraft) && !isNewAddressReadable;
+  const shouldShowNewAddressCoordinatesError =
+    hasAnyCoordinateValue(newAddressDraft) && !areNewAddressCoordinatesValid;
+  const shouldShowEditingAddressReadableError =
+    editingAddressId !== null && !isEditingAddressReadable;
   const canSave =
     Boolean(accessToken) &&
     Boolean(meQuery.data) &&
@@ -190,29 +285,56 @@ export default function ProfileScreen() {
     Boolean(meQuery.data) &&
     isNewPetNameValid &&
     !createPetMutation.isPending;
+  const canCreateAddress =
+    Boolean(accessToken) &&
+    Boolean(meQuery.data) &&
+    isNewAddressReadable &&
+    areNewAddressCoordinatesValid &&
+    !createAddressMutation.isPending;
   const canSavePetName =
     Boolean(accessToken) &&
     Boolean(meQuery.data) &&
     hasEditingPetNameChanges &&
     isEditingPetNameValid &&
     !updatePetMutation.isPending;
+  const canSaveAddress =
+    Boolean(accessToken) &&
+    Boolean(meQuery.data) &&
+    Boolean(editingAddress) &&
+    hasEditingAddressChanges &&
+    isEditingAddressReadable &&
+    !updateAddressMutation.isPending;
 
   const heroName = tutorProfile?.displayName?.trim() || t("profile.title");
+  const heroAvatarUrl = meQuery.data?.avatarUrl ?? null;
+
+  async function runSignOut() {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      queryClient.clear();
+      router.replace("/(auth)/login");
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   return (
     <Screen variant="top">
       <View style={styles.hero}>
-        <Avatar name={heroName} size={64} />
+        <Avatar name={heroName} size={96} uri={heroAvatarUrl ?? undefined} />
         <View style={styles.heroText}>
-          <Text numberOfLines={1} style={styles.title}>
+          <Text numberOfLines={1} style={styles.heroName}>
             {heroName}
           </Text>
           <Text numberOfLines={1} style={styles.heroEmail}>
             {meQuery.data?.email ?? t("profile.body")}
           </Text>
           {meQuery.data ? (
-            <View style={styles.heroBadge}>
-              <Badge label={meQuery.data.status} tone="info" />
+            <View style={styles.heroStatusPill}>
+              <Text style={styles.heroStatusPillText}>
+                {meQuery.data.status}
+              </Text>
             </View>
           ) : null}
         </View>
@@ -244,7 +366,10 @@ export default function ProfileScreen() {
                 label={t("profile.email")}
                 value={meQuery.data.email ?? t("common.notAvailable")}
               />
-              <ProfileRow label={t("profile.status")} value={meQuery.data.status} />
+              <ProfileRow
+                label={t("profile.status")}
+                value={meQuery.data.status}
+              />
               <ProfileRow
                 label={t("profile.roles")}
                 value={formatRoles(meQuery.data.roles)}
@@ -257,6 +382,14 @@ export default function ProfileScreen() {
                 label={t("profile.updatedAt")}
                 value={formatDate(meQuery.data.updatedAt)}
               />
+              <Text style={styles.help}>{t("profile.openSettingsHelp")}</Text>
+              <View style={styles.actions}>
+                <Button
+                  label={t("profile.openSettings")}
+                  onPress={() => router.push("/settings")}
+                  variant="secondary"
+                />
+              </View>
             </View>
           </Card>
 
@@ -279,7 +412,9 @@ export default function ProfileScreen() {
                 placeholder={t("profile.tutorDisplayNamePlaceholder")}
                 value={tutorDisplayName}
               />
-              <Text style={styles.help}>{t("profile.tutorDisplayNameHelp")}</Text>
+              <Text style={styles.help}>
+                {t("profile.tutorDisplayNameHelp")}
+              </Text>
               {shouldShowTutorDisplayNameError ? (
                 <Text style={styles.errorMessage}>
                   {t("profile.tutorDisplayNameInvalid")}
@@ -326,6 +461,147 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
+              <Text style={styles.sectionTitle}>{t("profile.addresses")}</Text>
+              <AddressDraftFields
+                draft={newAddressDraft}
+                onChange={(draft) => {
+                  setNewAddressDraft(draft);
+                  setAddressMessage(null);
+                }}
+                showCoordinateFields
+                showDefaultControl={Boolean(tutorProfile)}
+              />
+              {shouldShowNewAddressReadableError ? (
+                <Text style={styles.errorMessage}>
+                  {t("profile.addressReadableInvalid")}
+                </Text>
+              ) : null}
+              {shouldShowNewAddressCoordinatesError ? (
+                <Text style={styles.errorMessage}>
+                  {t("profile.addressCoordinatesInvalid")}
+                </Text>
+              ) : null}
+              <Button
+                disabled={!canCreateAddress}
+                isLoading={createAddressMutation.isPending}
+                label={t("profile.createAddress")}
+                onPress={() => createAddressMutation.mutate()}
+              />
+              {addressMessage ? (
+                <Text
+                  style={[
+                    styles.message,
+                    createAddressMutation.isError ||
+                    updateAddressMutation.isError
+                      ? styles.errorMessage
+                      : null,
+                  ]}
+                >
+                  {addressMessage}
+                </Text>
+              ) : null}
+              {addressesQuery.isLoading ? (
+                <LoadingState label={t("profile.addressesLoading")} />
+              ) : addressesQuery.isError ? (
+                <ErrorState
+                  actionLabel={t("common.retry")}
+                  message={t("profile.addressesError")}
+                  onRetry={() => addressesQuery.refetch()}
+                  title={t("common.error")}
+                />
+              ) : addressesQuery.data && addressesQuery.data.length > 0 ? (
+                <View style={styles.addressList}>
+                  {addressesQuery.data.map((address) => {
+                    const isEditing = editingAddressId === address.id;
+                    const isUpdating =
+                      updateAddressMutation.isPending &&
+                      updateAddressMutation.variables?.id === address.id;
+
+                    return (
+                      <View key={address.id} style={styles.addressItem}>
+                        <View style={styles.addressSummary}>
+                          <Text style={styles.addressName}>
+                            {formatAddressTitle(address)}
+                          </Text>
+                          <Text style={styles.addressMeta}>
+                            {formatAddressMeta(address)}
+                          </Text>
+                          {address.isDefaultTutorAddress ? (
+                            <View style={styles.heroBadge}>
+                              <Badge
+                                label={t("profile.addressDefaultActive")}
+                                tone="info"
+                              />
+                            </View>
+                          ) : null}
+                        </View>
+                        {isEditing ? (
+                          <View style={styles.details}>
+                            <AddressDraftFields
+                              defaultLocked={address.isDefaultTutorAddress}
+                              draft={editingAddressDraft}
+                              onChange={(draft) => {
+                                setEditingAddressDraft(draft);
+                                setAddressMessage(null);
+                              }}
+                              showDefaultControl={Boolean(tutorProfile)}
+                            />
+                            {shouldShowEditingAddressReadableError ? (
+                              <Text style={styles.errorMessage}>
+                                {t("profile.addressReadableInvalid")}
+                              </Text>
+                            ) : null}
+                            <View style={styles.actions}>
+                              <Button
+                                disabled={isUpdating}
+                                label={t("common.cancel")}
+                                onPress={() => {
+                                  setEditingAddressId(null);
+                                  setEditingAddressDraft(
+                                    createEmptyAddressDraft(),
+                                  );
+                                  setAddressMessage(null);
+                                }}
+                                variant="secondary"
+                              />
+                              <Button
+                                disabled={!canSaveAddress}
+                                isLoading={isUpdating}
+                                label={t("profile.saveAddress")}
+                                onPress={() =>
+                                  updateAddressMutation.mutate(address)
+                                }
+                              />
+                            </View>
+                          </View>
+                        ) : (
+                          <View style={styles.actions}>
+                            <Button
+                              disabled={updateAddressMutation.isPending}
+                              label={t("profile.editAddress")}
+                              onPress={() => {
+                                setEditingAddressId(address.id);
+                                setEditingAddressDraft(
+                                  createAddressDraftFromAddress(address),
+                                );
+                                setAddressMessage(null);
+                              }}
+                              variant="secondary"
+                            />
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <Text style={styles.body}>{t("profile.addressesEmpty")}</Text>
+              )}
+            </View>
+          </Card>
+
+          <Card>
+            <View style={styles.details}>
               <Text style={styles.sectionTitle}>{t("profile.pets")}</Text>
               <TextField
                 autoCapitalize="words"
@@ -340,7 +616,9 @@ export default function ProfileScreen() {
                 value={newPetName}
               />
               {shouldShowNewPetNameError ? (
-                <Text style={styles.errorMessage}>{t("profile.petNameInvalid")}</Text>
+                <Text style={styles.errorMessage}>
+                  {t("profile.petNameInvalid")}
+                </Text>
               ) : null}
               <View style={styles.segmentGroup}>
                 {PET_SPECIES_OPTIONS.map((species) => (
@@ -523,7 +801,9 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
-              <Text style={styles.sectionTitle}>{t("profile.preferences")}</Text>
+              <Text style={styles.sectionTitle}>
+                {t("profile.preferences")}
+              </Text>
               <TextField
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -571,12 +851,23 @@ export default function ProfileScreen() {
         </>
       ) : null}
 
-      <Button
-        disabled={!accessToken}
-        label={t("profile.refresh")}
-        onPress={() => meQuery.refetch()}
-        variant="secondary"
-      />
+      <View style={styles.actions}>
+        <Button
+          disabled={!accessToken}
+          label={t("profile.refresh")}
+          onPress={() => meQuery.refetch()}
+          variant="secondary"
+        />
+        <Button
+          disabled={!accessToken}
+          isLoading={isSigningOut}
+          label={t("settings.signOut.button")}
+          onPress={() => {
+            void runSignOut();
+          }}
+          variant="secondary"
+        />
+      </View>
     </Screen>
   );
 }
@@ -586,6 +877,153 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
     <View style={styles.row}>
       <Text style={styles.label}>{label}</Text>
       <Text style={styles.value}>{value}</Text>
+    </View>
+  );
+}
+
+interface AddressDraftFieldsProps {
+  defaultLocked?: boolean;
+  draft: AddressDraft;
+  onChange: (draft: AddressDraft) => void;
+  showCoordinateFields?: boolean;
+  showDefaultControl?: boolean;
+}
+
+function AddressDraftFields({
+  defaultLocked = false,
+  draft,
+  onChange,
+  showCoordinateFields = false,
+  showDefaultControl = false,
+}: AddressDraftFieldsProps) {
+  const updateDraft = (patch: Partial<AddressDraft>) => {
+    onChange({ ...draft, ...patch });
+  };
+
+  return (
+    <View style={styles.details}>
+      <TextField
+        autoCapitalize="words"
+        autoCorrect={false}
+        label={t("profile.addressLabel")}
+        maxLength={ADDRESS_LABEL_LIMIT}
+        onChangeText={(label) => updateDraft({ label })}
+        placeholder={t("profile.addressLabelPlaceholder")}
+        value={draft.label}
+      />
+      <TextField
+        autoCapitalize="words"
+        autoCorrect={false}
+        label={t("profile.addressCity")}
+        maxLength={ADDRESS_CITY_LIMIT}
+        onChangeText={(city) => updateDraft({ city })}
+        placeholder={t("profile.addressCityPlaceholder")}
+        value={draft.city}
+      />
+      <TextField
+        autoCapitalize="characters"
+        autoCorrect={false}
+        label={t("profile.addressPostcode")}
+        maxLength={ADDRESS_POSTCODE_LIMIT}
+        onChangeText={(postcode) => updateDraft({ postcode })}
+        placeholder={t("profile.addressPostcodePlaceholder")}
+        value={draft.postcode}
+      />
+      <TextField
+        autoCapitalize="words"
+        autoCorrect={false}
+        label={t("profile.addressPublicArea")}
+        maxLength={ADDRESS_PUBLIC_AREA_LIMIT}
+        onChangeText={(publicAreaLabel) => updateDraft({ publicAreaLabel })}
+        placeholder={t("profile.addressPublicAreaPlaceholder")}
+        value={draft.publicAreaLabel}
+      />
+      {showCoordinateFields ? (
+        <>
+          <View style={styles.coordinateRow}>
+            <View style={styles.coordinateField}>
+              <TextField
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                label={t("profile.addressLatitude")}
+                onChangeText={(latitude) => updateDraft({ latitude })}
+                placeholder="51.5074"
+                value={draft.latitude}
+              />
+            </View>
+            <View style={styles.coordinateField}>
+              <TextField
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="decimal"
+                keyboardType="decimal-pad"
+                label={t("profile.addressLongitude")}
+                onChangeText={(longitude) => updateDraft({ longitude })}
+                placeholder="-0.1278"
+                value={draft.longitude}
+              />
+            </View>
+          </View>
+          <Text style={styles.help}>{t("profile.addressLocationHelp")}</Text>
+        </>
+      ) : null}
+      <View style={styles.segmentGroup}>
+        {ADDRESS_PRECISION_OPTIONS.map((precision) => (
+          <Pressable
+            accessibilityRole="button"
+            key={precision}
+            onPress={() => updateDraft({ locationPrecision: precision })}
+            style={[
+              styles.segment,
+              draft.locationPrecision === precision
+                ? styles.segmentSelected
+                : null,
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentLabel,
+                draft.locationPrecision === precision
+                  ? styles.segmentSelectedLabel
+                  : null,
+              ]}
+            >
+              {formatAddressPrecision(precision)}
+            </Text>
+          </Pressable>
+        ))}
+        {showDefaultControl ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={defaultLocked}
+            onPress={() =>
+              updateDraft({
+                setAsDefaultTutorAddress: !draft.setAsDefaultTutorAddress,
+              })
+            }
+            style={[
+              styles.segment,
+              draft.setAsDefaultTutorAddress ? styles.segmentSelected : null,
+              defaultLocked ? styles.segmentLocked : null,
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentLabel,
+                draft.setAsDefaultTutorAddress
+                  ? styles.segmentSelectedLabel
+                  : null,
+              ]}
+            >
+              {defaultLocked
+                ? t("profile.addressDefaultActive")
+                : t("profile.addressSetDefault")}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -606,8 +1044,171 @@ function formatPetError(error: unknown): string {
   return t("profile.petsActionError");
 }
 
+function formatAddressError(error: unknown): string {
+  const status =
+    error instanceof ApiClientError
+      ? error.status
+      : typeof error === "object" && error && "status" in error
+        ? (error as { status?: unknown }).status
+        : null;
+
+  if (status === 401) return t("profile.addressesAuthError");
+  if (status === 404) return t("profile.addressesNotFoundError");
+  if (status === 400) return t("profile.addressesValidationError");
+
+  return t("profile.addressesActionError");
+}
+
+function createEmptyAddressDraft(): AddressDraft {
+  return {
+    city: "",
+    label: "",
+    latitude: "",
+    locationPrecision: "approximate",
+    longitude: "",
+    postcode: "",
+    publicAreaLabel: "",
+    setAsDefaultTutorAddress: false,
+  };
+}
+
+function createAddressDraftFromAddress(address: AddressResponse): AddressDraft {
+  return {
+    city: address.city ?? "",
+    label: address.label ?? "",
+    latitude: "",
+    locationPrecision: address.locationPrecision,
+    longitude: "",
+    postcode: address.postcode ?? "",
+    publicAreaLabel: address.publicAreaLabel ?? "",
+    setAsDefaultTutorAddress: address.isDefaultTutorAddress,
+  };
+}
+
+function buildCreateAddressRequest(draft: AddressDraft) {
+  return {
+    city: toNullableText(draft.city),
+    countryCode: "GB" as const,
+    label: toNullableText(draft.label),
+    latitude: Number(draft.latitude.trim()),
+    locationPrecision: draft.locationPrecision,
+    longitude: Number(draft.longitude.trim()),
+    postcode: toNullableText(draft.postcode),
+    publicAreaLabel: toNullableText(draft.publicAreaLabel),
+    setAsDefaultTutorAddress: draft.setAsDefaultTutorAddress,
+  };
+}
+
+function buildUpdateAddressRequest(
+  draft: AddressDraft,
+  address: AddressResponse,
+) {
+  const body: {
+    city?: string | null;
+    countryCode?: "GB";
+    label?: string | null;
+    locationPrecision?: AddressLocationPrecision;
+    postcode?: string | null;
+    publicAreaLabel?: string | null;
+    setAsDefaultTutorAddress?: boolean;
+  } = {};
+  const label = toNullableText(draft.label);
+  const city = toNullableText(draft.city);
+  const postcode = toNullableText(draft.postcode);
+  const publicAreaLabel = toNullableText(draft.publicAreaLabel);
+
+  if (label !== address.label) body.label = label;
+  if (city !== address.city) body.city = city;
+  if (postcode !== address.postcode) body.postcode = postcode;
+  if (publicAreaLabel !== address.publicAreaLabel) {
+    body.publicAreaLabel = publicAreaLabel;
+  }
+  if (draft.locationPrecision !== address.locationPrecision) {
+    body.locationPrecision = draft.locationPrecision;
+  }
+  if (draft.setAsDefaultTutorAddress && !address.isDefaultTutorAddress) {
+    body.setAsDefaultTutorAddress = true;
+  }
+
+  return body;
+}
+
+function hasAddressDraftChanges(
+  draft: AddressDraft,
+  address?: AddressResponse,
+): boolean {
+  return address
+    ? Object.keys(buildUpdateAddressRequest(draft, address)).length > 0
+    : false;
+}
+
+function hasReadableAddress(draft: AddressDraft): boolean {
+  return Boolean(
+    draft.postcode.trim() || draft.city.trim() || draft.publicAreaLabel.trim(),
+  );
+}
+
+function hasAnyAddressDraftValue(draft: AddressDraft): boolean {
+  return Boolean(
+    draft.label.trim() ||
+    draft.postcode.trim() ||
+    draft.city.trim() ||
+    draft.publicAreaLabel.trim() ||
+    draft.latitude.trim() ||
+    draft.longitude.trim() ||
+    draft.setAsDefaultTutorAddress,
+  );
+}
+
+function hasAnyCoordinateValue(draft: AddressDraft): boolean {
+  return Boolean(draft.latitude.trim() || draft.longitude.trim());
+}
+
+function hasValidAddressCoordinates(draft: AddressDraft): boolean {
+  const latitude = Number(draft.latitude.trim());
+  const longitude = Number(draft.longitude.trim());
+  return (
+    Number.isFinite(latitude) &&
+    latitude >= 49 &&
+    latitude <= 61 &&
+    Number.isFinite(longitude) &&
+    longitude >= -9 &&
+    longitude <= 2
+  );
+}
+
+function toNullableText(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 function formatSpecies(species: PetSpecies): string {
   return t(`profile.petSpecies.${species}`);
+}
+
+function formatAddressPrecision(precision: AddressLocationPrecision): string {
+  return t(`profile.addressPrecision.${precision}`);
+}
+
+function formatAddressTitle(address: AddressResponse): string {
+  return (
+    address.label ||
+    address.publicAreaLabel ||
+    address.city ||
+    address.postcode ||
+    t("common.notAvailable")
+  );
+}
+
+function formatAddressMeta(address: AddressResponse): string {
+  const parts = [
+    address.publicAreaLabel,
+    address.city,
+    address.postcode,
+    formatAddressPrecision(address.locationPrecision),
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" - ") : t("common.notAvailable");
 }
 
 function formatDate(value?: string): string {
@@ -654,20 +1255,46 @@ function formatProviderProfile(profile?: {
 const styles = StyleSheet.create({
   hero: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: spacing[4],
+    flexDirection: "column",
+    gap: spacing[3],
     marginBottom: spacing[2],
+    paddingVertical: spacing[2],
   },
   heroText: {
-    flex: 1,
+    alignItems: "center",
     gap: spacing[1],
+    maxWidth: "100%",
+  },
+  heroName: {
+    color: colors.text,
+    fontSize: typography.display,
+    fontWeight: "800",
+    textAlign: "center",
   },
   heroEmail: {
     color: colors.muted,
     fontSize: typography.small,
+    textAlign: "center",
   },
+  // Wrapper around the existing `<Badge>` reused by the address default
+  // marker; kept for layout-only margin so the new hero pill below is a
+  // separate style with its own surface treatment.
   heroBadge: {
     marginTop: spacing[1],
+  },
+  heroStatusPill: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: 999,
+    marginTop: spacing[1],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+  },
+  heroStatusPillText: {
+    color: colors.accentPressed,
+    fontSize: typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   title: {
     color: colors.text,
@@ -700,6 +1327,38 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.body,
     fontWeight: "700",
+  },
+  coordinateRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[3],
+  },
+  coordinateField: {
+    flex: 1,
+    minWidth: 124,
+  },
+  addressList: {
+    gap: spacing[3],
+  },
+  addressItem: {
+    borderColor: colors.border,
+    borderTopWidth: 1,
+    gap: spacing[3],
+    paddingTop: spacing[3],
+  },
+  addressSummary: {
+    gap: spacing[1],
+  },
+  addressName: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: "800",
+  },
+  addressMeta: {
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   petList: {
     gap: spacing[3],
@@ -754,6 +1413,9 @@ const styles = StyleSheet.create({
   segmentSelected: {
     backgroundColor: colors.accentSoft,
     borderColor: colors.accent,
+  },
+  segmentLocked: {
+    opacity: 0.72,
   },
   segmentLabel: {
     color: colors.muted,

@@ -12,8 +12,8 @@ export function RatingStars({ rating, reviewCount, size = 14 }: RatingStarsProps
   const rounded = Math.round(rating * 2) / 2;
   const label =
     reviewCount === undefined
-      ? `Avaliação ${rating.toFixed(1)} de 5`
-      : `Avaliação ${rating.toFixed(1)} de 5, ${reviewCount} avaliações`;
+      ? `Rating ${rating.toFixed(1)} out of 5`
+      : `Rating ${rating.toFixed(1)} out of 5, ${reviewCount} reviews`;
 
   return (
     <View

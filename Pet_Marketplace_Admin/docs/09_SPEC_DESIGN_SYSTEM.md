@@ -193,6 +193,12 @@ Implementação em RN nativo via `shadowColor / shadowOffset / shadowOpacity / s
 - `ConversationRow` — linha de conversa (avatar, nome, preview, hora, badge de não-lidas).
 - `MessageBubble` — bolha de mensagem (esquerda = prestador, direita = tutor).
 
+- Fluxo real atual: Chat usa `LoadingState`, `EmptyState`, `ErrorState`,
+  `IconButton` e `MessageBubble`; Provider Detail usa `Button` secundario
+  `Message provider` para abrir/retomar conversa e deep-linkar para Chat.
+- Deep-link `conversationId` so deve abrir uma thread se o id existir na lista
+  autenticada carregada por `getConversations`.
+
 ### 5.6 Navegação
 
 - `CenterTabButton` — botão "+" elevado no slot central da tab bar (consumido por `Tabs.Screen name="book"`).
@@ -216,6 +222,9 @@ Itens que existiam na v1.1 deste spec e **não estão no código**. Antes de cri
 
 - **Telas de marketplace e Login** (`home`, `search`, `book`, `chat`, `provider/[id]`, `(auth)/login`) → **pt-BR inline**, alinhadas ao modelo visual `Pet_Marketplace_Mobile02.jpeg` e ao público-alvo Brasil.
 - **Infraestrutura** (`settings`, `sign-up`, `reset-password`, `legal/*`) → **en-GB via `src/i18n/en-GB.ts`**.
+- **Override Checkpoint 093:** o fluxo Chat + CTA `Message provider` de Provider
+  Detail esta em `en-GB` via `src/i18n/en-GB.ts`. Nao adicionar texto visivel
+  hardcoded nesse fluxo; novas mensagens devem entrar como chave i18n.
 
 **Regra para o próximo agente/dev:**
 
@@ -266,14 +275,15 @@ Obrigatório:
 2. 🚧 Splash / loading inicial.
 3. ✅ Cadastro e Reset (mesmo padrão Login, com auth real via Supabase).
 4. 🚧 Escolha de perfil.
-5. ✅ Home tutor / busca.
-6. ✅ Search com filtros.
-7. ✅ Perfil do prestador (Provider Detail).
+5. ✅ Home tutor / busca (tutor/categorias demo; preview de providers real via `/api/v1/providers`, empty-state autenticado validado).
+6. ✅ Search com filtros reais via `/api/v1/providers`.
+7. ✅ Perfil do prestador (Provider Detail real para UUID; fallback demo apenas para IDs locais legados).
 8. ✅ Solicitação de booking.
 9. 🚧 Lista de bookings.
 10. 🚧 Detalhe do booking.
-11. ✅ Chat texto.
-12. 🚧 Cadastro/edição de pet (existe no Profile, sem fidelidade Mobile02).
+11. ✅ Chat texto real, incluindo listagem/envio, report/block herdados e
+    abertura/retomada por Provider Detail -> `Message provider`.
+12. 🚧 Cadastro/edição de pet e endereço (existem no Profile, sem fidelidade Mobile02 dedicada).
 13. 🚧 Perfil do prestador editor (provider onboarding).
 14. 🚧 Disponibilidade.
 15. 🚧 Avaliação.

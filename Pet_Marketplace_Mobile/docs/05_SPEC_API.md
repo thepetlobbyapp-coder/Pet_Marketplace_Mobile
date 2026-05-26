@@ -84,9 +84,47 @@ Status HTTP:
 
 Retorna usuário autenticado e perfis vinculados.
 
+**Campo `avatarUrl`** (opcional, nullable) — quando o usuário tem uma foto
+de perfil, devolve uma **signed URL** apontando para o objeto no bucket
+privado `avatars` (TTL **1h**). O cliente NÃO deve cachear a URL além do
+TTL — refazer `GET /me` antes de expirar (recomendado `staleTime` de 50min
+no React Query). `null` quando não há foto.
+
 ### `PATCH /me`
 
 Atualiza dados básicos permitidos.
+
+### `POST /me/avatar`
+
+Faz upload de foto de perfil. Multipart com campo `image`.
+
+- **Content-Type:** `multipart/form-data`
+- **Campo obrigatório:** `image` (binary)
+- **Tipos aceitos (MIME real, magic bytes):** `image/jpeg`, `image/png`, `image/webp`
+- **Tamanho máximo:** 5 MB (rejeita com `413` acima disso)
+- **Dimensões mínimas/máximas:** 256–4096px (`400` fora desse intervalo)
+- **Rate limit:** 5 uploads/min/usuário (excedeu → `429`)
+- **Processamento server-side:** resize 256×256 cover/attention,
+  reencoda em JPEG quality 82 (mozjpeg), **strip EXIF** (sem GPS/PII).
+- **Idempotente:** sobrescreve sempre `avatars/{userId}/avatar.jpg`.
+
+**200 OK** retorna:
+
+```json
+{ "avatarUrl": "<signed URL TTL 1h>" }
+```
+
+Erros:
+
+- `400 VALIDATION_ERROR` — arquivo ausente ou dimensões fora do intervalo.
+- `413 VALIDATION_ERROR` — payload > 5 MB.
+- `415 VALIDATION_ERROR` — MIME real fora dos aceitos.
+- `429 RATE_LIMITED` — mais de 5 uploads/min.
+- `503 AUTH_BACKEND_UNAVAILABLE` — Supabase Storage temporariamente indisponível.
+
+### `DELETE /me/avatar`
+
+Remove a foto de perfil. **Idempotente** (retorna `204` mesmo se já não há foto).
 
 ### `POST /me/delete-request`
 

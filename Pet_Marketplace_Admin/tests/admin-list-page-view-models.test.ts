@@ -158,6 +158,14 @@ function createMockClient(calls: string[], shouldFail = false): AdminResourceCli
         },
       ];
     },
+    updateAdminReport: async () => ({
+      category: "safety_concern",
+      createdAt: "2026-05-18T12:00:00.000Z",
+      id: "report-1",
+      status: "in_review",
+      targetType: "booking",
+      updatedAt: "2026-05-18T12:05:00.000Z",
+    }),
     listAdminReviews: async () => {
       calls.push("reviews");
       return [

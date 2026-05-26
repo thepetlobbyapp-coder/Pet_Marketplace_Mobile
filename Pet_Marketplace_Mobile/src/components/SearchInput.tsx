@@ -19,14 +19,14 @@ interface SearchInputProps extends Pick<TextInputProps, 'value' | 'onChangeText'
 export function SearchInput({
   value,
   onChangeText,
-  placeholder = 'Buscar serviços, prestadores...',
-  accessibilityLabel = 'Buscar',
+  placeholder = 'Search services or providers',
+  accessibilityLabel = 'Search',
   onPress,
 }: SearchInputProps) {
   if (onPress) {
     return (
       <Pressable
-        accessibilityHint="Abre a busca de prestadores"
+        accessibilityHint="Opens provider search"
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="search"
         onPress={onPress}

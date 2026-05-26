@@ -7,6 +7,12 @@ export type Role = "admin" | "provider" | "tutor";
 export type UserStatus = "active" | "blocked" | "deleted";
 
 export interface MeResponse {
+  /**
+   * Short-lived (1h) signed URL pointing at the user avatar. `null` when no
+   * avatar is set. Field is optional so older API clients still type-check
+   * against responses from a backend that hasn't shipped the field yet.
+   */
+  avatarUrl?: string | null;
   createdAt?: string;
   email?: string;
   id: string;
@@ -27,6 +33,22 @@ export interface MeResponse {
   updatedAt?: string;
 }
 
+/** Local representation of an image asset selected by the picker, before
+ *  it is uploaded to the API. Kept thin to avoid coupling to a native picker
+ *  shape in non-component layers. */
+export interface AvatarUploadAsset {
+  /** File URI selected by the client (file:// on iOS/Android). */
+  uri: string;
+  /** Best-effort MIME type, falls back to `image/jpeg`. */
+  mimeType?: string | null;
+  /** Filename without path, falls back to `avatar.jpg`. */
+  fileName?: string | null;
+}
+
+export interface AvatarResponse {
+  avatarUrl: string;
+}
+
 export interface UpdateMeRequest {
   locale: string;
 }
@@ -40,6 +62,172 @@ export interface TutorProfileResponse {
 
 export interface UpsertTutorProfileRequest {
   displayName: string;
+}
+
+export type AccountDeletionRequestStatus = "pending" | "processing" | "done";
+
+export interface AccountDeletionRequestResponse {
+  completedAt: string | null;
+  estimatedCompletionAt: string;
+  id: string;
+  processingStartedAt: string | null;
+  requestedAt: string;
+  status: AccountDeletionRequestStatus;
+  updatedAt: string;
+}
+
+export type AddressLocationPrecision = "postcode" | "approximate";
+
+export interface AddressResponse {
+  city: string | null;
+  countryCode: "GB";
+  createdAt: string;
+  id: string;
+  isDefaultTutorAddress: boolean;
+  label: string | null;
+  locationPrecision: AddressLocationPrecision;
+  postcode: string | null;
+  publicAreaLabel: string | null;
+  updatedAt: string;
+}
+
+export interface CreateAddressRequest {
+  city: string | null;
+  countryCode: "GB";
+  label: string | null;
+  latitude: number;
+  locationPrecision: AddressLocationPrecision;
+  longitude: number;
+  postcode: string | null;
+  publicAreaLabel: string | null;
+  setAsDefaultTutorAddress: boolean;
+}
+
+export interface UpdateAddressRequest {
+  city?: string | null;
+  countryCode?: "GB";
+  label?: string | null;
+  locationPrecision?: AddressLocationPrecision;
+  postcode?: string | null;
+  publicAreaLabel?: string | null;
+  setAsDefaultTutorAddress?: boolean;
+}
+
+export type ProviderCategory = "walk" | "sitting" | "transport" | "boarding";
+
+export interface ProviderResponse {
+  avatarUrl: string | null;
+  bio: string | null;
+  categoryId: ProviderCategory;
+  distanceMeters: number | null;
+  id: string;
+  isAvailable: boolean;
+  name: string;
+  pricePerHour: number;
+  rating: number;
+  reviewCount: number;
+  service: string;
+}
+
+export interface ListProvidersParams {
+  categoryId?: ProviderCategory;
+  limit?: number;
+  offset?: number;
+  q?: string;
+}
+
+export interface TimeSlotResponse {
+  id: string;
+  isAvailable: boolean;
+  label: string;
+}
+
+export type BookingStatus =
+  | "requested"
+  | "confirmed"
+  | "cancelled"
+  | "completed";
+
+export interface BookingResponse {
+  createdAt: string;
+  date: string;
+  id: string;
+  petId: string;
+  providerId: string;
+  service: string;
+  status: BookingStatus;
+  timeSlotId: string;
+  updatedAt: string;
+}
+
+export interface CreateBookingRequest {
+  date: string;
+  petId: string;
+  providerId: string;
+  service: string;
+  timeSlotId: string;
+}
+
+export interface ConversationResponse {
+  id: string;
+  lastMessage: string | null;
+  lastTime: string | null;
+  providerId: string;
+  unread: boolean;
+}
+
+export interface MessageResponse {
+  fromProvider: boolean;
+  id: string;
+  text: string;
+  time: string;
+}
+
+export interface CreateMessageRequest {
+  text: string;
+}
+
+export interface CreateConversationRequest {
+  providerId: string;
+}
+
+export type ReportTargetType = "conversation" | "message";
+export type ReportCategory =
+  | "safety_concern"
+  | "inappropriate_behaviour"
+  | "harassment"
+  | "spam_scam"
+  | "no_show"
+  | "other";
+export type ReportStatus =
+  | "open"
+  | "in_review"
+  | "action_taken"
+  | "dismissed"
+  | "closed";
+
+export interface CreateReportRequest {
+  category: ReportCategory;
+  description?: string | null;
+  targetId: string;
+  targetType: ReportTargetType;
+}
+
+export interface ReportResponse {
+  category: ReportCategory;
+  createdAt: string;
+  id: string;
+  status: ReportStatus;
+  targetId: string;
+  targetType: ReportTargetType;
+  updatedAt: string;
+}
+
+export interface UserBlockResponse {
+  blockedUserId: string;
+  conversationId: string | null;
+  createdAt: string;
+  id: string;
 }
 
 export type PetSpecies = "dog" | "cat" | "other";

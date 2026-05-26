@@ -49,8 +49,21 @@ export interface AdminReportListItem {
   readonly status: string;
   readonly category: string;
   readonly targetType?: string;
+  readonly targetId?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export type AdminReportStatus =
+  | "open"
+  | "in_review"
+  | "action_taken"
+  | "dismissed"
+  | "closed";
+
+export interface UpdateAdminReportRequest {
+  readonly internalNote?: string | null;
+  readonly status: AdminReportStatus;
 }
 
 export interface AdminReviewListItem {
@@ -191,6 +204,10 @@ export function parseAdminReportsList(
       ),
       id: expectString(record.id, `admin reports[${index}].id`),
       status: expectString(record.status, `admin reports[${index}].status`),
+      targetId: readOptionalString(
+        record.targetId,
+        `admin reports[${index}].targetId`,
+      ),
       targetType: readOptionalString(
         record.targetType,
         `admin reports[${index}].targetType`,

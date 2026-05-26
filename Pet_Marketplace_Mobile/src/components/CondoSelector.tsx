@@ -10,8 +10,8 @@ interface CondoSelectorProps {
 export function CondoSelector({ condominium, onPress }: CondoSelectorProps) {
   return (
     <Pressable
-      accessibilityHint="Trocar de condomínio"
-      accessibilityLabel={`Condomínio: ${condominium}`}
+      accessibilityHint="Change area"
+      accessibilityLabel={`Area: ${condominium}`}
       accessibilityRole="button"
       hitSlop={6}
       onPress={onPress}

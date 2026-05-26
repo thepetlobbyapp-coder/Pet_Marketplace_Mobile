@@ -65,10 +65,28 @@ export class MeResponseDto {
   @ApiPropertyOptional({ format: 'date-time' })
   updatedAt?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Short-lived (1h) signed URL pointing at the user avatar. Null when '
+      + 'no avatar is set. Clients must NOT cache it past the TTL; refetch GET /me.',
+    format: 'uri',
+    nullable: true,
+  })
+  avatarUrl?: string | null;
+
   @ApiPropertyOptional({ type: LinkedProfilesDto })
   profiles?: LinkedProfilesDto;
 
-  static fromAuthUser(user: AuthUser): MeResponseDto {
+  /**
+   * Build the response from an AuthUser, optionally resolving a fresh signed
+   * URL when the user has an avatar object. The signed URL is generated on
+   * demand by the caller (controller) to keep this DTO free of side effects;
+   * callers that don't care about the avatar URL can omit `avatarUrl`.
+   */
+  static fromAuthUser(
+    user: AuthUser,
+    options: { avatarUrl?: string | null } = {},
+  ): MeResponseDto {
     return {
       id: user.id,
       ...(user.email ? { email: user.email } : {}),
@@ -77,6 +95,9 @@ export class MeResponseDto {
       ...(user.locale ? { locale: user.locale } : {}),
       ...(user.createdAt ? { createdAt: user.createdAt } : {}),
       ...(user.updatedAt ? { updatedAt: user.updatedAt } : {}),
+      ...(options.avatarUrl !== undefined
+        ? { avatarUrl: options.avatarUrl }
+        : {}),
       ...(user.profiles && hasProfiles(user.profiles)
         ? {
             profiles: {

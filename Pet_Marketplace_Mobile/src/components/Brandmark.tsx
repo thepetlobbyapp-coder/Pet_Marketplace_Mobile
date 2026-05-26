@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
   },
-  // overflow:'hidden' garante o recorte do borderRadius em iOS/Web.
+  // Keeps the border radius clipping consistent on iOS and Web.
   logo: {
     overflow: 'hidden',
   },

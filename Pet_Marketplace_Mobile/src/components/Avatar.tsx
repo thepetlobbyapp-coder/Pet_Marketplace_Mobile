@@ -1,4 +1,5 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../design/tokens';
 
 interface AvatarProps {
@@ -17,16 +18,22 @@ function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
+// memory-disk caching gives us a transparent LRU cache for signed avatar URLs;
+// when the signed URL rotates after expiry the key changes naturally.
+const AVATAR_CACHE_POLICY = 'memory-disk' as const;
+
 export function Avatar({ name, size = 48, uri }: AvatarProps) {
   const shape = { width: size, height: size, borderRadius: size / 2 };
 
   if (uri) {
     return (
       <Image
-        accessibilityIgnoresInvertColors
         accessibilityLabel={name}
+        cachePolicy={AVATAR_CACHE_POLICY}
+        contentFit="cover"
         source={{ uri }}
         style={[styles.image, shape]}
+        transition={120}
       />
     );
   }

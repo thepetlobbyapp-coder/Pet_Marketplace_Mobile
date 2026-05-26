@@ -14,10 +14,43 @@ main().catch((error: unknown) => {
 
 async function main(): Promise<void> {
   await testListEndpointsSendBearerAndReturnSafeShapes();
+  await testUpdateReportSendsPatchAndReturnsSafeShape();
   await testAdminApiErrorsArePreserved();
   await testBackendUnavailableErrorIsPreserved();
 
   console.log("admin-resource-client tests passed");
+}
+
+async function testUpdateReportSendsPatchAndReturnsSafeShape(): Promise<void> {
+  const requestedBodies: unknown[] = [];
+  const fetchImpl: FetchLike = async (input, init) => {
+    const url = String(input);
+    const path = url.replace("/api/v1", "");
+    const headers = new Headers(init?.headers);
+
+    assert(path === "/admin/reports/report-1", "report update path should be stable");
+    assert(headers.get("Authorization") === `Bearer ${accessToken}`, "Bearer auth should be sent");
+    assert(headers.get("Content-Type") === "application/json", "PATCH should send JSON");
+    assert(init?.method === "PATCH", "report update should use PATCH");
+    requestedBodies.push(JSON.parse(String(init?.body)));
+
+    const reportsPayload = payloadByPath("/admin/reports") as unknown[];
+    return jsonResponse(200, reportsPayload[0]);
+  };
+  const client = createAdminResourceClient({
+    fetchImpl,
+    getAccessToken: () => accessToken,
+  });
+
+  const report = await client.updateAdminReport("report-1", {
+    internalNote: "Internal note",
+    status: "in_review",
+  });
+
+  assert(report.id === "report-1", "report update should parse response id");
+  const firstBody = requestedBodies[0] as { status?: string } | undefined;
+  assert(firstBody?.status === "in_review", "status should be sent");
+  assertNoForbiddenFieldsOrValues([report]);
 }
 
 async function testListEndpointsSendBearerAndReturnSafeShapes(): Promise<void> {

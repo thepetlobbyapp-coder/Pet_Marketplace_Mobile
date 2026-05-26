@@ -60,15 +60,15 @@ export interface DemoConversation {
 /** The tutor signed in for the demo (matches the Mobile02 reference). */
 export const demoTutor = {
   firstName: 'Juliana',
-  condominium: 'Condomínio Jardim das Flores',
+  condominium: 'Garden Flats',
 } as const;
 
 export const demoCategories: DemoCategory[] = [
-  { id: 'walk', label: 'Passeio', icon: 'walk-outline' },
-  { id: 'sitting', label: 'Pet Sitting', icon: 'home-outline' },
-  { id: 'transport', label: 'Transporte', icon: 'car-outline' },
-  { id: 'boarding', label: 'Hospedagem', icon: 'bed-outline' },
-  { id: 'more', label: '+ Mais', icon: 'ellipsis-horizontal' },
+  { id: 'walk', label: 'Walks', icon: 'walk-outline' },
+  { id: 'sitting', label: 'Pet sitting', icon: 'home-outline' },
+  { id: 'transport', label: 'Transport', icon: 'car-outline' },
+  { id: 'boarding', label: 'Boarding', icon: 'bed-outline' },
+  { id: 'more', label: 'More', icon: 'ellipsis-horizontal' },
 ];
 
 export const demoProviders: DemoProvider[] = [
@@ -83,7 +83,7 @@ export const demoProviders: DemoProvider[] = [
     distanceMeters: 150,
     isAvailable: true,
     pricePerHour: 35,
-    bio: 'Passeios diários e cuidado atencioso para o seu pet, dentro do condomínio.',
+    bio: 'Daily walks and attentive care for your pet near your area.',
   },
   {
     id: 'p-bruno',
@@ -96,12 +96,12 @@ export const demoProviders: DemoProvider[] = [
     distanceMeters: 150,
     isAvailable: true,
     pricePerHour: 40,
-    bio: 'Acompanhamento e companhia para o seu pet enquanto você está fora.',
+    bio: 'Care and companionship for your pet while you are away.',
   },
   {
     id: 'p-mariana',
     name: 'Mariana Costa',
-    service: 'Hospedagem',
+    service: 'Boarding',
     categoryId: 'boarding',
     avatarUri: 'https://i.pravatar.cc/160?img=32',
     rating: 4.7,
@@ -109,12 +109,12 @@ export const demoProviders: DemoProvider[] = [
     distanceMeters: 320,
     isAvailable: false,
     pricePerHour: 60,
-    bio: 'Hospedagem familiar com espaço e rotina tranquila para pets de porte pequeno.',
+    bio: 'Home boarding with space and a calm routine for smaller pets.',
   },
   {
     id: 'p-pedro',
     name: 'Pedro Lima',
-    service: 'Transporte',
+    service: 'Pet Transport',
     categoryId: 'transport',
     avatarUri: 'https://i.pravatar.cc/160?img=51',
     rating: 4.6,
@@ -122,7 +122,7 @@ export const demoProviders: DemoProvider[] = [
     distanceMeters: 540,
     isAvailable: true,
     pricePerHour: 30,
-    bio: 'Transporte seguro para consultas, banho e tosa na região do condomínio.',
+    bio: 'Pet transport for appointments, grooming and local care visits.',
   },
 ];
 
@@ -139,38 +139,38 @@ export const demoConversations: DemoConversation[] = [
   {
     id: 'c-carla',
     providerId: 'p-carla',
-    lastMessage: 'Combinado! Levo a Bel às 10h para o passeio.',
+    lastMessage: 'All set. I can take Bel for the 10:00 walk.',
     lastTime: '09:24',
     unread: 2,
     messages: [
       {
         id: 'm1',
         fromProvider: true,
-        text: 'Olá, Juliana! Vi a sua solicitação de passeio.',
+        text: 'Hello Juliana, I saw your walk request.',
         time: '09:18',
       },
       {
         id: 'm2',
         fromProvider: false,
-        text: 'Oi, Carla! Consegue amanhã de manhã?',
+        text: 'Hi Carla. Are you available tomorrow morning?',
         time: '09:20',
       },
       {
         id: 'm3',
         fromProvider: true,
-        text: 'Consigo sim. Tenho 09h e 10h livres.',
+        text: 'Yes. I have 09:00 and 10:00 free.',
         time: '09:21',
       },
       {
         id: 'm4',
         fromProvider: false,
-        text: 'Perfeito, pode ser 10h então.',
+        text: 'Great, 10:00 works for me.',
         time: '09:23',
       },
       {
         id: 'm5',
         fromProvider: true,
-        text: 'Combinado! Levo a Bel às 10h para o passeio.',
+        text: 'All set. I can take Bel for the 10:00 walk.',
         time: '09:24',
       },
     ],
@@ -178,21 +178,21 @@ export const demoConversations: DemoConversation[] = [
   {
     id: 'c-bruno',
     providerId: 'p-bruno',
-    lastMessage: 'Pode deixar, fico com ele no sábado.',
-    lastTime: 'Ontem',
+    lastMessage: 'No problem, I can look after him on Saturday.',
+    lastTime: 'Yesterday',
     unread: 0,
     messages: [
       {
         id: 'm1',
         fromProvider: false,
-        text: 'Bruno, você tem disponibilidade no sábado?',
-        time: 'Ontem',
+        text: 'Bruno, are you available on Saturday?',
+        time: 'Yesterday',
       },
       {
         id: 'm2',
         fromProvider: true,
-        text: 'Pode deixar, fico com ele no sábado.',
-        time: 'Ontem',
+        text: 'No problem, I can look after him on Saturday.',
+        time: 'Yesterday',
       },
     ],
   },

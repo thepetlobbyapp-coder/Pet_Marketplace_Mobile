@@ -14,8 +14,8 @@ import { getSupabaseClient } from './supabaseClient';
 interface AuthResult {
   message?: string;
   ok: boolean;
-  // Sinaliza ao consumidor que o Supabase project exige confirmacao por
-  // e-mail antes do login (sign-up retornou sucesso, sessao = null).
+  // Lets screens know when the Supabase project requires email confirmation
+  // before sign-in (sign-up succeeded, session = null).
   requiresEmailConfirmation?: boolean;
 }
 
@@ -110,16 +110,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const { data, error } = await supabase.auth.signUp({ email, password });
 
       if (error) {
-        // Mensagem generica — nao vazar detalhes do provedor para o usuario.
+        // Keep sign-up errors generic so provider details are not exposed.
         return {
           ok: false,
-          message:
-            'Nao foi possivel criar a conta. Verifique os dados e tente novamente.',
+          message: t('auth.signUp.genericError'),
         };
       }
 
-      // Quando o Supabase project exige confirmacao por e-mail, session = null.
-      // Sinalizamos isso para o consumidor decidir o proximo passo.
+      // When Supabase requires email confirmation, session = null.
       return {
         ok: true,
         requiresEmailConfirmation: data.session === null,
@@ -134,8 +132,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { ok: false, message: t('auth.config.body') };
       }
 
-      // Anti email enumeration: ignoramos o erro especifico do provedor e
-      // sempre devolvemos uma confirmacao generica para o consumidor.
+      // Anti email enumeration: ignore provider-specific errors and let the
+      // screen show the same confirmation copy.
       await supabase.auth.resetPasswordForEmail(email);
       return { ok: true };
     },

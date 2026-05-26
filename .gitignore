@@ -16,6 +16,13 @@ coverage/
 .env
 .env.*
 !.env.example
+Credenciais.txt
+credenciais*.txt
+credentials*.txt
+secret*.txt
+secrets*.txt
+*.credentials.local
+*.secrets.local
 
 # Logs
 *.log

@@ -107,6 +107,7 @@ function createMockClient(
       calls.push("reports");
       return resources.reports;
     },
+    updateAdminReport: async () => resources.reports[0]!,
     listAdminReviews: async () => {
       calls.push("reviews");
       return resources.reviews;
