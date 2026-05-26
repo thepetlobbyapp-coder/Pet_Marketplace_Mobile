@@ -140,6 +140,7 @@ describe('Me (e2e)', () => {
       locale: 'en-GB',
       createdAt: ACTIVE_USER.createdAt,
       updatedAt: ACTIVE_USER.updatedAt,
+      avatarUrl: null,
       profiles: ACTIVE_USER.profiles,
     });
     expect(supabaseMock.resolveUser).toHaveBeenCalledWith('test-token');
@@ -190,6 +191,7 @@ describe('Me (e2e)', () => {
       locale: 'en-US',
       createdAt: ACTIVE_USER.createdAt,
       updatedAt: '2026-05-18T21:00:00.000Z',
+      avatarUrl: null,
       profiles: ACTIVE_USER.profiles,
     });
     expect(supabaseAdminMock.updateOwnUser).toHaveBeenCalledWith(
