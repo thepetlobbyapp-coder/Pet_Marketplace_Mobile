@@ -20,12 +20,14 @@ import type {
   AddressLocationPrecision,
   AddressResponse,
   CreateAddressRequest,
+  CreatePetRequest,
   MeResponse,
   PetResponse,
   PetSpecies,
   ProviderProfileStatus,
   Role,
   UpdateAddressRequest,
+  UpdatePetRequest,
 } from "../../src/api/types";
 import {
   hasProviderProfile,
@@ -37,6 +39,10 @@ import {
   AddressSheet,
   type AddressSheetSubmission,
 } from "../../src/components/AddressSheet";
+import {
+  PetSheet,
+  type PetSheetSubmission,
+} from "../../src/components/PetSheet";
 import { AvatarUploader } from "../../src/components/AvatarUploader";
 import { Badge } from "../../src/components/Badge";
 import { Button } from "../../src/components/Button";
@@ -50,12 +56,13 @@ import { TextField } from "../../src/components/TextField";
 import { colors, spacing, typography } from "../../src/design/tokens";
 import { t } from "../../src/i18n";
 
-const PET_NAME_LIMIT = 120;
-const PET_SPECIES_OPTIONS: PetSpecies[] = ["dog", "cat", "other"];
-
 type AddressSheetState =
   | { mode: "create" }
   | { mode: "edit"; address: AddressResponse };
+
+type PetSheetState =
+  | { mode: "create" }
+  | { mode: "edit"; pet: PetResponse };
 
 export default function ProfileScreen() {
   const { accessToken, session, signOut } = useAuth();
@@ -84,10 +91,7 @@ export default function ProfileScreen() {
   const [providerProfileMessage, setProviderProfileMessage] = useState<
     string | null
   >(null);
-  const [newPetName, setNewPetName] = useState("");
-  const [newPetSpecies, setNewPetSpecies] = useState<PetSpecies>("other");
-  const [editingPetId, setEditingPetId] = useState<string | null>(null);
-  const [editingPetName, setEditingPetName] = useState("");
+  const [petSheet, setPetSheet] = useState<PetSheetState | null>(null);
   const [pendingDeletePetId, setPendingDeletePetId] = useState<string | null>(
     null,
   );
@@ -188,32 +192,26 @@ export default function ProfileScreen() {
   });
 
   const createPetMutation = useMutation({
-    mutationFn: () =>
-      createPet(accessToken, {
-        name: newPetName.trim(),
-        species: newPetSpecies,
-      }),
+    mutationFn: (body: CreatePetRequest) => createPet(accessToken, body),
     onError: (error) => {
       setPetMessage(formatPetError(error));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: petsQueryKey });
-      setNewPetName("");
-      setNewPetSpecies("other");
+      setPetSheet(null);
       setPetMessage(t("profile.petsCreateSuccess"));
     },
   });
 
   const updatePetMutation = useMutation({
-    mutationFn: (pet: PetResponse) =>
-      updatePet(accessToken, pet.id, { name: editingPetName.trim() }),
+    mutationFn: ({ id, body }: { id: string; body: UpdatePetRequest }) =>
+      updatePet(accessToken, id, body),
     onError: (error) => {
       setPetMessage(formatPetError(error));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: petsQueryKey });
-      setEditingPetId(null);
-      setEditingPetName("");
+      setPetSheet(null);
       setPetMessage(t("profile.petsUpdateSuccess"));
     },
   });
@@ -243,25 +241,10 @@ export default function ProfileScreen() {
   const isProviderDisplayNameValid =
     trimmedProviderDisplayName.length > 0 &&
     trimmedProviderDisplayName.length <= 80;
-  const trimmedNewPetName = newPetName.trim();
-  const editingPet = petsQuery.data?.find((pet) => pet.id === editingPetId);
-  const trimmedEditingPetName = editingPetName.trim();
-  const isNewPetNameValid =
-    trimmedNewPetName.length > 0 && trimmedNewPetName.length <= PET_NAME_LIMIT;
-  const isEditingPetNameValid =
-    trimmedEditingPetName.length > 0 &&
-    trimmedEditingPetName.length <= PET_NAME_LIMIT;
-  const hasEditingPetNameChanges =
-    Boolean(editingPet) && trimmedEditingPetName !== editingPet?.name;
   const shouldShowTutorDisplayNameError =
     tutorDisplayNameDraft !== null && !isTutorDisplayNameValid;
   const shouldShowProviderDisplayNameError =
     providerDisplayNameDraft !== null && !isProviderDisplayNameValid;
-  const shouldShowNewPetNameError = newPetName.length > 0 && !isNewPetNameValid;
-  const shouldShowEditingPetNameError =
-    editingPetId !== null &&
-    editingPetName.length > 0 &&
-    !isEditingPetNameValid;
   const canSaveTutorProfile =
     Boolean(accessToken) &&
     Boolean(meQuery.data) &&
@@ -272,21 +255,16 @@ export default function ProfileScreen() {
     Boolean(meQuery.data) &&
     isProviderDisplayNameValid &&
     !upsertProviderProfile.isPending;
-  const canCreatePet =
-    Boolean(accessToken) &&
-    canUseTutorTools &&
-    isNewPetNameValid &&
-    !createPetMutation.isPending;
-  const canSavePetName =
-    Boolean(accessToken) &&
-    canUseTutorTools &&
-    hasEditingPetNameChanges &&
-    isEditingPetNameValid &&
-    !updatePetMutation.isPending;
   const isAddressSheetSubmitting =
     createAddressMutation.isPending || updateAddressMutation.isPending;
   const addressMutationsHaveError =
     createAddressMutation.isError || updateAddressMutation.isError;
+  const isPetSheetSubmitting =
+    createPetMutation.isPending || updatePetMutation.isPending;
+  const petMutationsHaveError =
+    createPetMutation.isError ||
+    updatePetMutation.isError ||
+    deletePetMutation.isError;
 
   const heroName = tutorProfile?.displayName?.trim() || t("profile.title");
   const heroAvatarUrl = meQuery.data?.avatarUrl ?? null;
@@ -364,6 +342,56 @@ export default function ProfileScreen() {
     }
 
     updateAddressMutation.mutate({ id: original.id, body });
+  }
+
+  function openCreatePetSheet() {
+    setPetMessage(null);
+    setPetSheet({ mode: "create" });
+  }
+
+  function openEditPetSheet(pet: PetResponse) {
+    setPetMessage(null);
+    setPetSheet({ mode: "edit", pet });
+  }
+
+  function closePetSheet() {
+    if (isPetSheetSubmitting) return;
+    setPetSheet(null);
+  }
+
+  function handlePetSubmit(submission: PetSheetSubmission) {
+    if (petSheet === null) return;
+    if (petSheet.mode === "create") {
+      createPetMutation.mutate({
+        name: submission.name,
+        species: submission.species,
+        size: submission.size,
+        breed: submission.breed,
+        ageRange: submission.ageRange,
+        notes: submission.notes,
+      });
+      return;
+    }
+
+    // EDIT: send only the fields that actually changed. The backend's
+    // `parseUpdatePetBody` rejects empty bodies, so we close the sheet
+    // silently if nothing moved.
+    const original = petSheet.pet;
+    const body: UpdatePetRequest = {};
+    if (submission.name !== original.name) body.name = submission.name;
+    if (submission.species !== original.species) body.species = submission.species;
+    if (submission.size !== original.size) body.size = submission.size;
+    if (submission.breed !== (original.breed ?? null)) body.breed = submission.breed;
+    if (submission.ageRange !== (original.ageRange ?? null)) {
+      body.ageRange = submission.ageRange;
+    }
+    if (submission.notes !== (original.notes ?? null)) body.notes = submission.notes;
+
+    if (Object.keys(body).length === 0) {
+      setPetSheet(null);
+      return;
+    }
+    updatePetMutation.mutate({ id: original.id, body });
   }
 
   // Patch the cached /me response in place so the hero avatar updates
@@ -766,138 +794,68 @@ export default function ProfileScreen() {
                 <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
               ) : (
                 <>
-              <TextField
-                autoCapitalize="words"
-                autoCorrect={false}
-                label={t("profile.petName")}
-                maxLength={PET_NAME_LIMIT}
-                onChangeText={(value) => {
-                  setNewPetName(value);
-                  setPetMessage(null);
-                }}
-                placeholder={t("profile.petNamePlaceholder")}
-                value={newPetName}
-              />
-              {shouldShowNewPetNameError ? (
-                <Text style={styles.errorMessage}>
-                  {t("profile.petNameInvalid")}
-                </Text>
-              ) : null}
-              <View style={styles.segmentGroup}>
-                {PET_SPECIES_OPTIONS.map((species) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={species}
-                    onPress={() => {
-                      setNewPetSpecies(species);
-                      setPetMessage(null);
-                    }}
-                    style={[
-                      styles.segment,
-                      newPetSpecies === species ? styles.segmentSelected : null,
-                    ]}
-                  >
+                  {petMessage ? (
                     <Text
                       style={[
-                        styles.segmentLabel,
-                        newPetSpecies === species
-                          ? styles.segmentSelectedLabel
-                          : null,
+                        styles.message,
+                        petMutationsHaveError ? styles.errorMessage : null,
                       ]}
                     >
-                      {formatSpecies(species)}
+                      {petMessage}
                     </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Button
-                disabled={!canCreatePet}
-                isLoading={createPetMutation.isPending}
-                label={t("profile.createPet")}
-                onPress={() => createPetMutation.mutate()}
-              />
-              {petMessage ? (
-                <Text
-                  style={[
-                    styles.message,
-                    createPetMutation.isError ||
-                    updatePetMutation.isError ||
-                    deletePetMutation.isError
-                      ? styles.errorMessage
-                      : null,
-                  ]}
-                >
-                  {petMessage}
-                </Text>
-              ) : null}
-              {petsQuery.isLoading ? (
-                <LoadingState label={t("profile.petsLoading")} />
-              ) : petsQuery.isError ? (
-                <ErrorState
-                  actionLabel={t("common.retry")}
-                  message={t("profile.petsError")}
-                  onRetry={() => petsQuery.refetch()}
-                  title={t("common.error")}
-                />
-              ) : petsQuery.data && petsQuery.data.length > 0 ? (
-                <View style={styles.petList}>
-                  {petsQuery.data.map((pet) => {
-                    const isEditing = editingPetId === pet.id;
-                    const isConfirmingDelete = pendingDeletePetId === pet.id;
-                    const isUpdating =
-                      updatePetMutation.isPending &&
-                      updatePetMutation.variables?.id === pet.id;
-                    const isDeleting =
-                      deletePetMutation.isPending &&
-                      deletePetMutation.variables?.id === pet.id;
+                  ) : null}
+                  {petsQuery.isLoading ? (
+                    <LoadingState label={t("profile.petsLoading")} />
+                  ) : petsQuery.isError ? (
+                    <ErrorState
+                      actionLabel={t("common.retry")}
+                      message={t("profile.petsError")}
+                      onRetry={() => petsQuery.refetch()}
+                      title={t("common.error")}
+                    />
+                  ) : petsQuery.data && petsQuery.data.length > 0 ? (
+                    <View style={styles.petList}>
+                      {petsQuery.data.map((pet) => {
+                        const isConfirmingDelete = pendingDeletePetId === pet.id;
+                        const isDeleting =
+                          deletePetMutation.isPending &&
+                          deletePetMutation.variables?.id === pet.id;
 
-                    return (
-                      <View key={pet.id} style={styles.petItem}>
-                        <View style={styles.petSummary}>
-                          <Text style={styles.petName}>{pet.name}</Text>
-                          <Text style={styles.petMeta}>
-                            {formatSpecies(pet.species)}
-                          </Text>
-                        </View>
-                        {isEditing ? (
-                          <View style={styles.details}>
-                            <TextField
-                              autoCapitalize="words"
-                              autoCorrect={false}
-                              label={t("profile.editPetName")}
-                              maxLength={PET_NAME_LIMIT}
-                              onChangeText={(value) => {
-                                setEditingPetName(value);
-                                setPetMessage(null);
-                              }}
-                              value={editingPetName}
-                            />
-                            {shouldShowEditingPetNameError ? (
-                              <Text style={styles.errorMessage}>
-                                {t("profile.petNameInvalid")}
-                              </Text>
-                            ) : null}
-                            <View style={styles.actions}>
-                              <Button
-                                disabled={isUpdating}
-                                label={t("common.cancel")}
-                                onPress={() => {
-                                  setEditingPetId(null);
-                                  setEditingPetName("");
-                                  setPetMessage(null);
-                                }}
-                                variant="secondary"
-                              />
-                              <Button
-                                disabled={!canSavePetName}
-                                isLoading={isUpdating}
-                                label={t("common.save")}
-                                onPress={() => updatePetMutation.mutate(pet)}
-                              />
+                        return (
+                          <View key={pet.id} style={styles.petItem}>
+                            <View style={styles.petSummary}>
+                              <Text style={styles.petName}>{pet.name}</Text>
+                              <View style={styles.petBadges}>
+                                <Badge
+                                  label={formatSpecies(pet.species)}
+                                  tone="info"
+                                />
+                                {pet.size !== "unknown" ? (
+                                  <Badge
+                                    label={t(`profile.pet.size.${pet.size}`)}
+                                    tone="neutral"
+                                  />
+                                ) : null}
+                                {pet.breed ? (
+                                  <Badge label={pet.breed} tone="neutral" />
+                                ) : null}
+                                {pet.ageRange ? (
+                                  <Badge
+                                    icon="time"
+                                    label={pet.ageRange}
+                                    tone="neutral"
+                                  />
+                                ) : null}
+                              </View>
+                              {pet.notes ? (
+                                <Text
+                                  numberOfLines={2}
+                                  style={styles.petNotes}
+                                >
+                                  {pet.notes}
+                                </Text>
+                              ) : null}
                             </View>
-                          </View>
-                        ) : (
-                          <>
                             {isConfirmingDelete ? (
                               <View style={styles.deleteConfirm}>
                                 <Text style={styles.deleteConfirmText}>
@@ -927,22 +885,15 @@ export default function ProfileScreen() {
                             ) : (
                               <View style={styles.actions}>
                                 <Button
-                                  disabled={updatePetMutation.isPending}
+                                  disabled={isPetSheetSubmitting}
                                   label={t("profile.editPet")}
-                                  onPress={() => {
-                                    setEditingPetId(pet.id);
-                                    setEditingPetName(pet.name);
-                                    setPendingDeletePetId(null);
-                                    setPetMessage(null);
-                                  }}
+                                  onPress={() => openEditPetSheet(pet)}
                                   variant="secondary"
                                 />
                                 <Button
                                   disabled={deletePetMutation.isPending}
                                   label={t("profile.deletePet")}
                                   onPress={() => {
-                                    setEditingPetId(null);
-                                    setEditingPetName("");
                                     setPendingDeletePetId(pet.id);
                                     setPetMessage(null);
                                   }}
@@ -950,15 +901,18 @@ export default function ProfileScreen() {
                                 />
                               </View>
                             )}
-                          </>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <Text style={styles.body}>{t("profile.petsEmpty")}</Text>
-              )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <Text style={styles.body}>{t("profile.petsEmpty")}</Text>
+                  )}
+                  <Button
+                    disabled={isPetSheetSubmitting}
+                    label={t("profile.createPet")}
+                    onPress={openCreatePetSheet}
+                  />
                 </>
               )}
             </View>
@@ -1025,6 +979,28 @@ export default function ProfileScreen() {
           variant="secondary"
         />
       </View>
+      {petSheet ? (
+        <PetSheet
+          // Re-key on mode/target so internal form state resets cleanly when
+          // the parent switches between create and editing a different pet.
+          key={
+            petSheet.mode === "edit"
+              ? `edit:${petSheet.pet.id}`
+              : "create"
+          }
+          externalErrorMessage={
+            petMutationsHaveError ? petMessage : null
+          }
+          initialPet={
+            petSheet.mode === "edit" ? petSheet.pet : undefined
+          }
+          isSubmitting={isPetSheetSubmitting}
+          mode={petSheet.mode}
+          onClose={closePetSheet}
+          onSubmit={handlePetSubmit}
+          visible
+        />
+      ) : null}
       {addressSheet ? (
         <AddressSheet
         // switches modes — no useEffect-driven reset needed.
@@ -1402,10 +1378,17 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: "800",
   },
-  petMeta: {
+  petBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[1],
+  },
+  petNotes: {
     color: colors.muted,
     fontSize: typography.small,
-    fontWeight: "700",
+    fontStyle: "italic",
+    lineHeight: 20,
+    marginTop: spacing[1],
   },
   deleteConfirm: {
     backgroundColor: colors.surfaceMuted,

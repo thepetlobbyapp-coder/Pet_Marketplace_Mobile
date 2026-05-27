@@ -5,6 +5,7 @@ export interface HealthResponse {
 
 export type Role = "admin" | "provider" | "tutor";
 export type UserStatus = "active" | "blocked" | "deleted";
+export type ProviderProfileStatus = "active" | "blocked" | "deleted" | "paused";
 
 export interface MeResponse {
   /**
@@ -24,7 +25,7 @@ export interface MeResponse {
       ratingAverage: number | null;
       ratingCount: number;
       serviceRadiusKm: number;
-      status: "active" | "blocked" | "deleted" | "paused";
+      status: ProviderProfileStatus;
     };
     tutor?: TutorProfileResponse;
   };
@@ -61,6 +62,21 @@ export interface TutorProfileResponse {
 }
 
 export interface UpsertTutorProfileRequest {
+  displayName: string;
+}
+
+export interface ProviderProfileResponse {
+  createdAt: string;
+  displayName: string;
+  id: string;
+  ratingAverage: number | null;
+  ratingCount: number;
+  serviceRadiusKm: number;
+  status: ProviderProfileStatus;
+  updatedAt: string;
+}
+
+export interface UpsertProviderProfileRequest {
   displayName: string;
 }
 
@@ -248,10 +264,19 @@ export interface PetResponse {
 export interface CreatePetRequest {
   name: string;
   species: PetSpecies;
+  size?: PetSize;
+  breed?: string | null;
+  ageRange?: string | null;
+  notes?: string | null;
 }
 
 export interface UpdatePetRequest {
-  name: string;
+  name?: string;
+  species?: PetSpecies;
+  size?: PetSize;
+  breed?: string | null;
+  ageRange?: string | null;
+  notes?: string | null;
 }
 
 export interface ApiErrorBody {
