@@ -19,6 +19,7 @@ import type {
   AddressLocationPrecision,
   AddressResponse,
   CreateAddressRequest,
+  MeResponse,
   PetResponse,
   PetSpecies,
   ProviderProfileStatus,
@@ -34,7 +35,7 @@ import {
   AddressSheet,
   type AddressSheetSubmission,
 } from "../../src/components/AddressSheet";
-import { Avatar } from "../../src/components/Avatar";
+import { AvatarUploader } from "../../src/components/AvatarUploader";
 import { Badge } from "../../src/components/Badge";
 import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
@@ -361,6 +362,17 @@ export default function ProfileScreen() {
     updateAddressMutation.mutate({ id: original.id, body });
   }
 
+  // Patch the cached /me response in place so the hero avatar updates
+  // instantly after upload/remove, without round-tripping through a
+  // refetch. The next natural invalidation will reconcile if the server
+  // returns extra fields.
+  function handleAvatarChange(nextAvatarUrl: string | null) {
+    queryClient.setQueryData(meQueryKey, (prev: MeResponse | undefined) => {
+      if (!prev) return prev;
+      return { ...prev, avatarUrl: nextAvatarUrl };
+    });
+  }
+
   async function runSignOut() {
     setIsSigningOut(true);
     try {
@@ -375,7 +387,14 @@ export default function ProfileScreen() {
   return (
     <Screen variant="top">
       <View style={styles.hero}>
-        <Avatar name={heroName} size={96} uri={heroAvatarUrl ?? undefined} />
+        <AvatarUploader
+          accessToken={accessToken}
+          avatarUrl={heroAvatarUrl}
+          disabled={!meQuery.data}
+          name={heroName}
+          onChange={handleAvatarChange}
+          size={96}
+        />
         <View style={styles.heroText}>
           <Text numberOfLines={1} style={styles.heroName}>
             {heroName}

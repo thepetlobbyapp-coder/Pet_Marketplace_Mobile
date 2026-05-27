@@ -313,6 +313,39 @@ export const enGB = {
 
   "profile.title": "Your profile",
   "profile.body": "Review your account status and preferences.",
+  "profile.avatar.changeAction": "Change profile photo",
+  "profile.avatar.actionTitle": "Profile photo",
+  "profile.avatar.actionBody": "Choose how to update your photo.",
+  "profile.avatar.takePhoto": "Take a photo",
+  "profile.avatar.chooseLibrary": "Choose from library",
+  "profile.avatar.remove": "Remove photo",
+  "profile.avatar.uploading": "Uploading photo",
+  "profile.avatar.permissionTitle": "Permission needed",
+  "profile.avatar.permissionCamera":
+    "Allow camera access in your device settings to take a profile photo.",
+  "profile.avatar.permissionLibrary":
+    "Allow photo library access in your device settings to choose a profile photo.",
+  "profile.avatar.removeConfirmTitle": "Remove profile photo?",
+  "profile.avatar.removeConfirmBody":
+    "Your profile will show your initials again.",
+  "profile.avatar.uploadError.auth": "Sign in again to update your photo.",
+  "profile.avatar.uploadError.tooLarge":
+    "Photo is too large. Choose an image up to 5 MB.",
+  "profile.avatar.uploadError.unsupportedType":
+    "Use a JPEG, PNG or WEBP image.",
+  "profile.avatar.uploadError.dimensions":
+    "Pick a photo between 256×256 and 4096×4096 pixels.",
+  "profile.avatar.uploadError.missing":
+    "The photo could not be read. Try choosing it again.",
+  "profile.avatar.uploadError.storage":
+    "Photo storage is temporarily unavailable. Try again in a moment.",
+  "profile.avatar.uploadError.network":
+    "The photo could not be uploaded. Check your connection and try again.",
+  "profile.avatar.uploadError.generic":
+    "The photo could not be updated right now. Try again.",
+  "profile.avatar.deleteError.auth": "Sign in again to remove your photo.",
+  "profile.avatar.deleteError.generic":
+    "The photo could not be removed right now. Try again.",
   "profile.noSession": "Sign in to load your backend profile.",
   "profile.loading": "Loading your profile",
   "profile.error":

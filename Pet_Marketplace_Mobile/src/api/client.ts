@@ -1,3 +1,4 @@
+import * as FileSystem from "expo-file-system/legacy";
 import { env } from "../lib/env";
 import type {
   ApiErrorBody,
@@ -18,6 +19,7 @@ import type {
   MeResponse,
   MessageResponse,
   PetResponse,
+  ProviderProfileResponse,
   ProviderResponse,
   ReportResponse,
   TimeSlotResponse,
@@ -25,13 +27,13 @@ import type {
   UpdateAddressRequest,
   UpdatePetRequest,
   UpdateMeRequest,
+  UpsertProviderProfileRequest,
   UpsertTutorProfileRequest,
   UserBlockResponse,
 } from "./types";
 
 /** Client-side hard cap mirrors the backend validator (5 MB). */
 export const AVATAR_MAX_SIZE_BYTES = 5 * 1024 * 1024;
-const AVATAR_UPLOAD_TIMEOUT_MS = 30_000;
 
 const apiV1BaseUrl = `${env.apiBaseUrl}/api/v1`;
 
@@ -84,47 +86,48 @@ export async function uploadAvatar(
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
 
-  const form = new FormData();
-  // React Native FormData accepts the `{ uri, name, type }` shape directly.
-  // Cast through `unknown` to keep TS happy across DOM/RN typings.
-  form.append(
-    "image",
+  // expo-file-system's `uploadAsync` performs the multipart upload on the
+  // native HTTP client, sidestepping two known incompatibilities of the
+  // RN 0.85 JS path:
+  //   - "Unsupported FormDataPart implementation" when appending the
+  //     legacy `{uri, name, type}` shape;
+  //   - `fetch(file://...)` failing to materialise the picker URI on
+  //     Android.
+  // The native uploader streams the file straight from disk, so we never
+  // buffer the image bytes in JS heap either.
+  const result = await FileSystem.uploadAsync(
+    `${apiV1BaseUrl}/me/avatar`,
+    asset.uri,
     {
-      uri: asset.uri,
-      name: asset.fileName ?? "avatar.jpg",
-      type: asset.mimeType ?? "image/jpeg",
-    } as unknown as Blob,
-  );
-
-  const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    AVATAR_UPLOAD_TIMEOUT_MS,
-  );
-
-  try {
-    const response = await fetch(`${apiV1BaseUrl}/me/avatar`, {
-      body: form,
+      httpMethod: "POST",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: "image",
+      mimeType: asset.mimeType ?? "image/jpeg",
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      method: "POST",
-      signal: controller.signal,
-    });
+    },
+  );
 
-    const body = await readJson(response);
-    const apiError = readApiError(body);
-    if (!response.ok) {
-      throw new ApiClientError(
-        apiError?.code ?? `HTTP_${response.status}`,
-        response.status,
-        apiError?.message,
-      );
-    }
-    return body as AvatarResponse;
-  } finally {
-    clearTimeout(timeout);
+  const body = parseUploadBody(result.body);
+  const apiError = readApiError(body);
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiClientError(
+      apiError?.code ?? `HTTP_${result.status}`,
+      result.status,
+      apiError?.message,
+    );
+  }
+  return body as AvatarResponse;
+}
+
+function parseUploadBody(raw: string | undefined | null): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 }
 
@@ -190,6 +193,24 @@ export async function createTutorProfile(
   }
 
   return request<TutorProfileResponse>("/me/tutor-profile", {
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+}
+
+export async function createProviderProfile(
+  accessToken: string | null,
+  body: UpsertProviderProfileRequest,
+): Promise<ProviderProfileResponse> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<ProviderProfileResponse>("/me/provider-profile", {
     body: JSON.stringify(body),
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -530,6 +551,7 @@ async function request<T>(
     | "/me"
     | "/me/avatar"
     | "/me/deletion-request"
+    | "/me/provider-profile"
     | "/me/tutor-profile"
     | "/addresses"
     | `/addresses/${string}`
