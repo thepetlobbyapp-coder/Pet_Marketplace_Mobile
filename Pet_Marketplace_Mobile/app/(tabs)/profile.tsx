@@ -1,6 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ApiClientError,
@@ -23,6 +24,7 @@ import type {
   PetResponse,
   PetSpecies,
   ProviderProfileStatus,
+  Role,
   UpdateAddressRequest,
 } from "../../src/api/types";
 import {
@@ -41,7 +43,9 @@ import { Button } from "../../src/components/Button";
 import { Card } from "../../src/components/Card";
 import { ErrorState } from "../../src/components/ErrorState";
 import { LoadingState } from "../../src/components/LoadingState";
+import { RatingStars } from "../../src/components/RatingStars";
 import { Screen } from "../../src/components/Screen";
+import { SectionHeader } from "../../src/components/SectionHeader";
 import { TextField } from "../../src/components/TextField";
 import { colors, spacing, typography } from "../../src/design/tokens";
 import { t } from "../../src/i18n";
@@ -399,14 +403,33 @@ export default function ProfileScreen() {
           <Text numberOfLines={1} style={styles.heroName}>
             {heroName}
           </Text>
-          <Text numberOfLines={1} style={styles.heroEmail}>
-            {meQuery.data?.email ?? t("profile.body")}
-          </Text>
+          {meQuery.data?.email ? (
+            <Text numberOfLines={1} style={styles.heroEmail}>
+              {meQuery.data.email}
+            </Text>
+          ) : null}
           {meQuery.data ? (
-            <View style={styles.heroStatusPill}>
-              <Text style={styles.heroStatusPillText}>
-                {meQuery.data.status}
-              </Text>
+            <View style={styles.heroChips}>
+              {tutorProfile ? (
+                <Badge
+                  icon="person"
+                  label={t("profile.hero.roleTutor")}
+                  tone="info"
+                />
+              ) : null}
+              {providerProfile ? (
+                <Badge
+                  icon="briefcase"
+                  label={getProviderRoleLabel(providerProfile.status)}
+                  tone={getProviderRoleTone(providerProfile.status)}
+                />
+              ) : null}
+              {!tutorProfile && !providerProfile ? (
+                <Badge
+                  label={t("profile.hero.noRoles")}
+                  tone="neutral"
+                />
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -444,7 +467,10 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
-              <Text style={styles.sectionTitle}>{t("profile.account")}</Text>
+              <SectionHeader
+                icon="person-circle"
+                title={t("profile.section.account")}
+              />
               <ProfileRow
                 label={t("profile.email")}
                 value={meQuery.data.email ?? t("common.notAvailable")}
@@ -453,10 +479,21 @@ export default function ProfileScreen() {
                 label={t("profile.status")}
                 value={meQuery.data.status}
               />
-              <ProfileRow
-                label={t("profile.roles")}
-                value={formatRoles(meQuery.data.roles)}
-              />
+              <ProfileRow label={t("profile.roles")}>
+                {meQuery.data.roles.length > 0 ? (
+                  <View style={styles.chipRow}>
+                    {meQuery.data.roles.map((role) => (
+                      <Badge
+                        key={role}
+                        label={formatRoleLabel(role)}
+                        tone="info"
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.value}>{t("common.notAvailable")}</Text>
+                )}
+              </ProfileRow>
               <ProfileRow
                 label={t("profile.createdAt")}
                 value={formatDate(meQuery.data.createdAt)}
@@ -465,20 +502,15 @@ export default function ProfileScreen() {
                 label={t("profile.updatedAt")}
                 value={formatDate(meQuery.data.updatedAt)}
               />
-              <Text style={styles.help}>{t("profile.openSettingsHelp")}</Text>
-              <View style={styles.actions}>
-                <Button
-                  label={t("profile.openSettings")}
-                  onPress={() => router.push("/settings")}
-                  variant="secondary"
-                />
-              </View>
             </View>
           </Card>
 
           <Card>
             <View style={styles.details}>
-              <Text style={styles.sectionTitle}>{t("profile.details")}</Text>
+              <SectionHeader
+                icon="id-card"
+                title={t("profile.section.profiles")}
+              />
 
               <View style={styles.profileSection}>
                 <ProfileRow
@@ -552,6 +584,33 @@ export default function ProfileScreen() {
                   label={t("profile.providerProfile")}
                   value={formatProviderProfile(providerProfile)}
                 />
+                {providerProfile ? (
+                  <View style={styles.providerStats}>
+                    {providerProfile.ratingAverage !== null ? (
+                      <RatingStars
+                        rating={providerProfile.ratingAverage}
+                        reviewCount={providerProfile.ratingCount}
+                      />
+                    ) : (
+                      <Badge
+                        icon="star-outline"
+                        label={t("profile.provider.stats.noRating")}
+                        tone="neutral"
+                      />
+                    )}
+                    <Badge
+                      icon="navigate"
+                      label={`${providerProfile.serviceRadiusKm} ${t(
+                        "profile.provider.stats.km",
+                      )}`}
+                      tone="neutral"
+                    />
+                    <Badge
+                      label={formatProviderStatus(providerProfile.status)}
+                      tone={getProviderRoleTone(providerProfile.status)}
+                    />
+                  </View>
+                ) : null}
                 {providerProfile?.status === "paused" ? (
                   <Text style={styles.notice}>
                     {t("profile.providerPausedHelp")}
@@ -624,7 +683,10 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
-              <Text style={styles.sectionTitle}>{t("profile.addresses")}</Text>
+              <SectionHeader
+                icon="location"
+                title={t("profile.section.addresses")}
+              />
               {!canUseTutorTools ? (
                 <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
               ) : (
@@ -696,7 +758,10 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
-              <Text style={styles.sectionTitle}>{t("profile.pets")}</Text>
+              <SectionHeader
+                icon="paw"
+                title={t("profile.section.pets")}
+              />
               {!canUseTutorTools ? (
                 <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
               ) : (
@@ -899,6 +964,34 @@ export default function ProfileScreen() {
             </View>
           </Card>
 
+          <Card>
+            <View style={styles.details}>
+              <SectionHeader
+                icon="shield-checkmark"
+                title={t("profile.section.accountAndLegal")}
+              />
+              <LegalLinkRow
+                icon="document-text"
+                label={t("profile.legal.terms")}
+                onPress={() => router.push("/legal/terms")}
+              />
+              <LegalLinkRow
+                icon="lock-closed"
+                label={t("profile.legal.privacy")}
+                onPress={() => router.push("/legal/privacy")}
+              />
+              <View style={styles.dividerLine} />
+              <LegalLinkRow
+                icon="settings-sharp"
+                label={t("profile.legal.openSettings")}
+                onPress={() => router.push("/settings")}
+              />
+              <Text style={styles.help}>
+                {t("profile.legal.openSettingsHint")}
+              </Text>
+            </View>
+          </Card>
+
           {/*
            * DESIGN AGENT: Locale (Preferences) card hidden while the app is
            * UK-only. The PATCH /me { locale } endpoint in
@@ -963,13 +1056,75 @@ export default function ProfileScreen() {
   );
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
+function ProfileRow({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: string;
+  // When provided, replaces the plain `<Text>` value with arbitrary JSX —
+  // used for the role chips on the account card.
+  children?: ReactNode;
+}) {
   return (
     <View style={styles.row}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
+      {children ?? (
+        <Text style={styles.value}>{value ?? t("common.notAvailable")}</Text>
+      )}
     </View>
   );
+}
+
+function LegalLinkRow({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      hitSlop={6}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.legalRow,
+        pressed ? styles.legalRowPressed : null,
+      ]}
+    >
+      <View style={styles.legalRowLeft}>
+        <Ionicons color={colors.accent} name={icon} size={18} />
+        <Text style={styles.legalRowLabel}>{label}</Text>
+      </View>
+      <Ionicons color={colors.muted} name="chevron-forward" size={18} />
+    </Pressable>
+  );
+}
+
+function getProviderRoleLabel(status: ProviderProfileStatus): string {
+  if (status === "paused") return t("profile.hero.roleProviderPaused");
+  if (status === "blocked") return t("profile.hero.roleProviderBlocked");
+  return t("profile.hero.roleProvider");
+}
+
+function getProviderRoleTone(
+  status: ProviderProfileStatus,
+): "info" | "warning" | "danger" {
+  if (status === "paused") return "warning";
+  if (status === "blocked" || status === "deleted") return "danger";
+  return "info";
+}
+
+function formatRoleLabel(role: Role): string {
+  if (role === "tutor") return t("profile.hero.roleTutor");
+  if (role === "provider") return t("profile.hero.roleProvider");
+  // Admin is intentionally surfaced verbatim — there's no public-facing copy
+  // for it and falling through to a generic label would be misleading.
+  return role;
 }
 
 function getProfileActionLabel(
@@ -1072,10 +1227,6 @@ function formatDate(value?: string): string {
   }).format(date);
 }
 
-function formatRoles(roles: string[]): string {
-  return roles.length > 0 ? roles.join(", ") : t("common.notAvailable");
-}
-
 function formatTutorProfile(profile?: { displayName: string; id: string }) {
   return profile?.displayName || t("profile.notSet");
 }
@@ -1132,19 +1283,45 @@ const styles = StyleSheet.create({
   heroBadge: {
     marginTop: spacing[1],
   },
-  heroStatusPill: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: 999,
+  heroChips: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2],
+    justifyContent: "center",
     marginTop: spacing[1],
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
   },
-  heroStatusPillText: {
-    color: colors.accentPressed,
-    fontSize: typography.caption,
+  chipRow: {
+    flexDirection: "row",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    gap: spacing[2],
+    justifyContent: "flex-end",
+  },
+  providerStats: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2],
+  },
+  legalRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: spacing[2],
+  },
+  legalRowPressed: {
+    opacity: 0.6,
+  },
+  legalRowLeft: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing[3],
+  },
+  legalRowLabel: {
+    color: colors.text,
+    fontSize: typography.body,
     fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
   },
   title: {
     color: colors.text,
