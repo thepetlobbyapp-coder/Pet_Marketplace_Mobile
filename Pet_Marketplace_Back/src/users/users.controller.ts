@@ -123,7 +123,7 @@ export class UsersController {
     @UploadedFile() image: Express.Multer.File | undefined,
   ): Promise<AvatarResponseDto> {
     const result = await this.avatars.uploadAvatar(user.id, image);
-    this.audit.record({
+    await this.audit.record({
       actorUserId: user.id,
       action: 'account.avatar_uploaded',
       entityType: 'user',
@@ -138,7 +138,7 @@ export class UsersController {
   @ApiNoContentResponse({ description: 'Avatar deleted (idempotent).' })
   async deleteAvatar(@CurrentUser() user: AuthUser): Promise<void> {
     await this.avatars.deleteAvatar(user.id);
-    this.audit.record({
+    await this.audit.record({
       actorUserId: user.id,
       action: 'account.avatar_deleted',
       entityType: 'user',
@@ -171,7 +171,7 @@ export class UsersController {
     @CurrentUser() user: AuthUser,
   ): Promise<AccountDeletionRequestResponseDto> {
     const request = await this.admin.requestOwnAccountDeletion(user.id);
-    this.audit.record({
+    await this.audit.record({
       actorUserId: user.id,
       action: 'account.deletion_requested',
       entityType: 'account_deletion_request',

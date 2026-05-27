@@ -40,7 +40,7 @@ pnpm install            # na raiz e/ou por app
 pnpm sync               # propaga docs/ e .codex/ para os 3 apps
 ```
 
-Pré-requisitos: Node 20 LTS, pnpm 9+, git. Veja `.env.example` e `COMMITS.md`.
+Pré-requisitos: Node 22 LTS (`22.x`), pnpm 10.30.3, git. Veja `.env.example` e `COMMITS.md`.
 
 ## Progresso
 
