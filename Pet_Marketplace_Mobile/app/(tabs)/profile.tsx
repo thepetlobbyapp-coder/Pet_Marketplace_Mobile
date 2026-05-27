@@ -6,6 +6,7 @@ import {
   ApiClientError,
   createAddress,
   createPet,
+  createProviderProfile,
   createTutorProfile,
   deletePet,
   getAddresses,
@@ -13,16 +14,26 @@ import {
   getMe,
   updateAddress,
   updatePet,
-  updateMe,
-  updateTutorProfile,
 } from "../../src/api/client";
 import type {
   AddressLocationPrecision,
   AddressResponse,
+  CreateAddressRequest,
   PetResponse,
   PetSpecies,
+  ProviderProfileStatus,
+  UpdateAddressRequest,
 } from "../../src/api/types";
+import {
+  hasProviderProfile,
+  hasTutorProfile,
+  meQueryKey as buildMeQueryKey,
+} from "../../src/api/useMeQuery";
 import { useAuth } from "../../src/auth/AuthProvider";
+import {
+  AddressSheet,
+  type AddressSheetSubmission,
+} from "../../src/components/AddressSheet";
 import { Avatar } from "../../src/components/Avatar";
 import { Badge } from "../../src/components/Badge";
 import { Button } from "../../src/components/Button";
@@ -36,31 +47,16 @@ import { t } from "../../src/i18n";
 
 const PET_NAME_LIMIT = 120;
 const PET_SPECIES_OPTIONS: PetSpecies[] = ["dog", "cat", "other"];
-const ADDRESS_LABEL_LIMIT = 60;
-const ADDRESS_CITY_LIMIT = 120;
-const ADDRESS_POSTCODE_LIMIT = 16;
-const ADDRESS_PUBLIC_AREA_LIMIT = 160;
-const ADDRESS_PRECISION_OPTIONS: AddressLocationPrecision[] = [
-  "approximate",
-  "postcode",
-];
 
-interface AddressDraft {
-  city: string;
-  label: string;
-  latitude: string;
-  locationPrecision: AddressLocationPrecision;
-  longitude: string;
-  postcode: string;
-  publicAreaLabel: string;
-  setAsDefaultTutorAddress: boolean;
-}
+type AddressSheetState =
+  | { mode: "create" }
+  | { mode: "edit"; address: AddressResponse };
 
 export default function ProfileScreen() {
   const { accessToken, session, signOut } = useAuth();
   const queryClient = useQueryClient();
   const meQueryKey = useMemo(
-    () => ["me", session?.user.id],
+    () => buildMeQueryKey(session?.user.id),
     [session?.user.id],
   );
   const petsQueryKey = useMemo(
@@ -71,14 +67,18 @@ export default function ProfileScreen() {
     () => ["addresses", session?.user.id],
     [session?.user.id],
   );
-  const [localeDraft, setLocaleDraft] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [tutorDisplayNameDraft, setTutorDisplayNameDraft] = useState<
     string | null
   >(null);
   const [tutorProfileMessage, setTutorProfileMessage] = useState<string | null>(
     null,
   );
+  const [providerDisplayNameDraft, setProviderDisplayNameDraft] = useState<
+    string | null
+  >(null);
+  const [providerProfileMessage, setProviderProfileMessage] = useState<
+    string | null
+  >(null);
   const [newPetName, setNewPetName] = useState("");
   const [newPetSpecies, setNewPetSpecies] = useState<PetSpecies>("other");
   const [editingPetId, setEditingPetId] = useState<string | null>(null);
@@ -87,12 +87,8 @@ export default function ProfileScreen() {
     null,
   );
   const [petMessage, setPetMessage] = useState<string | null>(null);
-  const [newAddressDraft, setNewAddressDraft] = useState<AddressDraft>(() =>
-    createEmptyAddressDraft(),
-  );
-  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [editingAddressDraft, setEditingAddressDraft] = useState<AddressDraft>(
-    () => createEmptyAddressDraft(),
+  const [addressSheet, setAddressSheet] = useState<AddressSheetState | null>(
+    null,
   );
   const [addressMessage, setAddressMessage] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -103,45 +99,35 @@ export default function ProfileScreen() {
     queryFn: () => getMe(accessToken),
     retry: 1,
   });
+  const canUseTutorTools = hasTutorProfile(meQuery.data);
+  const canUseProviderTools = hasProviderProfile(meQuery.data);
 
   const petsQuery = useQuery({
-    enabled: Boolean(accessToken && meQuery.data),
+    enabled: Boolean(accessToken && canUseTutorTools),
     queryKey: petsQueryKey,
     queryFn: () => getPets(accessToken),
     retry: 1,
   });
 
   const addressesQuery = useQuery({
-    enabled: Boolean(accessToken && meQuery.data),
+    enabled: Boolean(accessToken && canUseTutorTools),
     queryKey: addressesQueryKey,
     queryFn: () => getAddresses(accessToken),
     retry: 1,
   });
 
-  const locale = localeDraft ?? meQuery.data?.locale ?? "";
   const tutorProfile = meQuery.data?.profiles?.tutor;
   const tutorDisplayName =
     tutorDisplayNameDraft ?? tutorProfile?.displayName ?? "";
-
-  const updateProfile = useMutation({
-    mutationFn: () => updateMe(accessToken, { locale: locale.trim() }),
-    onError: () => {
-      setSaveMessage(t("profile.saveError"));
-    },
-    onSuccess: (updatedProfile) => {
-      queryClient.setQueryData(meQueryKey, updatedProfile);
-      setLocaleDraft(null);
-      setSaveMessage(t("profile.saveSuccess"));
-    },
-  });
+  const providerProfile = meQuery.data?.profiles?.provider;
+  const providerDisplayName =
+    providerDisplayNameDraft ?? providerProfile?.displayName ?? "";
 
   const upsertTutorProfile = useMutation({
-    mutationFn: () => {
-      const body = { displayName: tutorDisplayName.trim() };
-      return tutorProfile
-        ? updateTutorProfile(accessToken, body)
-        : createTutorProfile(accessToken, body);
-    },
+    mutationFn: () =>
+      createTutorProfile(accessToken, {
+        displayName: tutorDisplayName.trim(),
+      }),
     onError: () => {
       setTutorProfileMessage(t("profile.tutorProfileSaveError"));
     },
@@ -152,33 +138,46 @@ export default function ProfileScreen() {
     },
   });
 
-  const createAddressMutation = useMutation({
+  const upsertProviderProfile = useMutation({
     mutationFn: () =>
-      createAddress(accessToken, buildCreateAddressRequest(newAddressDraft)),
+      createProviderProfile(accessToken, {
+        displayName: providerDisplayName.trim(),
+      }),
+    onError: () => {
+      setProviderProfileMessage(t("profile.providerProfileSaveError"));
+    },
+    onSuccess: async (profile) => {
+      await queryClient.invalidateQueries({ queryKey: meQueryKey });
+      setProviderDisplayNameDraft(null);
+      setProviderProfileMessage(
+        profile.status === "paused"
+          ? t("profile.providerProfilePausedSuccess")
+          : t("profile.providerProfileSaveSuccess"),
+      );
+    },
+  });
+
+  const createAddressMutation = useMutation({
+    mutationFn: (body: CreateAddressRequest) => createAddress(accessToken, body),
     onError: (error) => {
       setAddressMessage(formatAddressError(error));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: addressesQueryKey });
-      setNewAddressDraft(createEmptyAddressDraft());
+      setAddressSheet(null);
       setAddressMessage(t("profile.addressesCreateSuccess"));
     },
   });
 
   const updateAddressMutation = useMutation({
-    mutationFn: (address: AddressResponse) =>
-      updateAddress(
-        accessToken,
-        address.id,
-        buildUpdateAddressRequest(editingAddressDraft, address),
-      ),
+    mutationFn: ({ id, body }: { id: string; body: UpdateAddressRequest }) =>
+      updateAddress(accessToken, id, body),
     onError: (error) => {
       setAddressMessage(formatAddressError(error));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: addressesQueryKey });
-      setEditingAddressId(null);
-      setEditingAddressDraft(createEmptyAddressDraft());
+      setAddressSheet(null);
       setAddressMessage(t("profile.addressesUpdateSuccess"));
     },
   });
@@ -226,87 +225,141 @@ export default function ProfileScreen() {
     },
   });
 
-  const trimmedLocale = locale.trim();
-  const savedLocale = meQuery.data?.locale ?? "";
-  const hasLocaleChanges = trimmedLocale !== savedLocale;
   const trimmedTutorDisplayName = tutorDisplayName.trim();
   const savedTutorDisplayName = tutorProfile?.displayName ?? "";
   const hasTutorProfileChanges =
     trimmedTutorDisplayName !== savedTutorDisplayName;
   const isTutorDisplayNameValid =
     trimmedTutorDisplayName.length > 0 && trimmedTutorDisplayName.length <= 80;
+  const trimmedProviderDisplayName = providerDisplayName.trim();
+  const savedProviderDisplayName = providerProfile?.displayName ?? "";
+  const hasProviderProfileChanges =
+    trimmedProviderDisplayName !== savedProviderDisplayName;
+  const isProviderDisplayNameValid =
+    trimmedProviderDisplayName.length > 0 &&
+    trimmedProviderDisplayName.length <= 80;
   const trimmedNewPetName = newPetName.trim();
   const editingPet = petsQuery.data?.find((pet) => pet.id === editingPetId);
   const trimmedEditingPetName = editingPetName.trim();
-  const editingAddress = addressesQuery.data?.find(
-    (address) => address.id === editingAddressId,
-  );
   const isNewPetNameValid =
     trimmedNewPetName.length > 0 && trimmedNewPetName.length <= PET_NAME_LIMIT;
   const isEditingPetNameValid =
     trimmedEditingPetName.length > 0 &&
     trimmedEditingPetName.length <= PET_NAME_LIMIT;
-  const isNewAddressReadable = hasReadableAddress(newAddressDraft);
-  const areNewAddressCoordinatesValid =
-    hasValidAddressCoordinates(newAddressDraft);
-  const isEditingAddressReadable = hasReadableAddress(editingAddressDraft);
   const hasEditingPetNameChanges =
     Boolean(editingPet) && trimmedEditingPetName !== editingPet?.name;
-  const hasEditingAddressChanges =
-    Boolean(editingAddress) &&
-    hasAddressDraftChanges(editingAddressDraft, editingAddress);
   const shouldShowTutorDisplayNameError =
     tutorDisplayNameDraft !== null && !isTutorDisplayNameValid;
+  const shouldShowProviderDisplayNameError =
+    providerDisplayNameDraft !== null && !isProviderDisplayNameValid;
   const shouldShowNewPetNameError = newPetName.length > 0 && !isNewPetNameValid;
   const shouldShowEditingPetNameError =
     editingPetId !== null &&
     editingPetName.length > 0 &&
     !isEditingPetNameValid;
-  const shouldShowNewAddressReadableError =
-    hasAnyAddressDraftValue(newAddressDraft) && !isNewAddressReadable;
-  const shouldShowNewAddressCoordinatesError =
-    hasAnyCoordinateValue(newAddressDraft) && !areNewAddressCoordinatesValid;
-  const shouldShowEditingAddressReadableError =
-    editingAddressId !== null && !isEditingAddressReadable;
-  const canSave =
-    Boolean(accessToken) &&
-    Boolean(meQuery.data) &&
-    trimmedLocale.length > 0 &&
-    hasLocaleChanges &&
-    !updateProfile.isPending;
   const canSaveTutorProfile =
     Boolean(accessToken) &&
     Boolean(meQuery.data) &&
-    hasTutorProfileChanges &&
     isTutorDisplayNameValid &&
     !upsertTutorProfile.isPending;
+  const canSaveProviderProfile =
+    Boolean(accessToken) &&
+    Boolean(meQuery.data) &&
+    isProviderDisplayNameValid &&
+    !upsertProviderProfile.isPending;
   const canCreatePet =
     Boolean(accessToken) &&
-    Boolean(meQuery.data) &&
+    canUseTutorTools &&
     isNewPetNameValid &&
     !createPetMutation.isPending;
-  const canCreateAddress =
-    Boolean(accessToken) &&
-    Boolean(meQuery.data) &&
-    isNewAddressReadable &&
-    areNewAddressCoordinatesValid &&
-    !createAddressMutation.isPending;
   const canSavePetName =
     Boolean(accessToken) &&
-    Boolean(meQuery.data) &&
+    canUseTutorTools &&
     hasEditingPetNameChanges &&
     isEditingPetNameValid &&
     !updatePetMutation.isPending;
-  const canSaveAddress =
-    Boolean(accessToken) &&
-    Boolean(meQuery.data) &&
-    Boolean(editingAddress) &&
-    hasEditingAddressChanges &&
-    isEditingAddressReadable &&
-    !updateAddressMutation.isPending;
+  const isAddressSheetSubmitting =
+    createAddressMutation.isPending || updateAddressMutation.isPending;
+  const addressMutationsHaveError =
+    createAddressMutation.isError || updateAddressMutation.isError;
 
   const heroName = tutorProfile?.displayName?.trim() || t("profile.title");
   const heroAvatarUrl = meQuery.data?.avatarUrl ?? null;
+
+  function openCreateAddressSheet() {
+    setAddressMessage(null);
+    setAddressSheet({ mode: "create" });
+  }
+
+  function openEditAddressSheet(address: AddressResponse) {
+    setAddressMessage(null);
+    setAddressSheet({ mode: "edit", address });
+  }
+
+  function closeAddressSheet() {
+    if (isAddressSheetSubmitting) return;
+    setAddressSheet(null);
+  }
+
+  function handleAddressSubmit(submission: AddressSheetSubmission) {
+    if (addressSheet === null) return;
+    if (addressSheet.mode === "create") {
+      // CREATE always carries a fresh postcode lookup, so lat/long are
+      // guaranteed by the sheet (Save button is disabled otherwise).
+      if (submission.latitude === null || submission.longitude === null) {
+        return;
+      }
+      createAddressMutation.mutate({
+        city: submission.city,
+        countryCode: "GB",
+        label: submission.label,
+        latitude: submission.latitude,
+        locationPrecision: "postcode",
+        longitude: submission.longitude,
+        postcode: submission.postcode,
+        publicAreaLabel: submission.publicAreaLabel,
+        setAsDefaultTutorAddress: submission.setAsDefault,
+      });
+      return;
+    }
+
+    const original = addressSheet.address;
+    const body: UpdateAddressRequest = {};
+
+    if (submission.postcode !== (original.postcode ?? "")) {
+      body.postcode = submission.postcode;
+    }
+    // City moves with the postcode lookup; only patch when it actually
+    // changed so we never overwrite a manually-curated value with null.
+    if (submission.city !== original.city) {
+      body.city = submission.city;
+    }
+    if (submission.label !== original.label) {
+      body.label = submission.label;
+    }
+    if (submission.publicAreaLabel !== original.publicAreaLabel) {
+      body.publicAreaLabel = submission.publicAreaLabel;
+    }
+    if (submission.setAsDefault && !original.isDefaultTutorAddress) {
+      body.setAsDefaultTutorAddress = true;
+    }
+    // Geo precision is implied by the workflow: if the user re-ran the
+    // lookup it becomes 'postcode'; otherwise we leave the saved value.
+    if (
+      submission.latitude !== null &&
+      submission.longitude !== null &&
+      original.locationPrecision !== "postcode"
+    ) {
+      body.locationPrecision = "postcode";
+    }
+
+    if (Object.keys(body).length === 0) {
+      setAddressSheet(null);
+      return;
+    }
+
+    updateAddressMutation.mutate({ id: original.id, body });
+  }
 
   async function runSignOut() {
     setIsSigningOut(true);
@@ -359,6 +412,17 @@ export default function ProfileScreen() {
         </Card>
       ) : meQuery.data ? (
         <>
+          {!canUseTutorTools && !canUseProviderTools ? (
+            <Card>
+              <View style={styles.details}>
+                <Text style={styles.sectionTitle}>
+                  {t("profile.onboarding.title")}
+                </Text>
+                <Text style={styles.body}>{t("profile.onboarding.body")}</Text>
+              </View>
+            </Card>
+          ) : null}
+
           <Card>
             <View style={styles.details}>
               <Text style={styles.sectionTitle}>{t("profile.account")}</Text>
@@ -396,206 +460,217 @@ export default function ProfileScreen() {
           <Card>
             <View style={styles.details}>
               <Text style={styles.sectionTitle}>{t("profile.details")}</Text>
-              <ProfileRow
-                label={t("profile.tutorProfile")}
-                value={formatTutorProfile(meQuery.data.profiles?.tutor)}
-              />
-              <TextField
-                autoCapitalize="words"
-                autoCorrect={false}
-                label={t("profile.tutorDisplayName")}
-                maxLength={80}
-                onChangeText={(value) => {
-                  setTutorDisplayNameDraft(value);
-                  setTutorProfileMessage(null);
-                }}
-                placeholder={t("profile.tutorDisplayNamePlaceholder")}
-                value={tutorDisplayName}
-              />
-              <Text style={styles.help}>
-                {t("profile.tutorDisplayNameHelp")}
-              </Text>
-              {shouldShowTutorDisplayNameError ? (
-                <Text style={styles.errorMessage}>
-                  {t("profile.tutorDisplayNameInvalid")}
-                </Text>
-              ) : null}
-              {hasTutorProfileChanges ? (
-                <Text style={styles.notice}>{t("profile.unsavedChanges")}</Text>
-              ) : null}
-              {tutorProfileMessage ? (
-                <Text
-                  style={[
-                    styles.message,
-                    upsertTutorProfile.isError ? styles.errorMessage : null,
-                  ]}
-                >
-                  {tutorProfileMessage}
-                </Text>
-              ) : null}
-              <View style={styles.actions}>
-                <Button
-                  disabled={
-                    !hasTutorProfileChanges || upsertTutorProfile.isPending
-                  }
-                  label={t("common.cancel")}
-                  onPress={() => {
-                    setTutorDisplayNameDraft(null);
+
+              <View style={styles.profileSection}>
+                <ProfileRow
+                  label={t("profile.tutorProfile")}
+                  value={formatTutorProfile(tutorProfile)}
+                />
+                <TextField
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  label={t("profile.tutorDisplayName")}
+                  maxLength={80}
+                  onChangeText={(value) => {
+                    setTutorDisplayNameDraft(value);
                     setTutorProfileMessage(null);
                   }}
-                  variant="secondary"
+                  placeholder={t("profile.tutorDisplayNamePlaceholder")}
+                  value={tutorDisplayName}
                 />
-                <Button
-                  disabled={!canSaveTutorProfile}
-                  isLoading={upsertTutorProfile.isPending}
-                  label={t("profile.saveTutorProfile")}
-                  onPress={() => upsertTutorProfile.mutate()}
-                />
+                <Text style={styles.help}>
+                  {t("profile.tutorDisplayNameHelp")}
+                </Text>
+                {shouldShowTutorDisplayNameError ? (
+                  <Text style={styles.errorMessage}>
+                    {t("profile.tutorDisplayNameInvalid")}
+                  </Text>
+                ) : null}
+                {hasTutorProfileChanges ? (
+                  <Text style={styles.notice}>
+                    {t("profile.unsavedChanges")}
+                  </Text>
+                ) : null}
+                {tutorProfileMessage ? (
+                  <Text
+                    style={[
+                      styles.message,
+                      upsertTutorProfile.isError ? styles.errorMessage : null,
+                    ]}
+                  >
+                    {tutorProfileMessage}
+                  </Text>
+                ) : null}
+                <View style={styles.actions}>
+                  <Button
+                    disabled={
+                      !hasTutorProfileChanges || upsertTutorProfile.isPending
+                    }
+                    label={t("common.cancel")}
+                    onPress={() => {
+                      setTutorDisplayNameDraft(null);
+                      setTutorProfileMessage(null);
+                    }}
+                    variant="secondary"
+                  />
+                  <Button
+                    disabled={!canSaveTutorProfile}
+                    isLoading={upsertTutorProfile.isPending}
+                    label={getProfileActionLabel(
+                      Boolean(tutorProfile),
+                      hasTutorProfileChanges,
+                      "tutor",
+                    )}
+                    onPress={() => upsertTutorProfile.mutate()}
+                  />
+                </View>
               </View>
-              <ProfileRow
-                label={t("profile.providerProfile")}
-                value={formatProviderProfile(meQuery.data.profiles?.provider)}
-              />
+
+              <View style={styles.dividerLine} />
+
+              <View style={styles.profileSection}>
+                <ProfileRow
+                  label={t("profile.providerProfile")}
+                  value={formatProviderProfile(providerProfile)}
+                />
+                {providerProfile?.status === "paused" ? (
+                  <Text style={styles.notice}>
+                    {t("profile.providerPausedHelp")}
+                  </Text>
+                ) : null}
+                <TextField
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  label={t("profile.providerDisplayName")}
+                  maxLength={80}
+                  onChangeText={(value) => {
+                    setProviderDisplayNameDraft(value);
+                    setProviderProfileMessage(null);
+                  }}
+                  placeholder={t("profile.providerDisplayNamePlaceholder")}
+                  value={providerDisplayName}
+                />
+                <Text style={styles.help}>
+                  {t("profile.providerDisplayNameHelp")}
+                </Text>
+                {shouldShowProviderDisplayNameError ? (
+                  <Text style={styles.errorMessage}>
+                    {t("profile.providerDisplayNameInvalid")}
+                  </Text>
+                ) : null}
+                {hasProviderProfileChanges ? (
+                  <Text style={styles.notice}>
+                    {t("profile.unsavedChanges")}
+                  </Text>
+                ) : null}
+                {providerProfileMessage ? (
+                  <Text
+                    style={[
+                      styles.message,
+                      upsertProviderProfile.isError
+                        ? styles.errorMessage
+                        : null,
+                    ]}
+                  >
+                    {providerProfileMessage}
+                  </Text>
+                ) : null}
+                <View style={styles.actions}>
+                  <Button
+                    disabled={
+                      !hasProviderProfileChanges ||
+                      upsertProviderProfile.isPending
+                    }
+                    label={t("common.cancel")}
+                    onPress={() => {
+                      setProviderDisplayNameDraft(null);
+                      setProviderProfileMessage(null);
+                    }}
+                    variant="secondary"
+                  />
+                  <Button
+                    disabled={!canSaveProviderProfile}
+                    isLoading={upsertProviderProfile.isPending}
+                    label={getProfileActionLabel(
+                      Boolean(providerProfile),
+                      hasProviderProfileChanges,
+                      "provider",
+                    )}
+                    onPress={() => upsertProviderProfile.mutate()}
+                  />
+                </View>
+              </View>
             </View>
           </Card>
 
           <Card>
             <View style={styles.details}>
               <Text style={styles.sectionTitle}>{t("profile.addresses")}</Text>
-              <AddressDraftFields
-                draft={newAddressDraft}
-                onChange={(draft) => {
-                  setNewAddressDraft(draft);
-                  setAddressMessage(null);
-                }}
-                showCoordinateFields
-                showDefaultControl={Boolean(tutorProfile)}
-              />
-              {shouldShowNewAddressReadableError ? (
-                <Text style={styles.errorMessage}>
-                  {t("profile.addressReadableInvalid")}
-                </Text>
-              ) : null}
-              {shouldShowNewAddressCoordinatesError ? (
-                <Text style={styles.errorMessage}>
-                  {t("profile.addressCoordinatesInvalid")}
-                </Text>
-              ) : null}
-              <Button
-                disabled={!canCreateAddress}
-                isLoading={createAddressMutation.isPending}
-                label={t("profile.createAddress")}
-                onPress={() => createAddressMutation.mutate()}
-              />
-              {addressMessage ? (
-                <Text
-                  style={[
-                    styles.message,
-                    createAddressMutation.isError ||
-                    updateAddressMutation.isError
-                      ? styles.errorMessage
-                      : null,
-                  ]}
-                >
-                  {addressMessage}
-                </Text>
-              ) : null}
-              {addressesQuery.isLoading ? (
-                <LoadingState label={t("profile.addressesLoading")} />
-              ) : addressesQuery.isError ? (
-                <ErrorState
-                  actionLabel={t("common.retry")}
-                  message={t("profile.addressesError")}
-                  onRetry={() => addressesQuery.refetch()}
-                  title={t("common.error")}
-                />
-              ) : addressesQuery.data && addressesQuery.data.length > 0 ? (
-                <View style={styles.addressList}>
-                  {addressesQuery.data.map((address) => {
-                    const isEditing = editingAddressId === address.id;
-                    const isUpdating =
-                      updateAddressMutation.isPending &&
-                      updateAddressMutation.variables?.id === address.id;
-
-                    return (
-                      <View key={address.id} style={styles.addressItem}>
-                        <View style={styles.addressSummary}>
-                          <Text style={styles.addressName}>
-                            {formatAddressTitle(address)}
-                          </Text>
-                          <Text style={styles.addressMeta}>
-                            {formatAddressMeta(address)}
-                          </Text>
-                          {address.isDefaultTutorAddress ? (
-                            <View style={styles.heroBadge}>
-                              <Badge
-                                label={t("profile.addressDefaultActive")}
-                                tone="info"
-                              />
-                            </View>
-                          ) : null}
-                        </View>
-                        {isEditing ? (
-                          <View style={styles.details}>
-                            <AddressDraftFields
-                              defaultLocked={address.isDefaultTutorAddress}
-                              draft={editingAddressDraft}
-                              onChange={(draft) => {
-                                setEditingAddressDraft(draft);
-                                setAddressMessage(null);
-                              }}
-                              showDefaultControl={Boolean(tutorProfile)}
-                            />
-                            {shouldShowEditingAddressReadableError ? (
-                              <Text style={styles.errorMessage}>
-                                {t("profile.addressReadableInvalid")}
-                              </Text>
+              {!canUseTutorTools ? (
+                <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
+              ) : (
+                <>
+                  {addressMessage ? (
+                    <Text
+                      style={[
+                        styles.message,
+                        addressMutationsHaveError ? styles.errorMessage : null,
+                      ]}
+                    >
+                      {addressMessage}
+                    </Text>
+                  ) : null}
+                  {addressesQuery.isLoading ? (
+                    <LoadingState label={t("profile.addressesLoading")} />
+                  ) : addressesQuery.isError ? (
+                    <ErrorState
+                      actionLabel={t("common.retry")}
+                      message={t("profile.addressesError")}
+                      onRetry={() => addressesQuery.refetch()}
+                      title={t("common.error")}
+                    />
+                  ) : addressesQuery.data && addressesQuery.data.length > 0 ? (
+                    <View style={styles.addressList}>
+                      {addressesQuery.data.map((address) => (
+                        <View key={address.id} style={styles.addressItem}>
+                          <View style={styles.addressSummary}>
+                            <Text style={styles.addressName}>
+                              {formatAddressTitle(address)}
+                            </Text>
+                            <Text style={styles.addressMeta}>
+                              {formatAddressMeta(address)}
+                            </Text>
+                            {address.isDefaultTutorAddress ? (
+                              <View style={styles.heroBadge}>
+                                <Badge
+                                  label={t("profile.addressDefaultActive")}
+                                  tone="info"
+                                />
+                              </View>
                             ) : null}
-                            <View style={styles.actions}>
-                              <Button
-                                disabled={isUpdating}
-                                label={t("common.cancel")}
-                                onPress={() => {
-                                  setEditingAddressId(null);
-                                  setEditingAddressDraft(
-                                    createEmptyAddressDraft(),
-                                  );
-                                  setAddressMessage(null);
-                                }}
-                                variant="secondary"
-                              />
-                              <Button
-                                disabled={!canSaveAddress}
-                                isLoading={isUpdating}
-                                label={t("profile.saveAddress")}
-                                onPress={() =>
-                                  updateAddressMutation.mutate(address)
-                                }
-                              />
-                            </View>
                           </View>
-                        ) : (
                           <View style={styles.actions}>
                             <Button
-                              disabled={updateAddressMutation.isPending}
+                              disabled={isAddressSheetSubmitting}
                               label={t("profile.editAddress")}
-                              onPress={() => {
-                                setEditingAddressId(address.id);
-                                setEditingAddressDraft(
-                                  createAddressDraftFromAddress(address),
-                                );
-                                setAddressMessage(null);
-                              }}
+                              onPress={() => openEditAddressSheet(address)}
                               variant="secondary"
                             />
                           </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <Text style={styles.body}>{t("profile.addressesEmpty")}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.body}>
+                      {t("profile.addressesEmpty")}
+                    </Text>
+                  )}
+                  <Button
+                    disabled={isAddressSheetSubmitting}
+                    label={t("profile.createAddress")}
+                    onPress={openCreateAddressSheet}
+                  />
+                </>
               )}
             </View>
           </Card>
@@ -603,6 +678,10 @@ export default function ProfileScreen() {
           <Card>
             <View style={styles.details}>
               <Text style={styles.sectionTitle}>{t("profile.pets")}</Text>
+              {!canUseTutorTools ? (
+                <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
+              ) : (
+                <>
               <TextField
                 autoCapitalize="words"
                 autoCorrect={false}
@@ -796,58 +875,24 @@ export default function ProfileScreen() {
               ) : (
                 <Text style={styles.body}>{t("profile.petsEmpty")}</Text>
               )}
+                </>
+              )}
             </View>
           </Card>
 
-          <Card>
-            <View style={styles.details}>
-              <Text style={styles.sectionTitle}>
-                {t("profile.preferences")}
-              </Text>
-              <TextField
-                autoCapitalize="none"
-                autoCorrect={false}
-                label={t("profile.locale")}
-                onChangeText={(value) => {
-                  setLocaleDraft(value);
-                  setSaveMessage(null);
-                }}
-                placeholder="en-GB"
-                value={locale}
-              />
-              <Text style={styles.help}>{t("profile.localeHelp")}</Text>
-              {hasLocaleChanges ? (
-                <Text style={styles.notice}>{t("profile.unsavedChanges")}</Text>
-              ) : null}
-              {saveMessage ? (
-                <Text
-                  style={[
-                    styles.message,
-                    updateProfile.isError ? styles.errorMessage : null,
-                  ]}
-                >
-                  {saveMessage}
-                </Text>
-              ) : null}
-              <View style={styles.actions}>
-                <Button
-                  disabled={!hasLocaleChanges || updateProfile.isPending}
-                  label={t("common.cancel")}
-                  onPress={() => {
-                    setLocaleDraft(null);
-                    setSaveMessage(null);
-                  }}
-                  variant="secondary"
-                />
-                <Button
-                  disabled={!canSave}
-                  isLoading={updateProfile.isPending}
-                  label={t("common.save")}
-                  onPress={() => updateProfile.mutate()}
-                />
-              </View>
-            </View>
-          </Card>
+          {/*
+           * DESIGN AGENT: Locale (Preferences) card hidden while the app is
+           * UK-only. The PATCH /me { locale } endpoint in
+           * `src/api/client.ts`, the `UpdateMeRequest` type in
+           * `src/api/types.ts` and the i18n keys `profile.locale*` in
+           * `src/i18n/en-GB.ts` are deliberately preserved so reactivating
+           * this card when we expand to other countries is a localised JSX
+           * change. The screen-local `localeDraft` state, the
+           * `updateProfile` mutation and their `canSave` / `saveMessage`
+           * derivations were removed alongside the card because nothing
+           * else on this screen consumed them — re-add them here when the
+           * card returns.
+           */}
         </>
       ) : null}
 
@@ -868,6 +913,33 @@ export default function ProfileScreen() {
           variant="secondary"
         />
       </View>
+      {addressSheet ? (
+        <AddressSheet
+        // switches modes — no useEffect-driven reset needed.
+        key={
+          addressSheet.mode === "edit"
+            ? `edit:${addressSheet.address.id}`
+            : "create"
+        }
+        defaultLocked={
+          addressSheet.mode === "edit"
+            ? addressSheet.address.isDefaultTutorAddress
+            : false
+        }
+        externalErrorMessage={
+          addressMutationsHaveError ? addressMessage : null
+        }
+        initialAddress={
+          addressSheet.mode === "edit" ? addressSheet.address : undefined
+        }
+        isSubmitting={isAddressSheetSubmitting}
+        mode={addressSheet.mode}
+        onClose={closeAddressSheet}
+        onSubmit={handleAddressSubmit}
+        showDefaultControl={Boolean(tutorProfile)}
+          visible
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -881,151 +953,26 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-interface AddressDraftFieldsProps {
-  defaultLocked?: boolean;
-  draft: AddressDraft;
-  onChange: (draft: AddressDraft) => void;
-  showCoordinateFields?: boolean;
-  showDefaultControl?: boolean;
-}
+function getProfileActionLabel(
+  hasProfile: boolean,
+  hasChanges: boolean,
+  kind: "provider" | "tutor",
+): string {
+  if (!hasProfile) {
+    return kind === "provider"
+      ? t("profile.createProviderProfile")
+      : t("profile.createTutorProfile");
+  }
 
-function AddressDraftFields({
-  defaultLocked = false,
-  draft,
-  onChange,
-  showCoordinateFields = false,
-  showDefaultControl = false,
-}: AddressDraftFieldsProps) {
-  const updateDraft = (patch: Partial<AddressDraft>) => {
-    onChange({ ...draft, ...patch });
-  };
+  if (hasChanges) {
+    return kind === "provider"
+      ? t("profile.saveProviderProfile")
+      : t("profile.saveTutorProfile");
+  }
 
-  return (
-    <View style={styles.details}>
-      <TextField
-        autoCapitalize="words"
-        autoCorrect={false}
-        label={t("profile.addressLabel")}
-        maxLength={ADDRESS_LABEL_LIMIT}
-        onChangeText={(label) => updateDraft({ label })}
-        placeholder={t("profile.addressLabelPlaceholder")}
-        value={draft.label}
-      />
-      <TextField
-        autoCapitalize="words"
-        autoCorrect={false}
-        label={t("profile.addressCity")}
-        maxLength={ADDRESS_CITY_LIMIT}
-        onChangeText={(city) => updateDraft({ city })}
-        placeholder={t("profile.addressCityPlaceholder")}
-        value={draft.city}
-      />
-      <TextField
-        autoCapitalize="characters"
-        autoCorrect={false}
-        label={t("profile.addressPostcode")}
-        maxLength={ADDRESS_POSTCODE_LIMIT}
-        onChangeText={(postcode) => updateDraft({ postcode })}
-        placeholder={t("profile.addressPostcodePlaceholder")}
-        value={draft.postcode}
-      />
-      <TextField
-        autoCapitalize="words"
-        autoCorrect={false}
-        label={t("profile.addressPublicArea")}
-        maxLength={ADDRESS_PUBLIC_AREA_LIMIT}
-        onChangeText={(publicAreaLabel) => updateDraft({ publicAreaLabel })}
-        placeholder={t("profile.addressPublicAreaPlaceholder")}
-        value={draft.publicAreaLabel}
-      />
-      {showCoordinateFields ? (
-        <>
-          <View style={styles.coordinateRow}>
-            <View style={styles.coordinateField}>
-              <TextField
-                autoCapitalize="none"
-                autoCorrect={false}
-                inputMode="decimal"
-                keyboardType="decimal-pad"
-                label={t("profile.addressLatitude")}
-                onChangeText={(latitude) => updateDraft({ latitude })}
-                placeholder="51.5074"
-                value={draft.latitude}
-              />
-            </View>
-            <View style={styles.coordinateField}>
-              <TextField
-                autoCapitalize="none"
-                autoCorrect={false}
-                inputMode="decimal"
-                keyboardType="decimal-pad"
-                label={t("profile.addressLongitude")}
-                onChangeText={(longitude) => updateDraft({ longitude })}
-                placeholder="-0.1278"
-                value={draft.longitude}
-              />
-            </View>
-          </View>
-          <Text style={styles.help}>{t("profile.addressLocationHelp")}</Text>
-        </>
-      ) : null}
-      <View style={styles.segmentGroup}>
-        {ADDRESS_PRECISION_OPTIONS.map((precision) => (
-          <Pressable
-            accessibilityRole="button"
-            key={precision}
-            onPress={() => updateDraft({ locationPrecision: precision })}
-            style={[
-              styles.segment,
-              draft.locationPrecision === precision
-                ? styles.segmentSelected
-                : null,
-            ]}
-          >
-            <Text
-              style={[
-                styles.segmentLabel,
-                draft.locationPrecision === precision
-                  ? styles.segmentSelectedLabel
-                  : null,
-              ]}
-            >
-              {formatAddressPrecision(precision)}
-            </Text>
-          </Pressable>
-        ))}
-        {showDefaultControl ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={defaultLocked}
-            onPress={() =>
-              updateDraft({
-                setAsDefaultTutorAddress: !draft.setAsDefaultTutorAddress,
-              })
-            }
-            style={[
-              styles.segment,
-              draft.setAsDefaultTutorAddress ? styles.segmentSelected : null,
-              defaultLocked ? styles.segmentLocked : null,
-            ]}
-          >
-            <Text
-              style={[
-                styles.segmentLabel,
-                draft.setAsDefaultTutorAddress
-                  ? styles.segmentSelectedLabel
-                  : null,
-              ]}
-            >
-              {defaultLocked
-                ? t("profile.addressDefaultActive")
-                : t("profile.addressSetDefault")}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
+  return kind === "provider"
+    ? t("profile.ensureProviderProfile")
+    : t("profile.ensureTutorProfile");
 }
 
 function formatPetError(error: unknown): string {
@@ -1057,129 +1004,6 @@ function formatAddressError(error: unknown): string {
   if (status === 400) return t("profile.addressesValidationError");
 
   return t("profile.addressesActionError");
-}
-
-function createEmptyAddressDraft(): AddressDraft {
-  return {
-    city: "",
-    label: "",
-    latitude: "",
-    locationPrecision: "approximate",
-    longitude: "",
-    postcode: "",
-    publicAreaLabel: "",
-    setAsDefaultTutorAddress: false,
-  };
-}
-
-function createAddressDraftFromAddress(address: AddressResponse): AddressDraft {
-  return {
-    city: address.city ?? "",
-    label: address.label ?? "",
-    latitude: "",
-    locationPrecision: address.locationPrecision,
-    longitude: "",
-    postcode: address.postcode ?? "",
-    publicAreaLabel: address.publicAreaLabel ?? "",
-    setAsDefaultTutorAddress: address.isDefaultTutorAddress,
-  };
-}
-
-function buildCreateAddressRequest(draft: AddressDraft) {
-  return {
-    city: toNullableText(draft.city),
-    countryCode: "GB" as const,
-    label: toNullableText(draft.label),
-    latitude: Number(draft.latitude.trim()),
-    locationPrecision: draft.locationPrecision,
-    longitude: Number(draft.longitude.trim()),
-    postcode: toNullableText(draft.postcode),
-    publicAreaLabel: toNullableText(draft.publicAreaLabel),
-    setAsDefaultTutorAddress: draft.setAsDefaultTutorAddress,
-  };
-}
-
-function buildUpdateAddressRequest(
-  draft: AddressDraft,
-  address: AddressResponse,
-) {
-  const body: {
-    city?: string | null;
-    countryCode?: "GB";
-    label?: string | null;
-    locationPrecision?: AddressLocationPrecision;
-    postcode?: string | null;
-    publicAreaLabel?: string | null;
-    setAsDefaultTutorAddress?: boolean;
-  } = {};
-  const label = toNullableText(draft.label);
-  const city = toNullableText(draft.city);
-  const postcode = toNullableText(draft.postcode);
-  const publicAreaLabel = toNullableText(draft.publicAreaLabel);
-
-  if (label !== address.label) body.label = label;
-  if (city !== address.city) body.city = city;
-  if (postcode !== address.postcode) body.postcode = postcode;
-  if (publicAreaLabel !== address.publicAreaLabel) {
-    body.publicAreaLabel = publicAreaLabel;
-  }
-  if (draft.locationPrecision !== address.locationPrecision) {
-    body.locationPrecision = draft.locationPrecision;
-  }
-  if (draft.setAsDefaultTutorAddress && !address.isDefaultTutorAddress) {
-    body.setAsDefaultTutorAddress = true;
-  }
-
-  return body;
-}
-
-function hasAddressDraftChanges(
-  draft: AddressDraft,
-  address?: AddressResponse,
-): boolean {
-  return address
-    ? Object.keys(buildUpdateAddressRequest(draft, address)).length > 0
-    : false;
-}
-
-function hasReadableAddress(draft: AddressDraft): boolean {
-  return Boolean(
-    draft.postcode.trim() || draft.city.trim() || draft.publicAreaLabel.trim(),
-  );
-}
-
-function hasAnyAddressDraftValue(draft: AddressDraft): boolean {
-  return Boolean(
-    draft.label.trim() ||
-    draft.postcode.trim() ||
-    draft.city.trim() ||
-    draft.publicAreaLabel.trim() ||
-    draft.latitude.trim() ||
-    draft.longitude.trim() ||
-    draft.setAsDefaultTutorAddress,
-  );
-}
-
-function hasAnyCoordinateValue(draft: AddressDraft): boolean {
-  return Boolean(draft.latitude.trim() || draft.longitude.trim());
-}
-
-function hasValidAddressCoordinates(draft: AddressDraft): boolean {
-  const latitude = Number(draft.latitude.trim());
-  const longitude = Number(draft.longitude.trim());
-  return (
-    Number.isFinite(latitude) &&
-    latitude >= 49 &&
-    latitude <= 61 &&
-    Number.isFinite(longitude) &&
-    longitude >= -9 &&
-    longitude <= 2
-  );
-}
-
-function toNullableText(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
 }
 
 function formatSpecies(species: PetSpecies): string {
@@ -1243,13 +1067,20 @@ function formatProviderProfile(profile?: {
   ratingAverage: number | null;
   ratingCount: number;
   serviceRadiusKm: number;
-  status: string;
+  status: ProviderProfileStatus;
 }) {
   if (!profile) {
     return t("profile.notSet");
   }
 
-  return `${profile.displayName} - ${profile.status}`;
+  return `${profile.displayName} - ${formatProviderStatus(profile.status)}`;
+}
+
+function formatProviderStatus(status: ProviderProfileStatus): string {
+  if (status === "paused") return t("profile.providerStatus.paused");
+  if (status === "active") return t("profile.providerStatus.active");
+  if (status === "blocked") return t("profile.providerStatus.blocked");
+  return t("profile.providerStatus.deleted");
 }
 
 const styles = StyleSheet.create({
@@ -1309,6 +1140,13 @@ const styles = StyleSheet.create({
   details: {
     gap: spacing[3],
   },
+  profileSection: {
+    gap: spacing[3],
+  },
+  dividerLine: {
+    backgroundColor: colors.border,
+    height: 1,
+  },
   sectionTitle: {
     color: colors.text,
     fontSize: typography.section,
@@ -1327,15 +1165,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.body,
     fontWeight: "700",
-  },
-  coordinateRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing[3],
-  },
-  coordinateField: {
-    flex: 1,
-    minWidth: 124,
   },
   addressList: {
     gap: spacing[3],
@@ -1413,9 +1242,6 @@ const styles = StyleSheet.create({
   segmentSelected: {
     backgroundColor: colors.accentSoft,
     borderColor: colors.accent,
-  },
-  segmentLocked: {
-    opacity: 0.72,
   },
   segmentLabel: {
     color: colors.muted,

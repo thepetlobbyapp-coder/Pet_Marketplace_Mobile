@@ -7,6 +7,10 @@ export const enGB = {
   "common.save": "Save",
   "common.signIn": "Sign in",
   "session.loading": "Checking your session",
+  "access.tutorRequired.action": "Set up tutor profile",
+  "access.tutorRequired.body":
+    "Create a tutor profile from your account before using marketplace, booking or chat tools.",
+  "access.tutorRequired.title": "Tutor profile needed",
 
   "tabs.home": "Home",
   "tabs.search": "Search",
@@ -23,7 +27,7 @@ export const enGB = {
     "Your care requests and confirmed bookings will appear here.",
   "chat.placeholder.title": "Messages",
   "chat.placeholder.body":
-    "Conversations with providers will appear here after a care request.",
+    "Conversations with providers will appear here after you message them.",
   "chat.accessibility.backToConversations": "Back to conversations",
   "chat.accessibility.blockConversation": "Block conversation",
   "chat.accessibility.reportConversation": "Report conversation",
@@ -51,7 +55,7 @@ export const enGB = {
   "chat.conversations.errorTitle": "Conversations unavailable",
   "chat.conversations.loading": "Loading conversations",
   "chat.empty.body":
-    "Your real conversations will appear here when a booking has chat available.",
+    "Your real conversations will appear here after you message a provider.",
   "chat.empty.title": "No conversations yet",
   "chat.messages.empty.body":
     "No real messages have been sent in this conversation yet.",
@@ -64,6 +68,8 @@ export const enGB = {
   "chat.messages.loading": "Loading messages",
   "chat.noMessagesYet": "No messages yet",
   "chat.providerFallback": "Provider",
+  "chat.profileRequired.body":
+    "Only accounts with a tutor profile can message marketplace providers from this chat.",
   "chat.report.category.harassment": "Harassment",
   "chat.report.category.inappropriateBehaviour": "Inappropriate behaviour",
   "chat.report.category.noShow": "No-show",
@@ -170,6 +176,8 @@ export const enGB = {
   "home.providers.noSessionBody":
     "Sign in to view real providers near your area.",
   "home.providers.noSessionTitle": "Authenticated providers",
+  "home.providers.profileRequiredBody":
+    "Create a tutor profile before searching or booking providers.",
   "home.providers.title": "Nearby providers",
 
   "search.authenticated.body": "Sign in to search real providers.",
@@ -182,6 +190,7 @@ export const enGB = {
   "search.count.error": "Search unavailable",
   "search.count.loading": "Loading providers...",
   "search.count.noSession": "Sign in to search real providers",
+  "search.count.profileRequired": "Set up a tutor profile to search",
   "search.count.refreshing": "Refreshing providers...",
   "search.empty.action": "Clear filters",
   "search.empty.body":
@@ -191,6 +200,8 @@ export const enGB = {
     "The app could not load providers right now. Check your session and try again.",
   "search.error.title": "Search could not be loaded",
   "search.loading": "Loading providers",
+  "search.profileRequired.body":
+    "Only accounts with a tutor profile can search marketplace providers.",
   "search.title": "Search providers",
 
   "provider.detail.header": "Provider details",
@@ -200,7 +211,7 @@ export const enGB = {
   "provider.detail.backToSearch": "Back to search",
   "provider.detail.book": "Request booking",
   "provider.detail.chat": "Message provider",
-  "provider.detail.chat.opening": "Opening conversation…",
+  "provider.detail.chat.opening": "Opening conversation...",
   "provider.detail.chat.error.blocked":
     "You can no longer message this provider.",
   "provider.detail.chat.error.unavailable":
@@ -218,6 +229,8 @@ export const enGB = {
   "provider.detail.noBio": "This provider has not added a description yet.",
   "provider.detail.notFound.body": "This provider is no longer available.",
   "provider.detail.notFound.title": "Provider not found",
+  "provider.detail.profileRequired.body":
+    "Create a tutor profile before viewing provider details or starting a conversation.",
   "provider.detail.reviews": "Reviews",
   "provider.detail.section": "About the provider",
   "provider.detail.status.available": "Available now",
@@ -254,6 +267,8 @@ export const enGB = {
   "book.error.provider.body":
     "The app could not load this real provider right now.",
   "book.error.provider.title": "Provider not found",
+  "book.error.providerUnavailable":
+    "This provider is not available for booking right now.",
   "book.error.slotUnavailable":
     "This slot has just become unavailable. Choose another time.",
   "book.error.validation": "Review the booking details and try again.",
@@ -268,6 +283,11 @@ export const enGB = {
   "book.noPet.action": "Go to Profile",
   "book.noPet.body": "Use a saved pet to create a real booking request.",
   "book.noPet.title": "Pet needed",
+  "book.profileRequired.body":
+    "Only accounts with a tutor profile can create booking requests.",
+  "book.providerUnavailable.body":
+    "Choose another provider that is available for booking.",
+  "book.providerUnavailable.title": "Provider unavailable",
   "book.petSpecies.cat": "Cat",
   "book.petSpecies.dog": "Dog",
   "book.petSpecies.other": "Other pet",
@@ -302,12 +322,39 @@ export const enGB = {
   "profile.saveSuccess": "Profile saved",
   "profile.account": "Account",
   "profile.createdAt": "Member since",
+  "profile.createProviderProfile": "Create provider profile",
+  "profile.createTutorProfile": "Create tutor profile",
   "profile.details": "Profile details",
   "profile.email": "Email",
   "profile.notSet": "Not set",
   "profile.preferences": "Preferences",
+  "profile.onboarding.title": "Choose your profile",
+  "profile.onboarding.body":
+    "Create only the profile you need now. The app will unlock tutor or provider areas only after /me returns that role and profile.",
+  "profile.ensureProviderProfile": "Ensure provider profile",
+  "profile.ensureTutorProfile": "Ensure tutor profile",
+  "profile.providerDisplayName": "Provider display name",
+  "profile.providerDisplayNameHelp":
+    "Use up to 80 characters for your provider profile name.",
+  "profile.providerDisplayNameInvalid":
+    "Enter a display name between 1 and 80 characters.",
+  "profile.providerDisplayNamePlaceholder": "Provider name",
+  "profile.providerPausedHelp":
+    "Paused provider profiles are not published in the marketplace yet.",
   "profile.providerProfile": "Provider profile",
+  "profile.providerProfilePausedSuccess":
+    "Provider profile created. It is paused and not published yet.",
+  "profile.providerProfileSaveError":
+    "The app could not save your provider profile. Check the name and try again.",
+  "profile.providerProfileSaveSuccess": "Provider profile saved",
+  "profile.providerStatus.active": "active",
+  "profile.providerStatus.blocked": "blocked",
+  "profile.providerStatus.deleted": "deleted",
+  "profile.providerStatus.paused": "paused",
+  "profile.saveProviderProfile": "Save provider profile",
   "profile.status": "Status",
+  "profile.tutorToolsLocked":
+    "Create a tutor profile first. Provider-only accounts do not get tutor tools automatically.",
   "profile.tutorProfile": "Tutor profile",
   "profile.tutorDisplayName": "Tutor display name",
   "profile.tutorDisplayNameHelp":
@@ -352,6 +399,37 @@ export const enGB = {
   "profile.addressesAuthError": "Sign in again to update addresses.",
   "profile.addressesValidationError": "Check the address fields and try again.",
   "profile.addressesNotFoundError": "This address is no longer available.",
+  "profile.address.sheet.title": "Add address",
+  "profile.address.sheet.titleEdit": "Edit address",
+  "profile.address.sheet.close": "Close",
+  "profile.address.lookup.placeholder": "Postcode (e.g. SW1A 1AA)",
+  "profile.address.lookup.cta": "Find address",
+  "profile.address.lookup.searching": "Looking up postcode…",
+  "profile.address.lookup.invalid":
+    "Enter a valid UK postcode, like SW1A 1AA.",
+  "profile.address.lookup.notFound":
+    "Postcode not recognised. Check spelling or enter your area manually.",
+  "profile.address.lookup.network":
+    "Could not reach the postcode service. Check your connection and try again.",
+  "profile.address.lookup.server":
+    "The postcode service is unavailable right now. Try again in a moment.",
+  "profile.address.lookup.timeout":
+    "The postcode lookup took too long. Try again.",
+  "profile.address.lookup.useThis": "Use this address",
+  "profile.address.lookup.changePostcode": "Change postcode",
+  "profile.address.previewTitle": "Area found",
+  "profile.address.previewCountry": "Country",
+  "profile.address.previewRegion": "Region",
+  "profile.address.previewDistrict": "Local area",
+  "profile.address.lineOptional": "Street name or area (optional)",
+  "profile.address.linePlaceholder": "e.g. 12 King Street",
+  "profile.address.labelHint": "A short name like Home or Work.",
+  "profile.address.privacyHint":
+    "We only store your area-level location to match you with nearby providers.",
+  "profile.address.fallback.toggle": "I can't find my postcode — enter manually",
+  "profile.address.fallback.hide": "Use postcode lookup instead",
+  "profile.address.save": "Save address",
+  "profile.address.update": "Update address",
   "profile.pets": "Pets",
   "profile.petName": "Pet name",
   "profile.petNamePlaceholder": "Pet name",
