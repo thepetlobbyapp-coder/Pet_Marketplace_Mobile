@@ -1,5 +1,5 @@
-import { EmptyState } from '../../src/components/EmptyState';
-import { Screen } from '../../src/components/Screen';
+import { EmptyState } from "../../src/components/EmptyState";
+import { Screen } from "../../src/components/Screen";
 
 /**
  * Stub for the in-app notifications inbox (Mobile02 header bell, Mobile01

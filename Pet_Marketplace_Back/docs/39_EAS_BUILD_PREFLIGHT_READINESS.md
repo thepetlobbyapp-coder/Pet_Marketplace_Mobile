@@ -44,6 +44,7 @@ Mobile config and code:
 - `Pet_Marketplace_Mobile/package.json`
 - `Pet_Marketplace_Mobile/.env.example`
 - `Pet_Marketplace_Mobile/src/lib/env.ts`
+- `Pet_Marketplace_Mobile/src/components/Avatar.tsx`
 - `Pet_Marketplace_Mobile/src/components/AvatarUploader.tsx`
 - `Pet_Marketplace_Mobile/app/(tabs)/profile.tsx`
 
@@ -66,8 +67,8 @@ Screenshot baseline:
 | Local code checks | GO | `pnpm typecheck` and `pnpm lint` passed. |
 | Screenshot baseline | GO | Checkpoint 087 has 8 valid PNG files at `780x1688`. |
 | App icon / splash asset | NO-GO FOR PLAY-READY BUILD | Current `pet-lobby-paw-marker-logo.png` is `288x288`; docs/32 requires a dedicated `1024x1024` PNG before Play-ready build. |
-| Android permissions | GO COM RESSALVAS | `android.permissions` is `[]`, but `expo-image-picker` is configured and may add photo/camera permission surfaces in native build. |
-| Avatar/camera/gallery feature | GO COM RESSALVAS | UI is gated by `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD`; keep it `false` for the next Play-ready smoke unless Data Safety is updated. |
+| Android permissions | GO COM RESSALVAS | `android.permissions` is `[]`; `expo-image-picker` is present with `microphonePermission: false`, so the exact native manifest must still be checked after a signed build. |
+| Avatar/camera/gallery feature | GO COM RESSALVAS | Profile uses `AvatarUploader` for optional camera/gallery upload through the existing `/me/avatar` API; Data Safety/Privacy must match the submitted build. |
 | Keystore / EAS project setup | PENDING | Needs authorized Expo account decision and managed keystore/project setup when EAS is explicitly allowed. |
 
 ---
@@ -82,7 +83,7 @@ Screenshot baseline:
 | Checkpoint 087 PNG validation | 0 | Eight PNG files found, all `780x1688`. |
 | Docs sync hash check | 0 | `PROGRESS.md` and docs 38 were synced root/Back/Mobile/Admin before this checkpoint; docs 39 is synced by this checkpoint. |
 | Asset metadata check | 0 | Current app icon asset is `288x288` PNG, not the required `1024x1024` production asset. |
-| Permission/flag scan | 0 | Found `expo-image-picker`, camera/photo permission strings and `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD=false` in sample config. |
+| Permission/flag scan | 0 | Current app/config/package/source surface has no native picker package, picker import, permission-copy strings or avatar upload flag. |
 
 ---
 
@@ -106,12 +107,9 @@ Screenshot baseline:
 
 1. Replace the current `288x288` icon/splash placeholder with a dedicated
    `1024x1024` PNG that satisfies `docs/32_SPEC_ASSET_ICON_SPLASH.md`.
-2. Decide the avatar permission posture for the build:
-   - keep `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD=false` and remove/defer native
-     image-picker permission surface if Play Data Safety should not include
-     photo/camera access; or
-   - keep image picker in build only after Data Safety, permissions copy and
-     screenshots/claims are reviewed for avatar upload.
+2. If avatar upload, camera and gallery remain in the Play-ready build, confirm
+   permission copy, generated manifest, Data Safety, privacy and screenshot
+   claims against the exact submitted AAB.
 3. Configure production/preview `EXPO_PUBLIC_*` values in the authorized EAS
    environment without committing secrets.
 4. Confirm the Expo account/project and keystore policy before running any EAS
@@ -130,7 +128,6 @@ Checked on 2026-05-26:
 - Expo EAS `eas.json`: https://docs.expo.dev/build/eas-json/
 - Expo EAS app versions: https://docs.expo.dev/build-reference/app-versions/
 - Expo permissions guide: https://docs.expo.dev/guides/permissions/
-- Expo ImagePicker: https://docs.expo.dev/versions/latest/sdk/imagepicker/
 
 ---
 

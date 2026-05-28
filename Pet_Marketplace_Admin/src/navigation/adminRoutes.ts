@@ -14,6 +14,8 @@ export interface AdminRoute {
   readonly label: string;
   readonly path: string;
   readonly requiresAdmin: true;
+  readonly status: "enabled" | "disabled";
+  readonly disabledReason?: string;
 }
 
 export const ADMIN_ROUTES: readonly AdminRoute[] = [
@@ -22,42 +24,50 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     label: "Dashboard",
     path: "/admin",
     requiresAdmin: true,
+    status: "enabled",
   },
   {
     id: "users",
     label: "Users",
     path: "/admin/users",
     requiresAdmin: true,
+    status: "enabled",
   },
   {
     id: "providers",
     label: "Providers",
     path: "/admin/providers",
     requiresAdmin: true,
+    status: "enabled",
   },
   {
     id: "bookings",
     label: "Bookings",
     path: "/admin/bookings",
     requiresAdmin: true,
+    status: "enabled",
   },
   {
     id: "reports",
     label: "Reports",
     path: "/admin/reports",
     requiresAdmin: true,
+    status: "enabled",
   },
   {
+    disabledReason: "Admin reviews endpoint is not implemented in the backend.",
     id: "reviews",
     label: "Reviews",
     path: "/admin/reviews",
     requiresAdmin: true,
+    status: "disabled",
   },
   {
     id: "auditLogs",
     label: "Audit logs",
     path: "/admin/audit-logs",
     requiresAdmin: true,
+    status: "enabled",
   },
 ];
 

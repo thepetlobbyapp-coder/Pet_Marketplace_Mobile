@@ -108,7 +108,6 @@ function createPreviewState(adminModule) {
       bookings: adminModule.createAdminBookingsTable(resources.bookings),
       providers: adminModule.createAdminProvidersTable(resources.providers),
       reports: adminModule.createAdminReportsTable(resources.reports),
-      reviews: adminModule.createAdminReviewsTable(resources.reviews),
       users: adminModule.createAdminUsersTable(resources.users),
     },
   };
@@ -119,7 +118,7 @@ function createSampleResources() {
     auditLogs: [
       {
         action: "user.blocked",
-        actorEmail: "admin@thepetlobby.test",
+        actorUserId: "user-001",
         createdAt: "2026-05-18T12:00:00.000Z",
         id: "audit-001",
         targetId: "user-002",
@@ -127,47 +126,47 @@ function createSampleResources() {
       },
       {
         action: "report.closed",
-        actorEmail: "ops@thepetlobby.test",
+        actorUserId: "user-001",
         createdAt: "2026-05-18T12:10:00.000Z",
         id: "audit-002",
         targetId: "report-003",
         targetType: "report",
       },
       {
-        action: "review.hidden",
-        actorEmail: "admin@thepetlobby.test",
+        action: "booking.checked",
+        actorUserId: null,
         createdAt: "2026-05-18T12:20:00.000Z",
         id: "audit-003",
-        targetId: "review-002",
-        targetType: "review",
+        targetId: "booking-001",
+        targetType: "booking",
       },
     ],
     bookings: [
       {
         createdAt: "2026-05-18T12:00:00.000Z",
+        date: "2026-05-25",
         id: "booking-001",
-        participantCount: 2,
-        serviceType: "Dog walking",
-        startsAt: "2026-05-25T09:00:00.000Z",
+        service: "Dog walking",
         status: "requested",
+        timeSlotId: "09:00",
         updatedAt: "2026-05-18T12:05:00.000Z",
       },
       {
         createdAt: "2026-05-18T13:00:00.000Z",
+        date: "2026-05-26",
         id: "booking-002",
-        participantCount: 2,
-        serviceType: "Pet sitting",
-        startsAt: "2026-05-26T14:00:00.000Z",
-        status: "accepted",
+        service: "Pet sitting",
+        status: "confirmed",
+        timeSlotId: "14:00",
         updatedAt: "2026-05-18T13:15:00.000Z",
       },
       {
         createdAt: "2026-05-17T08:30:00.000Z",
+        date: "2026-05-20",
         id: "booking-003",
-        participantCount: 1,
-        serviceType: "Vet visit support",
-        startsAt: "2026-05-20T11:30:00.000Z",
+        service: "Vet visit support",
         status: "completed",
+        timeSlotId: "11:00",
         updatedAt: "2026-05-20T12:45:00.000Z",
       },
     ],
@@ -185,7 +184,7 @@ function createSampleResources() {
         displayName: "Islington Pet Sitting",
         id: "provider-002",
         serviceCount: 2,
-        status: "inactive",
+        status: "paused",
         updatedAt: "2026-05-22T16:20:00.000Z",
       },
     ],
@@ -202,7 +201,7 @@ function createSampleResources() {
         category: "abuse",
         createdAt: "2026-05-18T12:30:00.000Z",
         id: "report-002",
-        status: "pending",
+        status: "in_review",
         targetType: "message",
         updatedAt: "2026-05-18T12:35:00.000Z",
       },
@@ -213,32 +212,6 @@ function createSampleResources() {
         status: "closed",
         targetType: "provider",
         updatedAt: "2026-05-18T11:00:00.000Z",
-      },
-    ],
-    reviews: [
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "review-001",
-        rating: 2,
-        reportCount: 3,
-        status: "reported",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T13:00:00.000Z",
-        id: "review-002",
-        rating: 1,
-        reportCount: 2,
-        status: "hidden",
-        updatedAt: "2026-05-18T13:30:00.000Z",
-      },
-      {
-        createdAt: "2026-05-16T16:00:00.000Z",
-        id: "review-003",
-        rating: 5,
-        reportCount: 0,
-        status: "published",
-        updatedAt: "2026-05-16T16:05:00.000Z",
       },
     ],
     users: [
@@ -262,11 +235,11 @@ function createSampleResources() {
       },
       {
         createdAt: "2026-05-03T09:00:00.000Z",
-        displayName: "Suspended Provider",
-        email: "suspended@example.com",
+        displayName: "Deleted Provider",
+        email: "deleted@example.com",
         id: "user-003",
         roles: ["provider"],
-        status: "suspended",
+        status: "deleted",
         updatedAt: "2026-05-18T12:05:00.000Z",
       },
       {
@@ -758,13 +731,11 @@ function renderHtml(state) {
 
         return \`
           <section class="summary-grid" aria-label="Dashboard summary">
-            \${renderMetric("Total users", summary.totalUsers)}
-            \${renderMetric("Total providers", summary.totalProviders)}
-            \${renderMetric("Total bookings", summary.totalBookings)}
+            \${renderMetric("Total users", state.tables.users.rows.length)}
+            \${renderMetric("Total providers", state.tables.providers.rows.length)}
+            \${renderMetric("Total bookings", state.tables.bookings.rows.length)}
             \${renderMetric("Open reports", summary.openReports, "warning")}
-            \${renderMetric("Reported reviews", summary.reportedReviews, "danger")}
-            \${renderMetric("Recent audit logs", summary.recentAuditLogCount)}
-            \${renderMetric("Blocked users", summary.blockedOrSuspendedUsers, "danger")}
+            \${renderMetric("Recent audit logs", state.tables.auditLogs.rows.length)}
           </section>
           <section class="dashboard-layout">
             <div class="panel">
@@ -777,12 +748,10 @@ function renderHtml(state) {
             <div class="panel">
               <div class="panel-header">
                 <h2>Moderation queue</h2>
-                <span class="badge badge-warning">\${summary.openReports + summary.reportedReviews} items</span>
+                <span class="badge badge-warning">\${summary.openReports} items</span>
               </div>
               <div class="queue-list">
                 \${renderQueueItem("Open reports", summary.openReports, "warning")}
-                \${renderQueueItem("Reported reviews", summary.reportedReviews, "danger")}
-                \${renderQueueItem("Blocked or suspended users", summary.blockedOrSuspendedUsers, "danger")}
               </div>
             </div>
           </section>
@@ -900,15 +869,15 @@ function renderHtml(state) {
       function statusClass(value) {
         const normalized = String(value).toLowerCase();
 
-        if (["active", "accepted", "completed", "published"].includes(normalized)) {
+        if (["active", "confirmed", "completed", "closed"].includes(normalized)) {
           return "badge-success";
         }
 
-        if (["open", "pending", "requested", "reported"].includes(normalized)) {
+        if (["open", "in_review", "paused", "requested"].includes(normalized)) {
           return "badge-warning";
         }
 
-        if (["blocked", "suspended", "hidden", "inactive"].includes(normalized)) {
+        if (["blocked", "deleted", "cancelled", "dismissed"].includes(normalized)) {
           return "badge-danger";
         }
 

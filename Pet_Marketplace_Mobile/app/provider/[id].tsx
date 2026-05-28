@@ -1,33 +1,99 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { ApiClientError, getProvider, openConversation } from '../../src/api/client';
-import type { ConversationResponse, ProviderResponse } from '../../src/api/types';
-import { useAuth } from '../../src/auth/AuthProvider';
-import { Avatar } from '../../src/components/Avatar';
-import { Button } from '../../src/components/Button';
-import { EmptyState } from '../../src/components/EmptyState';
-import { ErrorState } from '../../src/components/ErrorState';
-import { InfoRow } from '../../src/components/InfoRow';
-import { LoadingState } from '../../src/components/LoadingState';
-import { RatingStars } from '../../src/components/RatingStars';
-import { Screen } from '../../src/components/Screen';
-import { SectionHeader } from '../../src/components/SectionHeader';
-import { demoProviders } from '../../src/data/demoFixtures';
-import { colors, radius, shadow, spacing, typography } from '../../src/design/tokens';
-import { t } from '../../src/i18n';
-import { formatDistance, formatPriceBRL, formatPriceGBP } from '../../src/lib/format';
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import {
+  ApiClientError,
+  getProvider,
+  openConversation,
+} from "../../src/api/client";
+import type {
+  ConversationResponse,
+  ProviderResponse,
+} from "../../src/api/types";
+import { hasTutorProfile, useMeQuery } from "../../src/api/useMeQuery";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { Avatar } from "../../src/components/Avatar";
+import { Button } from "../../src/components/Button";
+import { EmptyState } from "../../src/components/EmptyState";
+import { ErrorState } from "../../src/components/ErrorState";
+import { InfoRow } from "../../src/components/InfoRow";
+import { LoadingState } from "../../src/components/LoadingState";
+import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
+import { RatingStars } from "../../src/components/RatingStars";
+import { Screen } from "../../src/components/Screen";
+import { SectionHeader } from "../../src/components/SectionHeader";
+import { demoProviders } from "../../src/data/demoFixtures";
+import {
+  colors,
+  radius,
+  shadow,
+  spacing,
+  typography,
+} from "../../src/design/tokens";
+import { t } from "../../src/i18n";
+import { env } from "../../src/lib/env";
+import {
+  formatDistance,
+  formatPriceBRL,
+  formatPriceGBP,
+} from "../../src/lib/format";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// DEMO SEED: provider detail still supports local demo IDs used by Home.
-// Real UUID provider IDs use the backend and never fall back to fixtures.
+// DEMO SEED: local demo IDs are available only in explicitly enabled
+// non-production runtimes. Real UUID provider IDs always use the backend.
 export default function ProviderDetailScreen() {
   const { accessToken, session } = useAuth();
+  const meQuery = useMeQuery();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const providerId = typeof id === 'string' ? id : '';
+  const providerId = typeof id === "string" ? id : "";
+  const canUseMarketplace = hasTutorProfile(meQuery.data);
+
+  if (!accessToken) {
+    return (
+      <Screen>
+        <EmptyState
+          actionLabel={t("provider.detail.backToSearch")}
+          message={t("provider.detail.authenticated.body")}
+          onAction={() => router.push("/search")}
+          title={t("provider.detail.authenticated.title")}
+        />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label={t("profile.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState
+          actionLabel={t("common.retry")}
+          message={t("profile.error")}
+          onRetry={() => meQuery.refetch()}
+          title={t("common.error")}
+        />
+      </Screen>
+    );
+  }
+
+  if (!canUseMarketplace) {
+    return (
+      <Screen>
+        <TutorProfileRequiredState
+          message={t("provider.detail.profileRequired.body")}
+        />
+      </Screen>
+    );
+  }
 
   if (UUID_PATTERN.test(providerId)) {
     return (
@@ -39,19 +105,14 @@ export default function ProviderDetailScreen() {
     );
   }
 
+  if (!env.isDemoFixturesEnabled) {
+    return <ProviderNotFoundState />;
+  }
+
   const provider = demoProviders.find((item) => item.id === providerId);
 
   if (!provider) {
-    return (
-      <Screen>
-        <EmptyState
-          actionLabel={t('provider.detail.backToSearch')}
-          message={t('provider.detail.notFound.body')}
-          onAction={() => router.push('/search')}
-          title={t('provider.detail.notFound.title')}
-        />
-      </Screen>
-    );
+    return <ProviderNotFoundState />;
   }
 
   return (
@@ -78,8 +139,8 @@ export default function ProviderDetailScreen() {
             ]}
           >
             {provider.isAvailable
-              ? t('provider.detail.status.available')
-              : t('provider.detail.status.unavailable')}
+              ? t("provider.detail.status.available")
+              : t("provider.detail.status.unavailable")}
           </Text>
         </View>
       </View>
@@ -87,36 +148,49 @@ export default function ProviderDetailScreen() {
       <View style={styles.infoCard}>
         <InfoRow
           icon="location-outline"
-          label={t('provider.detail.distance')}
+          label={t("provider.detail.distance")}
           value={`${formatDistance(provider.distanceMeters)} ${t(
-            'provider.detail.distanceFromArea',
+            "provider.detail.distanceFromArea",
           )}`}
         />
         <InfoRow
           icon="cash-outline"
-          label={t('provider.detail.estimatedPrice')}
+          label={t("provider.detail.estimatedPrice")}
           value={`${formatPriceBRL(provider.pricePerHour)} / ${t(
-            'book.summary.perHour',
+            "book.summary.perHour",
           )}`}
         />
         <InfoRow
           icon="star-outline"
-          label={t('provider.detail.reviews')}
+          label={t("provider.detail.reviews")}
           value={`${provider.rating.toFixed(1)} (${provider.reviewCount} reviews)`}
         />
       </View>
 
-      <SectionHeader title={t('provider.detail.section')} />
+      <SectionHeader title={t("provider.detail.section")} />
       <Text style={styles.bio}>{provider.bio}</Text>
 
       <Button
         disabled={!provider.isAvailable}
         label={
           provider.isAvailable
-            ? t('provider.detail.book')
-            : t('provider.detail.status.noSlots')
+            ? t("provider.detail.book")
+            : t("provider.detail.status.noSlots")
         }
         onPress={() => router.push(`/book?providerId=${provider.id}`)}
+      />
+    </Screen>
+  );
+}
+
+function ProviderNotFoundState() {
+  return (
+    <Screen>
+      <EmptyState
+        actionLabel={t("provider.detail.backToSearch")}
+        message={t("provider.detail.notFound.body")}
+        onAction={() => router.push("/search")}
+        title={t("provider.detail.notFound.title")}
       />
     </Screen>
   );
@@ -133,28 +207,15 @@ function RealProviderDetail({
 }) {
   const providerQuery = useQuery({
     enabled: Boolean(accessToken),
-    queryKey: ['provider', userId, providerId],
+    queryKey: ["provider", userId, providerId],
     queryFn: () => getProvider(accessToken, providerId),
     retry: 1,
   });
 
-  if (!accessToken) {
-    return (
-      <Screen>
-        <EmptyState
-          actionLabel={t('provider.detail.backToSearch')}
-          message={t('provider.detail.authenticated.body')}
-          onAction={() => router.push('/search')}
-          title={t('provider.detail.authenticated.title')}
-        />
-      </Screen>
-    );
-  }
-
   if (providerQuery.isLoading) {
     return (
       <Screen>
-        <LoadingState label={t('provider.detail.loading')} />
+        <LoadingState label={t("provider.detail.loading")} />
       </Screen>
     );
   }
@@ -163,10 +224,10 @@ function RealProviderDetail({
     return (
       <Screen>
         <ErrorState
-          actionLabel={t('common.retry')}
-          message={t('provider.detail.error.body')}
+          actionLabel={t("common.retry")}
+          message={t("provider.detail.error.body")}
           onRetry={() => providerQuery.refetch()}
-          title={t('provider.detail.notFound.title')}
+          title={t("provider.detail.notFound.title")}
         />
       </Screen>
     );
@@ -190,7 +251,8 @@ function RealProviderContent({
   const [chatError, setChatError] = useState<string | null>(null);
 
   const openChatMutation = useMutation({
-    mutationFn: () => openConversation(accessToken, { providerId: provider.id }),
+    mutationFn: () =>
+      openConversation(accessToken, { providerId: provider.id }),
     onMutate: () => {
       setChatError(null);
     },
@@ -205,7 +267,11 @@ function RealProviderContent({
   return (
     <Screen variant="top">
       <View style={styles.hero}>
-        <Avatar name={provider.name} size={88} uri={provider.avatarUrl ?? undefined} />
+        <Avatar
+          name={provider.name}
+          size={88}
+          uri={provider.avatarUrl ?? undefined}
+        />
         <Text style={styles.name}>{provider.name}</Text>
         <Text style={styles.service}>{provider.service}</Text>
         <RatingStars
@@ -226,8 +292,8 @@ function RealProviderContent({
             ]}
           >
             {provider.isAvailable
-              ? t('provider.detail.status.available')
-              : t('provider.detail.status.unavailable')}
+              ? t("provider.detail.status.available")
+              : t("provider.detail.status.unavailable")}
           </Text>
         </View>
       </View>
@@ -235,39 +301,44 @@ function RealProviderContent({
       <View style={styles.infoCard}>
         <InfoRow
           icon="location-outline"
-          label={t('provider.detail.distance')}
+          label={t("provider.detail.distance")}
           value={formatDistance(provider.distanceMeters)}
         />
         <InfoRow
           icon="cash-outline"
-          label={t('provider.detail.estimatedPrice')}
+          label={t("provider.detail.estimatedPrice")}
           value={`${formatPriceGBP(provider.pricePerHour)} / ${t(
-            'book.summary.perHour',
+            "book.summary.perHour",
           )}`}
         />
         <InfoRow
           icon="star-outline"
-          label={t('provider.detail.reviews')}
+          label={t("provider.detail.reviews")}
           value={`${provider.rating.toFixed(1)} (${provider.reviewCount} reviews)`}
         />
       </View>
 
-      <SectionHeader title={t('provider.detail.section')} />
+      <SectionHeader title={t("provider.detail.section")} />
       <Text style={styles.bio}>
-        {provider.bio ?? t('provider.detail.noBio')}
+        {provider.bio ?? t("provider.detail.noBio")}
       </Text>
 
       <View style={styles.actions}>
         <Button
-          label={t('provider.detail.book')}
+          disabled={!provider.isAvailable}
+          label={
+            provider.isAvailable
+              ? t("provider.detail.book")
+              : t("provider.detail.status.noSlots")
+          }
           onPress={() => router.push(`/book?providerId=${provider.id}`)}
         />
         <Button
           isLoading={openChatMutation.isPending}
           label={
             openChatMutation.isPending
-              ? t('provider.detail.chat.opening')
-              : t('provider.detail.chat')
+              ? t("provider.detail.chat.opening")
+              : t("provider.detail.chat")
           }
           onPress={() => openChatMutation.mutate()}
           variant="secondary"
@@ -285,26 +356,26 @@ function RealProviderContent({
 /** Mapeia o erro do client em microcopy estável (i18n en-GB). */
 function getOpenChatErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
-    if (error.status === 403) return t('provider.detail.chat.error.blocked');
+    if (error.status === 403) return t("provider.detail.chat.error.blocked");
     if (error.status === 404)
-      return t('provider.detail.chat.error.unavailable');
+      return t("provider.detail.chat.error.unavailable");
     if (error.status === 429)
-      return t('provider.detail.chat.error.rateLimited');
+      return t("provider.detail.chat.error.rateLimited");
   }
-  return t('provider.detail.chat.error.generic');
+  return t("provider.detail.chat.error.generic");
 }
 
 const styles = StyleSheet.create({
   hero: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[2],
     paddingVertical: spacing[2],
   },
   name: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
   },
   service: {
     color: colors.muted,
@@ -324,7 +395,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   statusTextOn: {
     color: colors.successText,
@@ -352,7 +423,7 @@ const styles = StyleSheet.create({
   chatError: {
     color: colors.danger,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
     lineHeight: 20,
   },
 });

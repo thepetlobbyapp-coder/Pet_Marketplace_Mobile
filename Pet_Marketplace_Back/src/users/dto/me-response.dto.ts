@@ -22,6 +22,9 @@ class ProviderProfileSummaryDto implements ProviderProfileSummary {
   @ApiProperty()
   displayName!: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  bio!: string | null;
+
   @ApiProperty({ enum: ['active', 'paused', 'blocked', 'deleted'] })
   status!: ProviderProfileSummary['status'];
 
@@ -33,6 +36,24 @@ class ProviderProfileSummaryDto implements ProviderProfileSummary {
 
   @ApiProperty()
   ratingCount!: number;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  listingId!: string | null;
+
+  @ApiPropertyOptional({
+    enum: ['walk', 'sitting', 'transport', 'boarding'],
+    nullable: true,
+  })
+  categoryId!: ProviderProfileSummary['categoryId'];
+
+  @ApiPropertyOptional({ nullable: true })
+  service!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, minimum: 0 })
+  pricePerHour!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  isAvailable!: boolean | null;
 }
 
 class LinkedProfilesDto {
@@ -67,8 +88,8 @@ export class MeResponseDto {
 
   @ApiPropertyOptional({
     description:
-      'Short-lived (1h) signed URL pointing at the user avatar. Null when '
-      + 'no avatar is set. Clients must NOT cache it past the TTL; refetch GET /me.',
+      'Short-lived (1h) signed URL pointing at the user avatar. Null when ' +
+      'no avatar is set. Clients must NOT cache it past the TTL; refetch GET /me.',
     format: 'uri',
     nullable: true,
   })
@@ -114,10 +135,16 @@ export class MeResponseDto {
                     provider: {
                       id: user.profiles.provider.id,
                       displayName: user.profiles.provider.displayName,
+                      bio: user.profiles.provider.bio,
                       status: user.profiles.provider.status,
                       serviceRadiusKm: user.profiles.provider.serviceRadiusKm,
                       ratingAverage: user.profiles.provider.ratingAverage,
                       ratingCount: user.profiles.provider.ratingCount,
+                      listingId: user.profiles.provider.listingId,
+                      categoryId: user.profiles.provider.categoryId,
+                      service: user.profiles.provider.service,
+                      pricePerHour: user.profiles.provider.pricePerHour,
+                      isAvailable: user.profiles.provider.isAvailable,
                     },
                   }
                 : {}),

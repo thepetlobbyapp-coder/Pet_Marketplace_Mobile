@@ -1,6 +1,6 @@
-import { Image } from 'expo-image';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../design/tokens';
+import { Image } from "expo-image";
+import { StyleSheet, Text, View } from "react-native";
+import { colors } from "../design/tokens";
 
 interface AvatarProps {
   name: string;
@@ -11,16 +11,16 @@ interface AvatarProps {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {
-    return '?';
+    return "?";
   }
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return (first + last).toUpperCase();
 }
 
 // memory-disk caching gives us a transparent LRU cache for signed avatar URLs;
 // when the signed URL rotates after expiry the key changes naturally.
-const AVATAR_CACHE_POLICY = 'memory-disk' as const;
+const AVATAR_CACHE_POLICY = "memory-disk" as const;
 
 export function Avatar({ name, size = 48, uri }: AvatarProps) {
   const shape = { width: size, height: size, borderRadius: size / 2 };
@@ -56,12 +56,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
   },
   fallback: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accentSoft,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   initials: {
     color: colors.accentPressed,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

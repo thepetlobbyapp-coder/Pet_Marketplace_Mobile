@@ -6068,3 +6068,80 @@ drop function if exists public.admin_update_report_status_with_audit(
 ```
 
 Rollback remoto exige nova autorizacao explicita do ambiente alvo.
+
+---
+
+## Checkpoint 099 - Validacao de ambientes e sincronizacao geral
+
+- **Data:** 2026-05-28.
+- **Tipo:** Auditoria local de ambientes, paridade documental e preparo de
+  fechamento Git, sem deploy, sem Play Console, sem EAS, sem migration, sem
+  smoke remoto autenticado e sem leitura/impressao de secrets.
+- **Status:** **AMBIENTES LOCAIS VALIDADOS / DOCS E CODEX SINCRONIZADOS /
+  WORKTREE AINDA COM ARQUIVOS NAO COMMITADOS**.
+
+### Selecao @PICK
+
+- Time aplicado: `@PICK`, `@ENV`, `@X`, `@FLOW`, `@GSD`, `@Q` e `@V`.
+- A tarefa foi classificada como VALIDACAO de risco medio: audita paridade dos
+  ambientes locais e estado Git antes do fechamento.
+- `@CRED` nao foi acionado porque nao houve acesso remoto autenticado, deploy,
+  banco, Play Console, EAS ou leitura de `.env`/`Credenciais.txt`.
+
+### Sincronizacao
+
+- Rodado `pnpm sync:win` para propagar `docs/` e `.codex/` canonicos da raiz
+  para `Pet_Marketplace_Back`, `Pet_Marketplace_Mobile` e
+  `Pet_Marketplace_Admin`.
+- Detectado que artefatos de release estavam apenas em
+  `Pet_Marketplace_Mobile/docs`; eles eram referenciados pelos docs canonicos.
+- Promovidos para `docs/` canonico:
+  - `docs/MOBILE_SECURITY.md`;
+  - `docs/logo/`;
+  - `docs/playstore-screenshots/`.
+- Reexecutado `pnpm sync:win` apos a promocao dos artefatos.
+- Normalizados finais de linha LF nos textos compartilhados para manter
+  `git diff --check` limpo.
+
+### Validacoes de paridade
+
+- Hash recursivo de `docs/` entre raiz, Back, Mobile e Admin - OK.
+- Hash recursivo de `.codex/` entre raiz, Back, Mobile e Admin - OK.
+- `git diff --check` - exit 0.
+- `git status --short --branch` confirmou branch
+  `codex/consolidate-checkpoints-through-094` ahead 1 do remoto e worktree com
+  alteracoes locais ainda nao commitadas.
+
+### Validacoes de runtime e codigo
+
+- Raiz: `pnpm env:check` - exit 0, Node `v22.22.3`, pnpm `10.30.3`.
+- Backend: `pnpm typecheck` - exit 0.
+- Backend: `pnpm lint` - exit 0.
+- Backend: `pnpm test:e2e -- --runInBand` - exit 0, 17 suites, 174 testes.
+- Backend: `pnpm build` - exit 0.
+- Admin: `pnpm typecheck` - exit 0.
+- Admin: `pnpm lint` - exit 0.
+- Admin: `pnpm test` - exit 0, 7 suites locais.
+- Admin: `pnpm build` - exit 0.
+- Mobile: `pnpm typecheck` - exit 0.
+- Mobile: `pnpm lint` - exit 0.
+- Mobile: `pnpm test` - exit 0, confirma `typecheck` + `lint`.
+
+### Achados Git
+
+- Ha arquivos modificados e nao rastreados em Back, Mobile, Admin, docs raiz e
+  governanca raiz.
+- A branch local possui 1 commit ainda nao enviado para o remoto.
+- Nao foi feito stage nem commit neste checkpoint antes do inventario final.
+
+### Riscos residuais
+
+- A validacao foi local; nao comprova deploy remoto atual, EAS artifact atual,
+  Play Console ou paridade de variaveis reais fora do repositorio.
+- Como ha muitos arquivos nao rastreados, o fechamento deve revisar o escopo de
+  stage para evitar incluir artefatos locais indesejados.
+
+### Proximo passo recomendado
+
+- Revisar o inventario Git final, excluir qualquer arquivo local que nao deva
+  entrar, e fazer stage/commit do conjunto validado.

@@ -16,14 +16,23 @@ import type {
   TutorProfileInput,
   TutorProfileRecord,
 } from '../../users/dto/tutor-profile.dto';
+import type {
+  ProviderProfileInput,
+  ProviderProfileRecord,
+} from '../../users/dto/provider-profile.dto';
+import { AVATAR_SIGNED_URL_TTL_SECONDS } from '../../users/dto/avatar.dto';
 import type { AccountDeletionRequestRecord } from '../../users/dto/account-deletion-request-response.dto';
 import type {
   AuthUser,
   ProviderProfileSummary,
   Role,
   TutorProfileSummary,
+  UserStatus,
 } from '../auth/auth-user';
-import { AuthBackendUnavailableException } from '../errors/domain.exception';
+import {
+  AuthBackendUnavailableException,
+  DomainException,
+} from '../errors/domain.exception';
 import type { Database } from './database.types';
 import { serverSupabaseOptions } from './supabase-client-options';
 import type { UpdateMeInput } from '../../users/dto/update-me-request.dto';
@@ -42,13 +51,12 @@ import {
   type ProviderRecord,
 } from '../../providers/dto/provider-fields';
 import type { ListProvidersFilter } from '../../providers/dto/list-providers-query.dto';
-import type {
-  BookingRecord,
-  BookingStatus,
-} from '../../bookings/dto/booking-fields';
 import {
+  BOOKING_STATUSES,
   assertBookingTransition,
   bookingSlotTaken,
+  type BookingRecord,
+  type BookingStatus,
 } from '../../bookings/dto/booking-fields';
 import type { CreateBookingInput } from '../../bookings/dto/create-booking-request.dto';
 import {
@@ -65,8 +73,26 @@ import {
   type UserBlockRecord,
 } from '../../trust-safety/dto/trust-safety-fields';
 import type { UpdateReportInput } from '../../trust-safety/dto/update-report-request.dto';
-import { DomainException } from '../errors/domain.exception';
+import type {
+  AdminAuditLogRecord,
+  AdminBookingRecord,
+  AdminDashboardRecord,
+  AdminProviderRecord,
+  AdminUserRecord,
+} from '../../admin/dto/admin-records';
+import type { UpdateAdminUserStatusInput } from '../../admin/dto/update-admin-user-status-request.dto';
 import { ErrorCode } from '../errors/error-codes';
+import {
+  buildPaginatedResult,
+  decodePaginationCursor,
+  encodePaginationCursor,
+  type CursorPaginationQuery,
+  type PaginatedResult,
+  readCursorDate,
+  readCursorIsoDateTime,
+  readCursorNullableIsoDateTime,
+  readCursorUuid,
+} from '../pagination/cursor-pagination';
 
 const DEFAULT_ROLE: Role = 'tutor';
 const VALID_ROLES: readonly Role[] = ['tutor', 'provider', 'admin'];
@@ -75,6 +101,8 @@ const VALID_ROLES: readonly Role[] = ['tutor', 'provider', 'admin'];
 const PET_COLUMNS =
   'id,name,species,breed,size,age_range,notes,created_at,updated_at' as const;
 const TUTOR_PROFILE_COLUMNS = 'id,display_name,created_at,updated_at' as const;
+const PROVIDER_PROFILE_COLUMNS =
+  'id,display_name,bio,base_address_id,status,service_radius_km,rating_average,rating_count,created_at,updated_at' as const;
 const ADDRESS_COLUMNS =
   'id,label,country_code,city,postcode,public_area_label,location_precision,created_at,updated_at' as const;
 /** Colunas seguras de `public.bookings` — exclui `tutor_profile_id`. */
@@ -89,17 +117,34 @@ const ACTIVE_BOOKING_STATUSES: readonly BookingStatus[] = [
 ];
 /** Colunas seguras de `public.conversations` — exclui `tutor_profile_id`. */
 const CONVERSATION_COLUMNS =
-  'id,provider_id,last_message_text,last_message_at,last_message_from_provider' as const;
+  'id,provider_id,last_message_text,last_message_at,last_message_from_provider,created_at' as const;
 const MESSAGE_COLUMNS = 'id,from_provider,body,created_at' as const;
 const REPORT_COLUMNS =
   'id,status,category,target_type,target_id,created_at,updated_at' as const;
 const USER_BLOCK_COLUMNS =
   'id,blocked_user_id,conversation_id,created_at' as const;
+const ADMIN_USER_COLUMNS =
+  'id,email,status,created_at,updated_at,deleted_at' as const;
+const ADMIN_PROVIDER_COLUMNS =
+  'id,display_name,status,created_at,updated_at' as const;
+const ADMIN_BOOKING_COLUMNS =
+  'id,service_label,booking_date,time_slot_id,status,created_at,updated_at' as const;
+const ADMIN_AUDIT_LOG_COLUMNS =
+  'id,actor_user_id,action,target_type,target_id,created_at' as const;
+const ADMIN_OPEN_REPORT_STATUSES = ['open', 'in_review'] as const;
+
+interface SupabaseCountResult {
+  count: number | null;
+  error: { code?: string } | null;
+}
 
 interface ConversationParticipantContext {
+  actor: 'provider' | 'tutor';
   id: string;
   providerId: string;
   providerUserId: string;
+  tutorProfileId: string;
+  tutorUserId: string;
 }
 
 interface AppendAuditLogInput {
@@ -312,17 +357,12 @@ export class SupabaseAdminService implements OnModuleInit {
     input: TutorProfileInput,
   ): Promise<TutorProfileRecord | null> {
     const client = this.getClient();
-    const { data, error } = await client
-      .from('tutor_profiles')
-      .insert({
-        user_id: userId,
-        display_name: input.displayName,
-      })
-      .select(TUTOR_PROFILE_COLUMNS)
-      .single();
+    const { data, error } = await client.rpc('ensure_tutor_profile', {
+      p_user_id: userId,
+      p_display_name: input.displayName,
+    });
 
     if (error) {
-      if (error.code === '23505') return null;
       this.logger.error(
         { code: error.code },
         'Failed to create tutor profile.',
@@ -330,7 +370,9 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
-    return data;
+    const row = data?.[0];
+    if (!row) return null;
+    return row;
   }
 
   async updateOwnTutorProfile(
@@ -356,6 +398,116 @@ export class SupabaseAdminService implements OnModuleInit {
     }
 
     return data ?? null;
+  }
+
+  async createOwnProviderProfile(
+    userId: string,
+    input: ProviderProfileInput,
+  ): Promise<ProviderProfileRecord | null> {
+    const client = this.getClient();
+    const { data, error } = await client.rpc('ensure_provider_profile', {
+      p_user_id: userId,
+      p_display_name: input.displayName ?? 'Pet provider',
+    });
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to create provider profile.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const row = data?.[0];
+    if (!row) return null;
+    await this.upsertOwnProviderListing(userId, row.id, input);
+    if (input.publish !== undefined) {
+      const status = await client
+        .from('provider_profiles')
+        .update({ status: input.publish ? 'active' : 'paused' })
+        .eq('id', row.id)
+        .select('id')
+        .maybeSingle();
+      if (status.error) {
+        this.logger.error(
+          { code: status.error.code },
+          'Failed to update provider publish status.',
+        );
+        throw new AuthBackendUnavailableException();
+      }
+    }
+    return (
+      (await this.loadProviderProfileRecord(userId)) ?? {
+        ...row,
+        base_address_id: input.baseAddressId ?? null,
+        bio: input.bio ?? null,
+        category: null,
+        is_available: null,
+        listing_id: null,
+        price_per_hour: null,
+        service_label: null,
+      }
+    );
+  }
+
+  async updateOwnProviderProfile(
+    userId: string,
+    input: ProviderProfileInput,
+  ): Promise<ProviderProfileRecord | null> {
+    const client = this.getClient();
+    const existing = await this.loadProviderProfileRecord(userId);
+    if (!existing) return null;
+
+    if (input.baseAddressId !== undefined && input.baseAddressId !== null) {
+      const address = await this.loadOwnAddress(userId, input.baseAddressId);
+      if (!address) {
+        throw new DomainException(
+          ErrorCode.NOT_FOUND,
+          'Provider base address not found.',
+          {},
+          HttpStatus.NOT_FOUND,
+        );
+      }
+    }
+
+    await this.upsertOwnProviderListing(userId, existing.id, input);
+
+    const patch: Database['public']['Tables']['provider_profiles']['Update'] =
+      {};
+    if (input.displayName !== undefined) patch.display_name = input.displayName;
+    if (input.bio !== undefined) patch.bio = input.bio;
+    if (input.baseAddressId !== undefined) {
+      patch.base_address_id = input.baseAddressId;
+    }
+    if (input.serviceRadiusKm !== undefined) {
+      patch.service_radius_km = input.serviceRadiusKm;
+    }
+    if (input.publish !== undefined) {
+      patch.status = input.publish ? 'active' : 'paused';
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return this.loadProviderProfileRecord(userId);
+    }
+
+    const { data, error } = await client
+      .from('provider_profiles')
+      .update(patch)
+      .eq('user_id', userId)
+      .select(PROVIDER_PROFILE_COLUMNS)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to update provider profile.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    if (!data) return null;
+
+    return this.loadProviderProfileRecord(userId);
   }
 
   async listOwnAddresses(userId: string): Promise<AddressWithDefaultRecord[]> {
@@ -606,7 +758,7 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
-    return (data ?? []) as ProviderRecord[];
+    return this.withProviderAvatarFallbacks((data ?? []) as ProviderRecord[]);
   }
 
   /** Detalhe de um prestador. `null` = inexistente, removido ou inativo. */
@@ -625,7 +777,9 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
-    const rows = (data ?? []) as ProviderRecord[];
+    const rows = await this.withProviderAvatarFallbacks(
+      (data ?? []) as ProviderRecord[],
+    );
     return rows[0] ?? null;
   }
 
@@ -633,26 +787,131 @@ export class SupabaseAdminService implements OnModuleInit {
    * Horários ocupados de um prestador num dia. `null` = prestador inexistente
    * ou removido. Só conta reservas ativas (`requested`/`confirmed`).
    */
+  private async withProviderAvatarFallbacks(
+    records: ProviderRecord[],
+  ): Promise<ProviderRecord[]> {
+    const idsMissingAvatar = records
+      .filter((record) => !record.avatar_url)
+      .map((record) => record.id);
+    if (idsMissingAvatar.length === 0) return records;
+
+    const avatarUrls = await this.loadProviderOwnerAvatarUrls(idsMissingAvatar);
+    if (avatarUrls.size === 0) return records;
+
+    return records.map((record) =>
+      record.avatar_url
+        ? record
+        : { ...record, avatar_url: avatarUrls.get(record.id) ?? null },
+    );
+  }
+
+  private async loadProviderOwnerAvatarUrls(
+    providerIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const avatarUrls = new Map<string, string>();
+    const uniqueProviderIds = [...new Set(providerIds)];
+    if (uniqueProviderIds.length === 0) return avatarUrls;
+
+    const client = this.getClient();
+    const providers = await client
+      .from('providers')
+      .select('id,provider_profile_id')
+      .in('id', uniqueProviderIds);
+
+    if (providers.error) {
+      this.logger.error(
+        { code: providers.error.code },
+        'Failed to load provider owner avatar providers.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profileIds = [
+      ...new Set((providers.data ?? []).map((row) => row.provider_profile_id)),
+    ];
+    if (profileIds.length === 0) return avatarUrls;
+
+    const profiles = await client
+      .from('provider_profiles')
+      .select('id,user_id')
+      .in('id', profileIds);
+
+    if (profiles.error) {
+      this.logger.error(
+        { code: profiles.error.code },
+        'Failed to load provider owner avatar profiles.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profileUserIds = new Map(
+      (profiles.data ?? []).map((row) => [row.id, row.user_id] as const),
+    );
+    const userIds = [...new Set([...profileUserIds.values()])];
+    if (userIds.length === 0) return avatarUrls;
+
+    const users = await client
+      .from('users')
+      .select('id,avatar_url')
+      .in('id', userIds)
+      .eq('status', 'active')
+      .is('deleted_at', null);
+
+    if (users.error) {
+      this.logger.error(
+        { code: users.error.code },
+        'Failed to load provider owner avatar users.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const userAvatarPaths = new Map(
+      (users.data ?? [])
+        .filter((row) => Boolean(row.avatar_url))
+        .map((row) => [row.id, row.avatar_url as string] as const),
+    );
+    if (userAvatarPaths.size === 0) return avatarUrls;
+
+    const signedUrlsByPath = new Map<string, string>();
+    for (const path of new Set(userAvatarPaths.values())) {
+      const signedUrl = await this.createAvatarSignedUrl(path);
+      if (signedUrl) signedUrlsByPath.set(path, signedUrl);
+    }
+
+    for (const provider of providers.data ?? []) {
+      const userId = profileUserIds.get(provider.provider_profile_id);
+      const path = userId ? userAvatarPaths.get(userId) : null;
+      const signedUrl = path ? signedUrlsByPath.get(path) : null;
+      if (signedUrl) avatarUrls.set(provider.id, signedUrl);
+    }
+
+    return avatarUrls;
+  }
+
+  private async createAvatarSignedUrl(path: string): Promise<string | null> {
+    const { data, error } = await this.storageClient.storage
+      .from('avatars')
+      .createSignedUrl(path, AVATAR_SIGNED_URL_TTL_SECONDS);
+
+    if (error || !data?.signedUrl) {
+      this.logger.warn(
+        { code: error?.name },
+        'Failed to sign avatar fallback.',
+      );
+      return null;
+    }
+
+    return data.signedUrl;
+  }
+
   async getProviderAvailability(
     providerId: string,
     date: string,
   ): Promise<string[] | null> {
     const client = this.getClient();
 
-    const provider = await client
-      .from('providers')
-      .select('id,deleted_at')
-      .eq('id', providerId)
-      .maybeSingle();
-
-    if (provider.error) {
-      this.logger.error(
-        { code: provider.error.code },
-        'Failed to load provider for availability.',
-      );
-      throw new AuthBackendUnavailableException();
-    }
-    if (!provider.data || provider.data.deleted_at) return null;
+    const providerUserId = await this.loadActiveProviderUserId(providerId);
+    if (!providerUserId) return null;
 
     const { data, error } = await client
       .from('bookings')
@@ -669,22 +928,122 @@ export class SupabaseAdminService implements OnModuleInit {
     return (data ?? []).map((row) => row.time_slot_id);
   }
 
+  /** Reservas do usuario autenticado, como tutor ou cuidador. */
+  async listBookingsForUser(
+    user: AuthUser,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<BookingRecord>> {
+    const pages: BookingRecord[][] = [];
+
+    if (user.profiles?.tutor?.id) {
+      const tutorPage = await this.listBookings(
+        user.profiles.tutor.id,
+        pagination,
+      );
+      pages.push(tutorPage.items);
+    }
+
+    if (user.profiles?.provider?.id) {
+      const providerPage = await this.listProviderBookings(
+        user.profiles.provider.id,
+        pagination,
+      );
+      pages.push(providerPage.items);
+    }
+
+    const merged = pages
+      .flat()
+      .sort(compareBookingRecords)
+      .slice(0, pagination.limit + 1);
+
+    return buildPaginatedResult(merged, pagination.limit, encodeBookingCursor);
+  }
+
   /** Reservas do tutor autenticado, escopadas pelo `tutor_profile_id`. */
-  async listBookings(tutorProfileId: string): Promise<BookingRecord[]> {
+  async listBookings(
+    tutorProfileId: string,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<BookingRecord>> {
     const client = this.getClient();
-    const { data, error } = await client
+    let query = client
       .from('bookings')
       .select(BOOKING_COLUMNS)
-      .eq('tutor_profile_id', tutorProfileId)
+      .eq('tutor_profile_id', tutorProfileId);
+
+    if (pagination.cursor) {
+      const cursor = decodeBookingCursor(pagination.cursor);
+      query = query.or(
+        [
+          `booking_date.gt.${cursor.bookingDate}`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.gt.${cursor.createdAt})`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
       .order('booking_date', { ascending: true })
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(0, pagination.limit);
 
     if (error) {
       this.logger.error({ code: error.code }, 'Failed to list bookings.');
       throw new AuthBackendUnavailableException();
     }
 
-    return data ?? [];
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeBookingCursor,
+    );
+  }
+
+  private async listProviderBookings(
+    providerProfileId: string,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<BookingRecord>> {
+    const client = this.getClient();
+    const providerIds = await this.loadProviderIdsForProfile(providerProfileId);
+    if (providerIds.length === 0) {
+      return { items: [], nextCursor: null };
+    }
+
+    let query = client
+      .from('bookings')
+      .select(BOOKING_COLUMNS)
+      .in('provider_id', providerIds);
+
+    if (pagination.cursor) {
+      const cursor = decodeBookingCursor(pagination.cursor);
+      query = query.or(
+        [
+          `booking_date.gt.${cursor.bookingDate}`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.gt.${cursor.createdAt})`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('booking_date', { ascending: true })
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to list provider bookings.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeBookingCursor,
+    );
   }
 
   /**
@@ -718,37 +1077,10 @@ export class SupabaseAdminService implements OnModuleInit {
       );
     }
 
-    const provider = await client
-      .from('providers')
-      .select('id,provider_profile_id,deleted_at')
-      .eq('id', input.providerId)
-      .maybeSingle();
-
-    if (provider.error) {
-      this.logger.error(
-        { code: provider.error.code },
-        'Failed to load provider for booking.',
-      );
-      throw new AuthBackendUnavailableException();
-    }
-    if (!provider.data || provider.data.deleted_at) {
-      throw providerNotFound();
-    }
-
-    const providerProfile = await client
-      .from('provider_profiles')
-      .select('status')
-      .eq('id', provider.data.provider_profile_id)
-      .maybeSingle();
-
-    if (providerProfile.error) {
-      this.logger.error(
-        { code: providerProfile.error.code },
-        'Failed to load provider profile for booking.',
-      );
-      throw new AuthBackendUnavailableException();
-    }
-    if (!providerProfile.data || providerProfile.data.status !== 'active') {
+    const providerUserId = await this.loadActiveProviderUserId(
+      input.providerId,
+    );
+    if (!providerUserId) {
       throw providerNotFound();
     }
 
@@ -879,30 +1211,33 @@ export class SupabaseAdminService implements OnModuleInit {
     }
     if (!booking.data) return null;
 
-    const provider = await client
-      .from('providers')
-      .select('provider_profile_id')
-      .eq('id', booking.data.provider_id)
-      .maybeSingle();
-
-    if (provider.error) {
-      this.logger.error(
-        { code: provider.error.code },
-        'Failed to resolve booking provider.',
-      );
-      throw new AuthBackendUnavailableException();
-    }
-
     const tutorProfileId = user.profiles?.tutor?.id;
     const providerProfileId = user.profiles?.provider?.id;
     let actor: 'tutor' | 'provider' | null = null;
     if (tutorProfileId && booking.data.tutor_profile_id === tutorProfileId) {
       actor = 'tutor';
-    } else if (
-      providerProfileId &&
-      provider.data?.provider_profile_id === providerProfileId
-    ) {
-      actor = 'provider';
+    } else if (providerProfileId) {
+      const provider = await client
+        .from('providers')
+        .select('provider_profile_id')
+        .eq('id', booking.data.provider_id)
+        .maybeSingle();
+
+      if (provider.error) {
+        this.logger.error(
+          { code: provider.error.code },
+          'Failed to resolve booking provider.',
+        );
+        throw new AuthBackendUnavailableException();
+      }
+
+      if (provider.data?.provider_profile_id === providerProfileId) {
+        const providerUserId = await this.loadActiveProviderUserId(
+          booking.data.provider_id,
+        );
+        if (providerUserId !== user.id) return null;
+        actor = 'provider';
+      }
     }
     if (!actor) return null;
 
@@ -926,24 +1261,189 @@ export class SupabaseAdminService implements OnModuleInit {
     return data;
   }
 
+  /**
+   * Conversas do usuario autenticado, seja ele tutor ou cuidador.
+   * Mantem o contrato publico unico da aba Chat, mas troca o ponto de vista
+   * para que `unread` e o remetente da mensagem funcionem nos dois lados.
+   */
+  async listConversationsForUser(
+    user: AuthUser,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<ConversationRecord>> {
+    const pages: ConversationRecord[][] = [];
+
+    if (user.profiles?.tutor?.id) {
+      const tutorPage = await this.listConversations(
+        user.profiles.tutor.id,
+        pagination,
+      );
+      pages.push(tutorPage.items);
+    }
+
+    if (user.profiles?.provider?.id) {
+      const providerPage = await this.listProviderConversations(
+        user.profiles.provider.id,
+        pagination,
+      );
+      pages.push(providerPage.items);
+    }
+
+    const merged = pages
+      .flat()
+      .sort(compareConversationRecords)
+      .slice(0, pagination.limit + 1);
+
+    return buildPaginatedResult(
+      merged,
+      pagination.limit,
+      encodeConversationCursor,
+    );
+  }
+
   /** Conversas do tutor, mais recentes primeiro. */
   async listConversations(
     tutorProfileId: string,
-  ): Promise<ConversationRecord[]> {
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<ConversationRecord>> {
     const client = this.getClient();
-    const { data, error } = await client
+    let query = client
       .from('conversations')
       .select(CONVERSATION_COLUMNS)
-      .eq('tutor_profile_id', tutorProfileId)
+      .eq('tutor_profile_id', tutorProfileId);
+
+    if (pagination.cursor) {
+      const cursor = decodeConversationCursor(pagination.cursor);
+      query =
+        cursor.lastMessageAt === null
+          ? query.or(
+              [
+                `and(last_message_at.is.null,created_at.lt.${cursor.createdAt})`,
+                `and(last_message_at.is.null,created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+              ].join(','),
+            )
+          : query.or(
+              [
+                `last_message_at.lt.${cursor.lastMessageAt}`,
+                `and(last_message_at.eq.${cursor.lastMessageAt},created_at.lt.${cursor.createdAt})`,
+                `and(last_message_at.eq.${cursor.lastMessageAt},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+                'last_message_at.is.null',
+              ].join(','),
+            );
+    }
+
+    const { data, error } = await query
       .order('last_message_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
 
     if (error) {
       this.logger.error({ code: error.code }, 'Failed to list conversations.');
       throw new AuthBackendUnavailableException();
     }
 
-    return data ?? [];
+    const records = (data ?? []).map((row) => ({
+      ...row,
+      viewer_is_provider: false,
+    }));
+    const providerCounterparts =
+      await this.loadProviderConversationCounterparts(
+        records.map((row) => row.provider_id),
+      );
+    const recordsWithCounterparts = records.map((row): ConversationRecord => {
+      const counterpart = providerCounterparts.get(row.provider_id);
+
+      return {
+        ...row,
+        counterpart_name: counterpart?.displayName ?? null,
+        counterpart_avatar_url: counterpart?.avatarUrl ?? null,
+        counterpart_service_label: counterpart?.serviceLabel ?? null,
+      };
+    });
+
+    return buildPaginatedResult(
+      recordsWithCounterparts,
+      pagination.limit,
+      encodeConversationCursor,
+    );
+  }
+
+  /** Conversas recebidas pelo cuidador dono do provider_profile. */
+  private async listProviderConversations(
+    providerProfileId: string,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<ConversationRecord>> {
+    const client = this.getClient();
+    const providerIds = await this.loadProviderIdsForProfile(providerProfileId);
+    if (providerIds.length === 0) {
+      return { items: [], nextCursor: null };
+    }
+
+    let query = client
+      .from('conversations')
+      .select(`${CONVERSATION_COLUMNS},tutor_profile_id`)
+      .in('provider_id', providerIds);
+
+    if (pagination.cursor) {
+      const cursor = decodeConversationCursor(pagination.cursor);
+      query =
+        cursor.lastMessageAt === null
+          ? query.or(
+              [
+                `and(last_message_at.is.null,created_at.lt.${cursor.createdAt})`,
+                `and(last_message_at.is.null,created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+              ].join(','),
+            )
+          : query.or(
+              [
+                `last_message_at.lt.${cursor.lastMessageAt}`,
+                `and(last_message_at.eq.${cursor.lastMessageAt},created_at.lt.${cursor.createdAt})`,
+                `and(last_message_at.eq.${cursor.lastMessageAt},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+                'last_message_at.is.null',
+              ].join(','),
+            );
+    }
+
+    const { data, error } = await query
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to list provider conversations.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const rows = data ?? [];
+    const tutorCounterparts = await this.loadTutorConversationCounterparts(
+      rows.map((row) => row.tutor_profile_id),
+    );
+    const records = rows.map((row): ConversationRecord => {
+      const counterpart = tutorCounterparts.get(row.tutor_profile_id);
+
+      return {
+        id: row.id,
+        provider_id: row.provider_id,
+        last_message_text: row.last_message_text,
+        last_message_at: row.last_message_at,
+        last_message_from_provider: row.last_message_from_provider,
+        created_at: row.created_at,
+        counterpart_name: counterpart?.displayName ?? 'Pet tutor',
+        counterpart_avatar_url: counterpart?.avatarUrl ?? null,
+        counterpart_service_label: 'Tutor conversation',
+        viewer_is_provider: true,
+      };
+    });
+
+    return buildPaginatedResult(
+      records,
+      pagination.limit,
+      encodeConversationCursor,
+    );
   }
 
   /**
@@ -982,8 +1482,8 @@ export class SupabaseAdminService implements OnModuleInit {
   }
 
   /**
-   * Resolve `user_id` do provider ativo (não soft-deleted, perfil `active`).
-   * `null` quando provider inexistente, soft-deleted ou perfil inativo.
+   * Resolve `user_id` do provider ativo (role provider, não soft-deleted,
+   * perfil `active`). `null` quando o listing não é um provider público válido.
    */
   private async loadActiveProviderUserId(
     providerId: string,
@@ -1018,6 +1518,39 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
     if (!profile.data || profile.data.status !== 'active') return null;
+
+    const role = await client
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', profile.data.user_id)
+      .eq('role', 'provider')
+      .maybeSingle();
+
+    if (role.error) {
+      this.logger.error(
+        { code: role.error.code },
+        'Failed to load provider role for conversation open.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!role.data) return null;
+
+    const owner = await client
+      .from('users')
+      .select('id')
+      .eq('id', profile.data.user_id)
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (owner.error) {
+      this.logger.error(
+        { code: owner.error.code },
+        'Failed to load provider owner for conversation open.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!owner.data) return null;
 
     return profile.data.user_id;
   }
@@ -1069,12 +1602,20 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
+    const providerCounterparts =
+      await this.loadProviderConversationCounterparts([row.provider_id]);
+    const counterpart = providerCounterparts.get(row.provider_id);
+
     return {
       id: row.id,
       provider_id: row.provider_id,
       last_message_text: row.last_message_text,
       last_message_at: row.last_message_at,
       last_message_from_provider: row.last_message_from_provider ?? false,
+      counterpart_name: counterpart?.displayName ?? null,
+      counterpart_avatar_url: counterpart?.avatarUrl ?? null,
+      counterpart_service_label: counterpart?.serviceLabel ?? null,
+      viewer_is_provider: false,
     };
   }
 
@@ -1082,10 +1623,25 @@ export class SupabaseAdminService implements OnModuleInit {
    * Mensagens de uma conversa do tutor. `null` = conversa inexistente ou de
    * outro tutor (o controller traduz para 404 genérico).
    */
+  async listMessagesForUser(
+    user: AuthUser,
+    conversationId: string,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<MessageRecord> | null> {
+    const context = await this.loadConversationParticipantContext(
+      user,
+      conversationId,
+    );
+    if (!context) return null;
+
+    return this.listMessagesByConversationId(conversationId, pagination);
+  }
+
   async listMessages(
     tutorProfileId: string,
     conversationId: string,
-  ): Promise<MessageRecord[] | null> {
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<MessageRecord> | null> {
     const client = this.getClient();
     const owned = await this.loadOwnedConversationId(
       tutorProfileId,
@@ -1093,24 +1649,106 @@ export class SupabaseAdminService implements OnModuleInit {
     );
     if (!owned) return null;
 
-    const { data, error } = await client
+    let query = client
       .from('messages')
       .select(MESSAGE_COLUMNS)
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+      .eq('conversation_id', conversationId);
+
+    if (pagination.cursor) {
+      const cursor = decodeMessageCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.gt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(0, pagination.limit);
 
     if (error) {
       this.logger.error({ code: error.code }, 'Failed to list messages.');
       throw new AuthBackendUnavailableException();
     }
 
-    return data ?? [];
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeMessageCursor,
+    );
+  }
+
+  private async listMessagesByConversationId(
+    conversationId: string,
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<MessageRecord>> {
+    const client = this.getClient();
+    let query = client
+      .from('messages')
+      .select(MESSAGE_COLUMNS)
+      .eq('conversation_id', conversationId);
+
+    if (pagination.cursor) {
+      const cursor = decodeMessageCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.gt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error({ code: error.code }, 'Failed to list messages.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeMessageCursor,
+    );
   }
 
   /**
    * Cria uma mensagem do tutor e atualiza o resumo da conversa.
    * `null` = conversa inexistente ou de outro tutor.
    */
+  async createMessageForUser(
+    user: AuthUser,
+    conversationId: string,
+    text: string,
+  ): Promise<MessageRecord | null> {
+    const context = await this.loadConversationParticipantContext(
+      user,
+      conversationId,
+    );
+    if (!context) return null;
+
+    if (
+      await this.isConversationBlocked(
+        context.tutorUserId,
+        context.providerUserId,
+      )
+    ) {
+      throw conversationBlocked();
+    }
+
+    return this.insertConversationMessage({
+      conversationId,
+      fromProvider: context.actor === 'provider',
+      text,
+    });
+  }
+
   async createMessage(
     tutorUserId: string,
     tutorProfileId: string,
@@ -1123,6 +1761,10 @@ export class SupabaseAdminService implements OnModuleInit {
       conversationId,
     );
     if (!context) return null;
+    const providerUserId = await this.loadActiveProviderUserId(
+      context.providerId,
+    );
+    if (providerUserId !== context.providerUserId) return null;
 
     if (await this.isConversationBlocked(tutorUserId, context.providerUserId)) {
       throw conversationBlocked();
@@ -1155,6 +1797,51 @@ export class SupabaseAdminService implements OnModuleInit {
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversationId);
+
+    if (summary.error) {
+      this.logger.error(
+        { code: summary.error.code },
+        'Failed to update conversation summary.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return inserted.data;
+  }
+
+  private async insertConversationMessage(input: {
+    conversationId: string;
+    fromProvider: boolean;
+    text: string;
+  }): Promise<MessageRecord> {
+    const client = this.getClient();
+    const inserted = await client
+      .from('messages')
+      .insert({
+        conversation_id: input.conversationId,
+        from_provider: input.fromProvider,
+        body: input.text,
+      })
+      .select(MESSAGE_COLUMNS)
+      .single();
+
+    if (inserted.error || !inserted.data) {
+      this.logger.error(
+        { code: inserted.error?.code },
+        'Failed to create message.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const summary = await client
+      .from('conversations')
+      .update({
+        last_message_text: input.text,
+        last_message_at: inserted.data.created_at,
+        last_message_from_provider: input.fromProvider,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.conversationId);
 
     if (summary.error) {
       this.logger.error(
@@ -1249,6 +1936,370 @@ export class SupabaseAdminService implements OnModuleInit {
     return data;
   }
 
+  async getAdminDashboardSummary(): Promise<AdminDashboardRecord> {
+    const client = this.getClient();
+    const bookingCountRequests = BOOKING_STATUSES.map((status) =>
+      client
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', status),
+    );
+
+    const [
+      totalUsersResult,
+      totalTutorsResult,
+      totalProvidersResult,
+      blockedUsersResult,
+      openReportsResult,
+      ...bookingCountResults
+    ] = await Promise.all([
+      client
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null),
+      client
+        .from('tutor_profiles')
+        .select('id', { count: 'exact', head: true }),
+      client
+        .from('provider_profiles')
+        .select('id', { count: 'exact', head: true })
+        .neq('status', 'deleted'),
+      client
+        .from('users')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'blocked')
+        .is('deleted_at', null),
+      client
+        .from('reports')
+        .select('id', { count: 'exact', head: true })
+        .in('status', [...ADMIN_OPEN_REPORT_STATUSES]),
+      ...bookingCountRequests,
+    ]);
+
+    const bookingsByStatus: Record<BookingStatus, number> = {
+      cancelled: 0,
+      completed: 0,
+      confirmed: 0,
+      requested: 0,
+    };
+
+    for (const [index, status] of BOOKING_STATUSES.entries()) {
+      const result = bookingCountResults[index];
+      if (!result) {
+        throw new AuthBackendUnavailableException();
+      }
+      bookingsByStatus[status] = this.readSupabaseCount(
+        result,
+        `Failed to count admin bookings with status ${status}.`,
+      );
+    }
+
+    return {
+      blocked_users: this.readSupabaseCount(
+        blockedUsersResult,
+        'Failed to count blocked admin users.',
+      ),
+      bookings_by_status: bookingsByStatus,
+      open_reports: this.readSupabaseCount(
+        openReportsResult,
+        'Failed to count open admin reports.',
+      ),
+      total_providers: this.readSupabaseCount(
+        totalProvidersResult,
+        'Failed to count admin providers.',
+      ),
+      total_tutors: this.readSupabaseCount(
+        totalTutorsResult,
+        'Failed to count admin tutors.',
+      ),
+      total_users: this.readSupabaseCount(
+        totalUsersResult,
+        'Failed to count admin users.',
+      ),
+    };
+  }
+
+  async listAdminUsers(
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<AdminUserRecord>> {
+    const client = this.getClient();
+    let query = client.from('users').select(ADMIN_USER_COLUMNS);
+
+    if (pagination.cursor) {
+      const cursor = decodeAdminUserCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.lt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error({ code: error.code }, 'Failed to list admin users.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    const rows = data ?? [];
+    const rolesByUserId = await this.loadRolesForUsers(
+      rows.map((row) => row.id),
+    );
+    const records = rows.map((row): AdminUserRecord => {
+      const roles = rolesByUserId.get(row.id) ?? [];
+
+      return {
+        created_at: row.created_at,
+        email: row.email,
+        id: row.id,
+        roles,
+        status: row.deleted_at ? 'deleted' : row.status,
+        updated_at: row.updated_at,
+      };
+    });
+
+    return buildPaginatedResult(
+      records,
+      pagination.limit,
+      encodeAdminUserCursor,
+    );
+  }
+
+  async updateAdminUserStatusWithAudit(
+    adminUserId: string,
+    targetUserId: string,
+    input: UpdateAdminUserStatusInput,
+  ): Promise<AdminUserRecord | null> {
+    const client = this.getClient();
+    const { data: existing, error: existingError } = await client
+      .from('users')
+      .select(ADMIN_USER_COLUMNS)
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    if (existingError) {
+      this.logger.error(
+        { code: existingError.code },
+        'Failed to load admin user before status update.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!existing) return null;
+
+    const previousStatus: UserStatus = existing.deleted_at
+      ? 'deleted'
+      : existing.status;
+    if (previousStatus === 'deleted') {
+      throw new DomainException(
+        ErrorCode.BUSINESS_RULE_VIOLATION,
+        'Deleted users cannot be updated by admin status actions.',
+        {},
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (adminUserId === targetUserId && input.status === 'blocked') {
+      throw new DomainException(
+        ErrorCode.FORBIDDEN,
+        'Admins cannot block their own account.',
+        {},
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const now = new Date().toISOString();
+    const row =
+      previousStatus === input.status
+        ? existing
+        : await this.persistAdminUserStatus(targetUserId, input.status, now);
+
+    const operation = input.status === 'blocked' ? 'block' : 'reactivate';
+    await this.appendAuditLog({
+      action:
+        input.status === 'blocked'
+          ? 'admin.user_status_blocked'
+          : 'admin.user_status_reactivated',
+      actorUserId: adminUserId,
+      metadata: {
+        changed: previousStatus !== input.status,
+        newStatus: input.status,
+        operation,
+        previousStatus,
+      },
+      targetId: targetUserId,
+      targetType: 'user',
+    });
+
+    const rolesByUserId = await this.loadRolesForUsers([targetUserId]);
+    return {
+      created_at: row.created_at,
+      email: row.email,
+      id: row.id,
+      roles: rolesByUserId.get(row.id) ?? [],
+      status: row.deleted_at ? 'deleted' : row.status,
+      updated_at: row.updated_at,
+    };
+  }
+
+  private async persistAdminUserStatus(
+    targetUserId: string,
+    status: Exclude<UserStatus, 'deleted'>,
+    updatedAt: string,
+  ) {
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('users')
+      .update({
+        status,
+        updated_at: updatedAt,
+      })
+      .eq('id', targetUserId)
+      .is('deleted_at', null)
+      .select(ADMIN_USER_COLUMNS)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to update admin user status.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!data) {
+      throw new DomainException(
+        ErrorCode.NOT_FOUND,
+        'Admin user not found.',
+        {},
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return data;
+  }
+
+  async listAdminProviders(
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<AdminProviderRecord>> {
+    const client = this.getClient();
+    let query = client.from('provider_profiles').select(ADMIN_PROVIDER_COLUMNS);
+
+    if (pagination.cursor) {
+      const cursor = decodeAdminProviderCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.lt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to list admin providers.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const rows = data ?? [];
+    const serviceCounts = await this.loadProviderServiceCounts(
+      rows.map((row) => row.id),
+    );
+    const records = rows.map(
+      (row): AdminProviderRecord => ({
+        created_at: row.created_at,
+        display_name: row.display_name,
+        id: row.id,
+        service_count: serviceCounts.get(row.id) ?? 0,
+        status: row.status,
+        updated_at: row.updated_at,
+      }),
+    );
+
+    return buildPaginatedResult(
+      records,
+      pagination.limit,
+      encodeAdminProviderCursor,
+    );
+  }
+
+  async listAdminBookings(
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<AdminBookingRecord>> {
+    const client = this.getClient();
+    let query = client.from('bookings').select(ADMIN_BOOKING_COLUMNS);
+
+    if (pagination.cursor) {
+      const cursor = decodeAdminBookingCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.lt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error({ code: error.code }, 'Failed to list admin bookings.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeAdminBookingCursor,
+    );
+  }
+
+  async listAdminAuditLogs(
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<AdminAuditLogRecord>> {
+    const client = this.getClient();
+    let query = client.from('audit_logs').select(ADMIN_AUDIT_LOG_COLUMNS);
+
+    if (pagination.cursor) {
+      const cursor = decodeAdminAuditLogCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.lt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to list admin audit logs.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeAdminAuditLogCursor,
+    );
+  }
+
   async appendAuditLog(input: AppendAuditLogInput): Promise<void> {
     const client = this.getClient();
     const { error } = await client.from('audit_logs').insert({
@@ -1261,26 +2312,48 @@ export class SupabaseAdminService implements OnModuleInit {
 
     if (error) {
       this.logger.error(
-        { code: error.code, action: input.action, targetType: input.targetType },
+        {
+          code: error.code,
+          action: input.action,
+          targetType: input.targetType,
+        },
         'Failed to append audit log.',
       );
       throw new AuthBackendUnavailableException();
     }
   }
 
-  async listAdminReports(): Promise<ReportRecord[]> {
+  async listAdminReports(
+    pagination: CursorPaginationQuery,
+  ): Promise<PaginatedResult<ReportRecord>> {
     const client = this.getClient();
-    const { data, error } = await client
-      .from('reports')
-      .select(REPORT_COLUMNS)
-      .order('created_at', { ascending: false });
+    let query = client.from('reports').select(REPORT_COLUMNS);
+
+    if (pagination.cursor) {
+      const cursor = decodeReportCursor(pagination.cursor);
+      query = query.or(
+        [
+          `created_at.lt.${cursor.createdAt}`,
+          `and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+        ].join(','),
+      );
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, pagination.limit);
 
     if (error) {
       this.logger.error({ code: error.code }, 'Failed to list reports.');
       throw new AuthBackendUnavailableException();
     }
 
-    return data ?? [];
+    return buildPaginatedResult(
+      data ?? [],
+      pagination.limit,
+      encodeReportCursor,
+    );
   }
 
   async updateAdminReportStatusWithAudit(
@@ -1327,6 +2400,77 @@ export class SupabaseAdminService implements OnModuleInit {
     }
 
     return data?.id ?? null;
+  }
+
+  private async loadConversationParticipantContext(
+    user: AuthUser,
+    conversationId: string,
+  ): Promise<ConversationParticipantContext | null> {
+    const client = this.getClient();
+    const { data: conversation, error: conversationError } = await client
+      .from('conversations')
+      .select('id,provider_id,tutor_profile_id')
+      .eq('id', conversationId)
+      .maybeSingle();
+
+    if (conversationError) {
+      this.logger.error(
+        { code: conversationError.code },
+        'Failed to load participant conversation context.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!conversation) return null;
+
+    const provider = await client
+      .from('providers')
+      .select('provider_profile_id')
+      .eq('id', conversation.provider_id)
+      .maybeSingle();
+
+    if (provider.error || !provider.data) {
+      this.logger.error(
+        { code: provider.error?.code },
+        'Failed to load participant conversation provider.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const providerUserId = await this.loadActiveProviderUserId(
+      conversation.provider_id,
+    );
+    if (!providerUserId) return null;
+    const tutorUserId = await this.loadTutorUserId(
+      conversation.tutor_profile_id,
+    );
+    if (!tutorUserId) return null;
+
+    if (user.profiles?.tutor?.id === conversation.tutor_profile_id) {
+      return {
+        actor: 'tutor',
+        id: conversation.id,
+        providerId: conversation.provider_id,
+        providerUserId,
+        tutorProfileId: conversation.tutor_profile_id,
+        tutorUserId,
+      };
+    }
+
+    if (
+      user.profiles?.provider?.id === provider.data.provider_profile_id &&
+      providerUserId === user.id
+    ) {
+      return {
+        actor: 'provider',
+        id: conversation.id,
+        providerId: conversation.provider_id,
+        providerUserId,
+        tutorProfileId: conversation.tutor_profile_id,
+        tutorUserId,
+      };
+    }
+
+    return null;
   }
 
   private async loadOwnedConversationContext(
@@ -1380,9 +2524,12 @@ export class SupabaseAdminService implements OnModuleInit {
     }
 
     return {
+      actor: 'tutor',
       id: conversation.id,
       providerId: conversation.provider_id,
       providerUserId: profile.user_id,
+      tutorProfileId,
+      tutorUserId: '',
     };
   }
 
@@ -1442,16 +2589,29 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
+    const roles = await this.loadOrCreateRoles(user.id);
+
     return {
       id: user.id,
       email: user.email,
-      roles: await this.loadOrCreateRoles(user.id),
+      roles,
       status: user.deleted_at ? 'deleted' : user.status,
       locale: user.locale,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
       avatarPath: user.avatar_url ?? null,
-      profiles: await this.loadSafeProfiles(user.id),
+      profiles: await this.loadSafeProfiles(user.id, {
+        includeTutorProfile: roles.includes('tutor'),
+        includeProviderProfile: roles.includes('provider'),
+        ensureTutorProfile:
+          roles.includes('tutor') &&
+          user.status === 'active' &&
+          !user.deleted_at,
+        ensureProviderProfile:
+          roles.includes('provider') &&
+          user.status === 'active' &&
+          !user.deleted_at,
+      }),
     };
   }
 
@@ -1507,6 +2667,23 @@ export class SupabaseAdminService implements OnModuleInit {
     }
   }
 
+  private readSupabaseCount(
+    result: SupabaseCountResult,
+    message: string,
+  ): number {
+    if (result.error) {
+      this.logger.error({ code: result.error.code }, message);
+      throw new AuthBackendUnavailableException();
+    }
+
+    if (result.count === null) {
+      this.logger.error(message);
+      throw new AuthBackendUnavailableException();
+    }
+
+    return result.count;
+  }
+
   private getClient(): SupabaseClient<Database> {
     if (!this.client) {
       throw new AuthBackendUnavailableException();
@@ -1520,6 +2697,268 @@ export class SupabaseAdminService implements OnModuleInit {
       this.readString(authUser.app_metadata.locale) ??
       this.config.get('APP_DEFAULT_LOCALE', { infer: true })
     );
+  }
+
+  private async loadRolesForUsers(
+    userIds: readonly string[],
+  ): Promise<Map<string, Role[]>> {
+    const rolesByUserId = new Map<string, Role[]>();
+    if (userIds.length === 0) return rolesByUserId;
+
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('user_roles')
+      .select('user_id,role')
+      .in('user_id', [...userIds]);
+
+    if (error) {
+      this.logger.error({ code: error.code }, 'Failed to load admin roles.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    for (const row of data ?? []) {
+      if (!VALID_ROLES.includes(row.role)) continue;
+
+      const roles = rolesByUserId.get(row.user_id) ?? [];
+      roles.push(row.role);
+      rolesByUserId.set(row.user_id, roles);
+    }
+
+    return rolesByUserId;
+  }
+
+  private async loadProviderServiceCounts(
+    providerProfileIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    if (providerProfileIds.length === 0) return counts;
+
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('providers')
+      .select('provider_profile_id')
+      .in('provider_profile_id', [...providerProfileIds])
+      .is('deleted_at', null);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load provider service counts.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    for (const row of data ?? []) {
+      counts.set(
+        row.provider_profile_id,
+        (counts.get(row.provider_profile_id) ?? 0) + 1,
+      );
+    }
+
+    return counts;
+  }
+
+  private async loadProviderIdsForProfile(
+    providerProfileId: string,
+  ): Promise<string[]> {
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('providers')
+      .select('id')
+      .eq('provider_profile_id', providerProfileId)
+      .is('deleted_at', null);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load provider ids for profile.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return (data ?? []).map((row) => row.id);
+  }
+
+  private async loadProviderConversationCounterparts(
+    providerIds: readonly string[],
+  ): Promise<
+    Map<
+      string,
+      {
+        avatarUrl: string | null;
+        displayName: string;
+        serviceLabel: string | null;
+      }
+    >
+  > {
+    const counterparts = new Map<
+      string,
+      {
+        avatarUrl: string | null;
+        displayName: string;
+        serviceLabel: string | null;
+      }
+    >();
+    const uniqueIds = [...new Set(providerIds)].filter(Boolean);
+    if (uniqueIds.length === 0) return counterparts;
+
+    const client = this.getClient();
+    const { data: providers, error: providersError } = await client
+      .from('providers')
+      .select('id,provider_profile_id,service_label,avatar_url')
+      .in('id', uniqueIds)
+      .is('deleted_at', null);
+
+    if (providersError) {
+      this.logger.error(
+        { code: providersError.code },
+        'Failed to load provider counterparts for conversations.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profileIds = [
+      ...new Set((providers ?? []).map((row) => row.provider_profile_id)),
+    ];
+    if (profileIds.length === 0) return counterparts;
+
+    const { data: profiles, error: profilesError } = await client
+      .from('provider_profiles')
+      .select('id,display_name,user_id')
+      .in('id', profileIds)
+      .eq('status', 'active');
+
+    if (profilesError) {
+      this.logger.error(
+        { code: profilesError.code },
+        'Failed to load provider profile counterparts for conversations.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profilesById = new Map(
+      (profiles ?? []).map((row) => [row.id, row] as const),
+    );
+    const ownerAvatarUrls = await this.loadSignedUserAvatarUrls(
+      (profiles ?? []).map((row) => row.user_id),
+      'Failed to load provider avatar users for conversations.',
+    );
+
+    for (const provider of providers ?? []) {
+      const profile = profilesById.get(provider.provider_profile_id);
+      if (!profile) continue;
+
+      counterparts.set(provider.id, {
+        avatarUrl:
+          provider.avatar_url ?? ownerAvatarUrls.get(profile.user_id) ?? null,
+        displayName: profile.display_name,
+        serviceLabel: provider.service_label ?? null,
+      });
+    }
+
+    return counterparts;
+  }
+
+  private async loadTutorConversationCounterparts(
+    tutorProfileIds: readonly string[],
+  ): Promise<Map<string, { avatarUrl: string | null; displayName: string }>> {
+    const counterparts = new Map<
+      string,
+      { avatarUrl: string | null; displayName: string }
+    >();
+    const uniqueIds = [...new Set(tutorProfileIds)].filter(Boolean);
+    if (uniqueIds.length === 0) return counterparts;
+
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('tutor_profiles')
+      .select('id,display_name,user_id')
+      .in('id', uniqueIds);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load tutor counterparts for conversations.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const userAvatarUrls = await this.loadSignedUserAvatarUrls(
+      (data ?? []).map((row) => row.user_id),
+      'Failed to load tutor avatar users for conversations.',
+    );
+
+    for (const row of data ?? []) {
+      counterparts.set(row.id, {
+        avatarUrl: userAvatarUrls.get(row.user_id) ?? null,
+        displayName: row.display_name,
+      });
+    }
+
+    return counterparts;
+  }
+
+  private async loadSignedUserAvatarUrls(
+    userIds: readonly string[],
+    errorMessage: string,
+  ): Promise<Map<string, string>> {
+    const avatarUrls = new Map<string, string>();
+    const uniqueIds = [...new Set(userIds)].filter(Boolean);
+    if (uniqueIds.length === 0) return avatarUrls;
+
+    const client = this.getClient();
+    const users = await client
+      .from('users')
+      .select('id,avatar_url')
+      .in('id', uniqueIds)
+      .eq('status', 'active')
+      .is('deleted_at', null);
+
+    if (users.error) {
+      this.logger.error({ code: users.error.code }, errorMessage);
+      throw new AuthBackendUnavailableException();
+    }
+
+    const userAvatarPaths = new Map(
+      (users.data ?? [])
+        .filter((row) => Boolean(row.avatar_url))
+        .map((row) => [row.id, row.avatar_url as string] as const),
+    );
+    if (userAvatarPaths.size === 0) return avatarUrls;
+
+    const signedUrlsByPath = new Map<string, string>();
+    for (const path of new Set(userAvatarPaths.values())) {
+      const signedUrl = await this.createAvatarSignedUrl(path);
+      if (signedUrl) signedUrlsByPath.set(path, signedUrl);
+    }
+
+    for (const [userId, path] of userAvatarPaths) {
+      const signedUrl = signedUrlsByPath.get(path);
+      if (signedUrl) avatarUrls.set(userId, signedUrl);
+    }
+
+    return avatarUrls;
+  }
+
+  private async loadTutorUserId(
+    tutorProfileId: string,
+  ): Promise<string | null> {
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('tutor_profiles')
+      .select('user_id')
+      .eq('id', tutorProfileId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load tutor owner for conversation.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return data?.user_id ?? null;
   }
 
   private async loadOrCreateRoles(userId: string): Promise<Role[]> {
@@ -1542,40 +2981,100 @@ export class SupabaseAdminService implements OnModuleInit {
       return roles;
     }
 
-    const fallback = await client
-      .from('user_roles')
-      .upsert(
-        {
-          user_id: userId,
-          role: DEFAULT_ROLE,
-        },
-        { onConflict: 'user_id,role' },
-      )
-      .select('role')
-      .single();
-
-    if (fallback.error || !fallback.data) {
-      this.logger.error(
-        { code: fallback.error?.code },
-        'Failed to create fallback user role.',
-      );
+    const fallbackProfile = await this.createOwnTutorProfile(userId, {
+      displayName: 'Pet tutor',
+    });
+    if (!fallbackProfile) {
+      this.logger.error('Fallback tutor profile RPC returned no rows.');
       throw new AuthBackendUnavailableException();
     }
 
-    return [fallback.data.role];
+    return [DEFAULT_ROLE];
   }
 
   private async loadSafeProfiles(
     userId: string,
+    options: {
+      ensureTutorProfile?: boolean;
+      ensureProviderProfile?: boolean;
+      includeTutorProfile?: boolean;
+      includeProviderProfile?: boolean;
+    } = {},
   ): Promise<AuthUser['profiles']> {
+    const tutorProfilePromise: Promise<TutorProfileSummary | null> =
+      options.includeTutorProfile
+        ? options.ensureTutorProfile
+          ? this.loadOrCreateTutorProfile(userId)
+          : this.loadTutorProfile(userId)
+        : Promise.resolve(null);
+
+    const providerProfilePromise: Promise<ProviderProfileSummary | null> =
+      options.includeProviderProfile
+        ? options.ensureProviderProfile
+          ? this.loadOrCreateProviderProfile(userId)
+          : this.loadProviderProfile(userId)
+        : Promise.resolve(null);
+
     const [tutor, provider] = await Promise.all([
-      this.loadTutorProfile(userId),
-      this.loadProviderProfile(userId),
+      tutorProfilePromise,
+      providerProfilePromise,
     ]);
 
     return {
       ...(tutor ? { tutor } : {}),
       ...(provider ? { provider } : {}),
+    };
+  }
+
+  private async loadOrCreateTutorProfile(
+    userId: string,
+  ): Promise<TutorProfileSummary> {
+    const existing = await this.loadTutorProfile(userId);
+    if (existing) return existing;
+
+    const data = await this.createOwnTutorProfile(userId, {
+      displayName: 'Pet tutor',
+    });
+
+    if (!data) {
+      this.logger.error('Failed to create fallback tutor profile.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    return {
+      id: data.id,
+      displayName: data.display_name,
+    };
+  }
+
+  private async loadOrCreateProviderProfile(
+    userId: string,
+  ): Promise<ProviderProfileSummary> {
+    const existing = await this.loadProviderProfile(userId);
+    if (existing) return existing;
+
+    const data = await this.createOwnProviderProfile(userId, {
+      displayName: 'Pet provider',
+    });
+
+    if (!data) {
+      this.logger.error('Failed to create fallback provider profile.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    return {
+      bio: data.bio,
+      categoryId: data.category ?? null,
+      id: data.id,
+      displayName: data.display_name,
+      isAvailable: data.is_available ?? null,
+      listingId: data.listing_id ?? null,
+      pricePerHour: data.price_per_hour ?? null,
+      service: data.service_label ?? null,
+      status: data.status,
+      serviceRadiusKm: data.service_radius_km,
+      ratingAverage: data.rating_average,
+      ratingCount: data.rating_count,
     };
   }
 
@@ -1675,31 +3174,161 @@ export class SupabaseAdminService implements OnModuleInit {
     }));
   }
 
-  private async loadProviderProfile(
+  private async loadProviderProfileRecord(
     userId: string,
-  ): Promise<ProviderProfileSummary | null> {
+  ): Promise<ProviderProfileRecord | null> {
     const client = this.getClient();
-    const { data, error } = await client
+    const { data: profile, error } = await client
       .from('provider_profiles')
-      .select(
-        'id,display_name,status,service_radius_km,rating_average,rating_count',
-      )
+      .select(PROVIDER_PROFILE_COLUMNS)
       .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
       this.logger.error(
         { code: error.code },
-        'Failed to load provider profile.',
+        'Failed to load provider profile record.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!profile) return null;
+
+    const { data: listing, error: listingError } = await client
+      .from('providers')
+      .select(
+        'id,category,service_label,avatar_url,price_per_hour,is_available',
+      )
+      .eq('provider_profile_id', profile.id)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (listingError) {
+      this.logger.error(
+        { code: listingError.code },
+        'Failed to load provider listing record.',
       );
       throw new AuthBackendUnavailableException();
     }
 
+    return {
+      ...profile,
+      listing_id: listing?.id ?? null,
+      category: listing?.category ?? null,
+      service_label: listing?.service_label ?? null,
+      avatar_url: listing?.avatar_url ?? null,
+      price_per_hour: listing?.price_per_hour ?? null,
+      is_available: listing?.is_available ?? null,
+    };
+  }
+
+  private async upsertOwnProviderListing(
+    userId: string,
+    providerProfileId: string,
+    input: ProviderProfileInput,
+  ): Promise<void> {
+    if (input.baseAddressId !== undefined && input.baseAddressId !== null) {
+      const address = await this.loadOwnAddress(userId, input.baseAddressId);
+      if (!address) {
+        throw new DomainException(
+          ErrorCode.NOT_FOUND,
+          'Provider base address not found.',
+          {},
+          HttpStatus.NOT_FOUND,
+        );
+      }
+    }
+
+    const hasListingInput =
+      input.categoryId !== undefined ||
+      input.service !== undefined ||
+      input.pricePerHour !== undefined ||
+      input.isAvailable !== undefined ||
+      input.publish !== undefined;
+    if (!hasListingInput) return;
+
+    const client = this.getClient();
+    const existing = await client
+      .from('providers')
+      .select('id,category,service_label,price_per_hour,is_available')
+      .eq('provider_profile_id', providerProfileId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (existing.error) {
+      this.logger.error(
+        { code: existing.error.code },
+        'Failed to load provider listing before upsert.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const category = input.categoryId ?? existing.data?.category;
+    const service = input.service ?? existing.data?.service_label;
+    const pricePerHour = input.pricePerHour ?? existing.data?.price_per_hour;
+    const isAvailable =
+      input.isAvailable ?? existing.data?.is_available ?? true;
+
+    if (
+      !category ||
+      !service ||
+      pricePerHour === undefined ||
+      pricePerHour === null
+    ) {
+      if (input.publish) {
+        throw new DomainException(
+          ErrorCode.VALIDATION_ERROR,
+          'categoryId, service and pricePerHour are required before publishing.',
+          {},
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return;
+    }
+
+    const payload = {
+      category,
+      is_available: isAvailable,
+      price_per_hour: pricePerHour,
+      service_label: service,
+    };
+
+    const result = existing.data
+      ? await client
+          .from('providers')
+          .update(payload)
+          .eq('id', existing.data.id)
+          .select('id')
+          .maybeSingle()
+      : await client
+          .from('providers')
+          .insert({ ...payload, provider_profile_id: providerProfileId })
+          .select('id')
+          .maybeSingle();
+
+    if (result.error) {
+      this.logger.error(
+        { code: result.error.code },
+        'Failed to upsert provider listing.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+  }
+
+  private async loadProviderProfile(
+    userId: string,
+  ): Promise<ProviderProfileSummary | null> {
+    const data = await this.loadProviderProfileRecord(userId);
     if (!data) return null;
     return {
+      bio: data.bio,
+      categoryId: data.category ?? null,
       id: data.id,
       displayName: data.display_name,
+      isAvailable: data.is_available ?? null,
+      listingId: data.listing_id ?? null,
+      pricePerHour: data.price_per_hour ?? null,
       status: data.status,
+      service: data.service_label ?? null,
       serviceRadiusKm: data.service_radius_km,
       ratingAverage: data.rating_average,
       ratingCount: data.rating_count,
@@ -1714,6 +3343,170 @@ export class SupabaseAdminService implements OnModuleInit {
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
     return new Date(Date.now() + thirtyDaysMs).toISOString();
   }
+}
+
+interface BookingCursor {
+  bookingDate: string;
+  createdAt: string;
+  id: string;
+}
+
+interface ConversationCursor {
+  lastMessageAt: string | null;
+  createdAt: string;
+  id: string;
+}
+
+interface CreatedAtCursor {
+  createdAt: string;
+  id: string;
+}
+
+function encodeBookingCursor(record: BookingRecord): string {
+  return encodePaginationCursor({
+    kind: 'bookings',
+    bookingDate: record.booking_date,
+    createdAt: record.created_at,
+    id: record.id,
+  });
+}
+
+function decodeBookingCursor(cursor: string): BookingCursor {
+  const payload = decodePaginationCursor(cursor, 'bookings');
+  return {
+    bookingDate: readCursorDate(payload, 'bookingDate'),
+    createdAt: readCursorIsoDateTime(payload, 'createdAt'),
+    id: readCursorUuid(payload, 'id'),
+  };
+}
+
+function encodeConversationCursor(record: ConversationRecord): string {
+  if (!record.created_at) {
+    throw new AuthBackendUnavailableException();
+  }
+
+  return encodePaginationCursor({
+    kind: 'conversations',
+    lastMessageAt: record.last_message_at,
+    createdAt: record.created_at,
+    id: record.id,
+  });
+}
+
+function decodeConversationCursor(cursor: string): ConversationCursor {
+  const payload = decodePaginationCursor(cursor, 'conversations');
+  return {
+    lastMessageAt: readCursorNullableIsoDateTime(payload, 'lastMessageAt'),
+    createdAt: readCursorIsoDateTime(payload, 'createdAt'),
+    id: readCursorUuid(payload, 'id'),
+  };
+}
+
+function encodeMessageCursor(record: MessageRecord): string {
+  return encodePaginationCursor({
+    kind: 'messages',
+    createdAt: record.created_at,
+    id: record.id,
+  });
+}
+
+function decodeMessageCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'messages');
+}
+
+function encodeAdminUserCursor(record: AdminUserRecord): string {
+  return encodeCreatedAtCursor('admin-users', record);
+}
+
+function decodeAdminUserCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'admin-users');
+}
+
+function encodeAdminProviderCursor(record: AdminProviderRecord): string {
+  return encodeCreatedAtCursor('admin-providers', record);
+}
+
+function decodeAdminProviderCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'admin-providers');
+}
+
+function encodeAdminBookingCursor(record: AdminBookingRecord): string {
+  return encodeCreatedAtCursor('admin-bookings', record);
+}
+
+function decodeAdminBookingCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'admin-bookings');
+}
+
+function encodeAdminAuditLogCursor(record: AdminAuditLogRecord): string {
+  return encodeCreatedAtCursor('admin-audit-logs', record);
+}
+
+function decodeAdminAuditLogCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'admin-audit-logs');
+}
+
+function encodeReportCursor(record: ReportRecord): string {
+  return encodeCreatedAtCursor('admin-reports', record);
+}
+
+function decodeReportCursor(cursor: string): CreatedAtCursor {
+  return decodeCreatedAtCursor(cursor, 'admin-reports');
+}
+
+function encodeCreatedAtCursor(
+  kind: string,
+  record: { readonly created_at: string; readonly id: string },
+): string {
+  return encodePaginationCursor({
+    kind,
+    createdAt: record.created_at,
+    id: record.id,
+  });
+}
+
+function decodeCreatedAtCursor(
+  cursor: string,
+  expectedKind: string,
+): CreatedAtCursor {
+  const payload = decodePaginationCursor(cursor, expectedKind);
+  return {
+    createdAt: readCursorIsoDateTime(payload, 'createdAt'),
+    id: readCursorUuid(payload, 'id'),
+  };
+}
+
+function compareConversationRecords(
+  left: ConversationRecord,
+  right: ConversationRecord,
+): number {
+  const leftLast = left.last_message_at
+    ? Date.parse(left.last_message_at)
+    : Number.NEGATIVE_INFINITY;
+  const rightLast = right.last_message_at
+    ? Date.parse(right.last_message_at)
+    : Number.NEGATIVE_INFINITY;
+  if (leftLast !== rightLast) return rightLast - leftLast;
+
+  const leftCreated = left.created_at ? Date.parse(left.created_at) : 0;
+  const rightCreated = right.created_at ? Date.parse(right.created_at) : 0;
+  if (leftCreated !== rightCreated) return rightCreated - leftCreated;
+
+  return right.id.localeCompare(left.id);
+}
+
+function compareBookingRecords(
+  left: BookingRecord,
+  right: BookingRecord,
+): number {
+  const dateCompare = left.booking_date.localeCompare(right.booking_date);
+  if (dateCompare !== 0) return dateCompare;
+
+  const leftCreated = Date.parse(left.created_at);
+  const rightCreated = Date.parse(right.created_at);
+  if (leftCreated !== rightCreated) return leftCreated - rightCreated;
+
+  return left.id.localeCompare(right.id);
 }
 
 function toEwktPoint(longitude: number, latitude: number): string {

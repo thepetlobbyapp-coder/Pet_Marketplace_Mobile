@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow, spacing, typography } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, shadow, spacing, typography } from "../design/tokens";
 
 interface HeroBannerProps {
   title: string;
@@ -48,12 +48,12 @@ export function HeroBanner({
 
 const styles = StyleSheet.create({
   banner: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accent,
     borderRadius: radius.xl,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
-    overflow: 'hidden',
+    overflow: "hidden",
     padding: spacing[5],
     ...shadow.md,
   },
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.onAccent,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
     lineHeight: 26,
   },
   body: {
@@ -73,11 +73,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cta: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    alignItems: "center",
+    alignSelf: "flex-start",
     backgroundColor: colors.onAccent,
     borderRadius: radius.pill,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[1],
     marginTop: spacing[2],
     paddingHorizontal: spacing[4],
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   ctaLabel: {
     color: colors.accent,
     fontSize: typography.small,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   image: {
     backgroundColor: colors.accentDark,
@@ -98,11 +98,11 @@ const styles = StyleSheet.create({
     width: 96,
   },
   imageFallback: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accentDark,
     borderRadius: radius.lg,
     height: 104,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 96,
   },
 });

@@ -1,5 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useMemo, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -10,20 +10,20 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 import {
   lookupPostcode,
   normalisePostcode,
   PostcodeLookupError,
   type PostcodeLookupErrorCode,
   type PostcodeLookupResult,
-} from '../api/postcodes';
-import type { AddressResponse } from '../api/types';
-import { colors, radius, shadow, spacing, typography } from '../design/tokens';
-import { t } from '../i18n';
-import { Button } from './Button';
-import { IconButton } from './IconButton';
-import { TextField } from './TextField';
+} from "../api/postcodes";
+import type { AddressResponse } from "../api/types";
+import { colors, radius, shadow, spacing, typography } from "../design/tokens";
+import { t } from "../i18n";
+import { Button } from "./Button";
+import { IconButton } from "./IconButton";
+import { TextField } from "./TextField";
 
 const ADDRESS_LABEL_LIMIT = 60;
 const ADDRESS_PUBLIC_AREA_LIMIT = 160;
@@ -52,14 +52,14 @@ export interface AddressSheetSubmission {
 }
 
 type LookupState =
-  | { kind: 'idle' }
-  | { kind: 'searching' }
-  | { kind: 'found'; result: PostcodeLookupResult }
-  | { kind: 'error'; code: PostcodeLookupErrorCode };
+  | { kind: "idle" }
+  | { kind: "searching" }
+  | { kind: "found"; result: PostcodeLookupResult }
+  | { kind: "error"; code: PostcodeLookupErrorCode };
 
 interface AddressSheetProps {
   visible: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   initialAddress?: AddressResponse;
   /** True when the authenticated user has a tutor profile (controls the
    *  "Set as default address" toggle). */
@@ -93,9 +93,9 @@ export function AddressSheet({
   onClose,
   onSubmit,
 }: AddressSheetProps) {
-  const initialPostcode = initialAddress?.postcode ?? '';
-  const initialLabel = initialAddress?.label ?? '';
-  const initialPublicArea = initialAddress?.publicAreaLabel ?? '';
+  const initialPostcode = initialAddress?.postcode ?? "";
+  const initialLabel = initialAddress?.label ?? "";
+  const initialPublicArea = initialAddress?.publicAreaLabel ?? "";
   const initialDefault = initialAddress?.isDefaultTutorAddress ?? false;
 
   // State is seeded from `initial*` on mount only. The parent is expected to
@@ -104,7 +104,7 @@ export function AddressSheet({
   // with a key instead of `useEffect(setState)` keeps render passes minimal
   // and avoids react-hooks/set-state-in-effect.
   const [postcodeInput, setPostcodeInput] = useState(initialPostcode);
-  const [lookupState, setLookupState] = useState<LookupState>({ kind: 'idle' });
+  const [lookupState, setLookupState] = useState<LookupState>({ kind: "idle" });
   const [label, setLabel] = useState(initialLabel);
   const [addressLine, setAddressLine] = useState(initialPublicArea);
   const [setAsDefault, setSetAsDefault] = useState(initialDefault);
@@ -119,41 +119,47 @@ export function AddressSheet({
   // coordinates to the backend. EDIT only requires either a fresh lookup OR
   // an unchanged postcode (because nothing else in the diff needs lat/long).
   const isReadyToSubmit = useMemo(() => {
-    if (lookupState.kind === 'found') return true;
-    if (mode === 'edit') {
+    if (lookupState.kind === "found") return true;
+    if (mode === "edit") {
       return (
         isPostcodeFormatValid &&
         canonical === normalisePostcode(initialPostcode)
       );
     }
     return false;
-  }, [lookupState.kind, mode, isPostcodeFormatValid, canonical, initialPostcode]);
+  }, [
+    lookupState.kind,
+    mode,
+    isPostcodeFormatValid,
+    canonical,
+    initialPostcode,
+  ]);
 
   async function runLookup() {
     if (!canonical) {
-      setLookupState({ kind: 'error', code: 'INVALID_FORMAT' });
+      setLookupState({ kind: "error", code: "INVALID_FORMAT" });
       return;
     }
-    setLookupState({ kind: 'searching' });
+    setLookupState({ kind: "searching" });
     try {
       const result = await lookupPostcode(canonical);
-      setLookupState({ kind: 'found', result });
+      setLookupState({ kind: "found", result });
     } catch (error) {
       const code =
-        error instanceof PostcodeLookupError ? error.code : 'NETWORK';
-      setLookupState({ kind: 'error', code });
+        error instanceof PostcodeLookupError ? error.code : "NETWORK";
+      setLookupState({ kind: "error", code });
     }
   }
 
   function clearLookup() {
-    setLookupState({ kind: 'idle' });
+    setLookupState({ kind: "idle" });
   }
 
   function handleSubmit() {
     if (!isReadyToSubmit) return;
     const trimmedLabel = label.trim();
     const trimmedLine = addressLine.trim();
-    const found = lookupState.kind === 'found' ? lookupState.result : null;
+    const found = lookupState.kind === "found" ? lookupState.result : null;
     onSubmit({
       postcode: found?.postcode ?? canonical ?? initialPostcode,
       city: found
@@ -169,11 +175,11 @@ export function AddressSheet({
 
   const lookupMessage = lookupErrorMessage(lookupState);
   const saveLabel =
-    mode === 'edit' ? t('profile.address.update') : t('profile.address.save');
+    mode === "edit" ? t("profile.address.update") : t("profile.address.save");
   const headerTitle =
-    mode === 'edit'
-      ? t('profile.address.sheet.titleEdit')
-      : t('profile.address.sheet.title');
+    mode === "edit"
+      ? t("profile.address.sheet.titleEdit")
+      : t("profile.address.sheet.title");
 
   return (
     <Modal
@@ -187,14 +193,14 @@ export function AddressSheet({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{headerTitle}</Text>
           <IconButton
-            accessibilityLabel={t('profile.address.sheet.close')}
+            accessibilityLabel={t("profile.address.sheet.close")}
             icon="close"
             onPress={onClose}
             variant="soft"
           />
         </View>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.flex}
         >
           <ScrollView
@@ -203,24 +209,26 @@ export function AddressSheet({
           >
             <View style={styles.section}>
               <TextField
-                accessibilityLabel={t('profile.addressPostcode')}
+                accessibilityLabel={t("profile.addressPostcode")}
                 autoCapitalize="characters"
                 autoCorrect={false}
-                label={t('profile.addressPostcode')}
+                label={t("profile.addressPostcode")}
                 maxLength={ADDRESS_POSTCODE_LIMIT}
                 onChangeText={(value) => {
                   setPostcodeInput(value);
-                  if (lookupState.kind !== 'idle') {
-                    setLookupState({ kind: 'idle' });
+                  if (lookupState.kind !== "idle") {
+                    setLookupState({ kind: "idle" });
                   }
                 }}
-                placeholder={t('profile.address.lookup.placeholder')}
+                placeholder={t("profile.address.lookup.placeholder")}
                 value={postcodeInput}
               />
               <Button
-                disabled={!isPostcodeFormatValid || lookupState.kind === 'searching'}
-                isLoading={lookupState.kind === 'searching'}
-                label={t('profile.address.lookup.cta')}
+                disabled={
+                  !isPostcodeFormatValid || lookupState.kind === "searching"
+                }
+                isLoading={lookupState.kind === "searching"}
+                label={t("profile.address.lookup.cta")}
                 onPress={() => {
                   void runLookup();
                 }}
@@ -229,7 +237,7 @@ export function AddressSheet({
               {lookupMessage ? (
                 <Text style={styles.errorMessage}>{lookupMessage}</Text>
               ) : null}
-              {lookupState.kind === 'found' ? (
+              {lookupState.kind === "found" ? (
                 <View style={styles.preview}>
                   <View style={styles.previewHeader}>
                     <Ionicons
@@ -238,28 +246,28 @@ export function AddressSheet({
                       size={20}
                     />
                     <Text style={styles.previewTitle}>
-                      {t('profile.address.previewTitle')}
+                      {t("profile.address.previewTitle")}
                     </Text>
                   </View>
                   <PreviewRow
-                    label={t('profile.addressPostcode')}
+                    label={t("profile.addressPostcode")}
                     value={lookupState.result.postcode}
                   />
                   {lookupState.result.adminDistrict ? (
                     <PreviewRow
-                      label={t('profile.address.previewDistrict')}
+                      label={t("profile.address.previewDistrict")}
                       value={lookupState.result.adminDistrict}
                     />
                   ) : null}
                   {lookupState.result.region ? (
                     <PreviewRow
-                      label={t('profile.address.previewRegion')}
+                      label={t("profile.address.previewRegion")}
                       value={lookupState.result.region}
                     />
                   ) : null}
                   {lookupState.result.country ? (
                     <PreviewRow
-                      label={t('profile.address.previewCountry')}
+                      label={t("profile.address.previewCountry")}
                       value={lookupState.result.country}
                     />
                   ) : null}
@@ -271,13 +279,13 @@ export function AddressSheet({
                   >
                     <Ionicons color={colors.accent} name="create" size={16} />
                     <Text style={styles.changeLinkText}>
-                      {t('profile.address.lookup.changePostcode')}
+                      {t("profile.address.lookup.changePostcode")}
                     </Text>
                   </Pressable>
                 </View>
               ) : null}
               <Text style={styles.help}>
-                {t('profile.address.privacyHint')}
+                {t("profile.address.privacyHint")}
               </Text>
             </View>
 
@@ -285,22 +293,20 @@ export function AddressSheet({
               <TextField
                 autoCapitalize="words"
                 autoCorrect={false}
-                label={t('profile.addressLabel')}
+                label={t("profile.addressLabel")}
                 maxLength={ADDRESS_LABEL_LIMIT}
                 onChangeText={setLabel}
-                placeholder={t('profile.addressLabelPlaceholder')}
+                placeholder={t("profile.addressLabelPlaceholder")}
                 value={label}
               />
-              <Text style={styles.help}>
-                {t('profile.address.labelHint')}
-              </Text>
+              <Text style={styles.help}>{t("profile.address.labelHint")}</Text>
               <TextField
                 autoCapitalize="words"
                 autoCorrect={false}
-                label={t('profile.address.lineOptional')}
+                label={t("profile.address.lineOptional")}
                 maxLength={ADDRESS_PUBLIC_AREA_LIMIT}
                 onChangeText={setAddressLine}
-                placeholder={t('profile.address.linePlaceholder')}
+                placeholder={t("profile.address.linePlaceholder")}
                 value={addressLine}
               />
             </View>
@@ -322,13 +328,13 @@ export function AddressSheet({
               >
                 <Ionicons
                   color={setAsDefault ? colors.accent : colors.muted}
-                  name={setAsDefault ? 'checkbox' : 'square-outline'}
+                  name={setAsDefault ? "checkbox" : "square-outline"}
                   size={22}
                 />
                 <Text style={styles.toggleLabel}>
                   {defaultLocked
-                    ? t('profile.addressDefaultActive')
-                    : t('profile.addressSetDefault')}
+                    ? t("profile.addressDefaultActive")
+                    : t("profile.addressSetDefault")}
                 </Text>
               </Pressable>
             ) : null}
@@ -342,7 +348,7 @@ export function AddressSheet({
           <View style={styles.footerActions}>
             <Button
               disabled={isSubmitting}
-              label={t('common.cancel')}
+              label={t("common.cancel")}
               onPress={onClose}
               variant="secondary"
             />
@@ -370,19 +376,19 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function lookupErrorMessage(state: LookupState): string | null {
-  if (state.kind !== 'error') return null;
+  if (state.kind !== "error") return null;
   switch (state.code) {
-    case 'INVALID_FORMAT':
-      return t('profile.address.lookup.invalid');
-    case 'NOT_FOUND':
-      return t('profile.address.lookup.notFound');
-    case 'TIMEOUT':
-      return t('profile.address.lookup.timeout');
-    case 'SERVER':
-      return t('profile.address.lookup.server');
-    case 'NETWORK':
+    case "INVALID_FORMAT":
+      return t("profile.address.lookup.invalid");
+    case "NOT_FOUND":
+      return t("profile.address.lookup.notFound");
+    case "TIMEOUT":
+      return t("profile.address.lookup.timeout");
+    case "SERVER":
+      return t("profile.address.lookup.server");
+    case "NETWORK":
     default:
-      return t('profile.address.lookup.network');
+      return t("profile.address.lookup.network");
   }
 }
 
@@ -395,18 +401,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: spacing[5],
     paddingVertical: spacing[3],
   },
   headerTitle: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   scrollContent: {
     gap: spacing[5],
@@ -425,52 +431,52 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   previewHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: spacing[2],
     marginBottom: spacing[1],
   },
   previewTitle: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   previewRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: spacing[3],
   },
   previewLabel: {
     color: colors.muted,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   previewValue: {
     color: colors.text,
     flexShrink: 1,
     fontSize: typography.small,
-    fontWeight: '700',
-    textAlign: 'right',
+    fontWeight: "700",
+    textAlign: "right",
   },
   changeLink: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "center",
+    alignSelf: "flex-start",
+    flexDirection: "row",
     gap: spacing[1],
     marginTop: spacing[2],
   },
   changeLinkText: {
     color: colors.accent,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   toggleRow: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
@@ -485,7 +491,7 @@ const styles = StyleSheet.create({
   toggleLabel: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   help: {
     color: colors.muted,
@@ -495,7 +501,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     color: colors.danger,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   footer: {
     backgroundColor: colors.surface,
@@ -505,8 +511,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
   },
   footerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
 });

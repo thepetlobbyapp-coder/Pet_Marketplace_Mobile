@@ -11,9 +11,15 @@ export interface TutorProfileSummary {
 }
 
 export interface ProviderProfileSummary {
+  bio: string | null;
+  categoryId: 'boarding' | 'sitting' | 'transport' | 'walk' | null;
   id: string;
+  isAvailable: boolean | null;
+  listingId: string | null;
   displayName: string;
+  pricePerHour: number | null;
   status: ProviderStatus;
+  service: string | null;
   serviceRadiusKm: number;
   ratingAverage: number | null;
   ratingCount: number;

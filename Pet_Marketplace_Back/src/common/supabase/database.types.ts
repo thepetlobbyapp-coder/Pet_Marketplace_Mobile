@@ -50,6 +50,24 @@ export interface AdminUpdateReportStatusWithAuditRow {
   updated_at: string;
 }
 
+export interface TutorProfileOnboardingRow {
+  id: string;
+  display_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderProfileOnboardingRow {
+  id: string;
+  display_name: string;
+  status: 'active' | 'paused' | 'blocked' | 'deleted';
+  service_radius_km: number;
+  rating_average: number | null;
+  rating_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -522,6 +540,20 @@ export interface Database {
           p_window_start: string;
         };
         Returns: ConversationOpenColdStartRow[];
+      };
+      ensure_tutor_profile: {
+        Args: {
+          p_user_id: string;
+          p_display_name: string;
+        };
+        Returns: TutorProfileOnboardingRow[];
+      };
+      ensure_provider_profile: {
+        Args: {
+          p_user_id: string;
+          p_display_name: string;
+        };
+        Returns: ProviderProfileOnboardingRow[];
       };
     };
     Enums: {

@@ -48,12 +48,11 @@ Checkpoint 083; EAS/build futuro GO COM RESSALVAS apenas para preparacao
 tecnica; Play Console/Data Safety final NO-GO ate aprovacao humana de bases
 legais por finalidade e classes de retencao.
 
-Checkpoint 089 definiu a postura Play-ready de avatar/permissoes: upload de
-avatar por camera/galeria fica fora do build, `expo-image-picker` foi
-removido/deferido do Mobile e a UI de Profile renderiza apenas avatar read-only
-quando a API ja retorna `avatarUrl`. Portanto nao declarar coleta de fotos do
-dispositivo/camera para este recorte ate a feature ser reintroduzida e
-revisada.
+Checkpoint 089 definiu a postura Play-ready anterior de avatar/permissoes, mas
+essa postura foi superada pela reativacao do upload de foto no Mobile. Quando o
+build incluir `expo-image-picker`/`AvatarUploader`, declarar camera/galeria/foto
+de perfil como coleta opcional de conteudo fornecido pelo usuario, revisar o
+manifesto nativo exato e atualizar Data Safety antes de qualquer submissao.
 
 Checkpoint 093 documentou o cold-start de conversa tutor-provider: tutor
 autenticado pode abrir ou retomar conversa texto com provider via
@@ -295,8 +294,9 @@ Provável declaração preliminar:
   reports de conversa/mensagem e block quando o build incluir o recorte Trust &
   Safety validado; reviews somente quando implementadas;
 - app activity/logs técnicos: apenas o que existir de fato no build/SDKs;
-- camera/galeria/fotos do dispositivo: não declarar no build Play-ready do
-  Checkpoint 089; avatar upload foi deferido e não há `expo-image-picker`;
+- camera/galeria/fotos do dispositivo: declarar quando o build incluir
+  `expo-image-picker`/`AvatarUploader`; a foto de perfil e opcional e fornecida
+  pelo usuario;
 - pagamentos: não;
 - analytics/crash SDK: não hoje;
 - criptografia em trânsito: sim;

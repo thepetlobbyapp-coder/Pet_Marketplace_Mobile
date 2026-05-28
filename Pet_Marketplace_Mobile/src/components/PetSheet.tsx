@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -10,26 +10,26 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import type { PetResponse, PetSize, PetSpecies } from '../api/types';
-import { colors, radius, spacing, typography } from '../design/tokens';
-import { t } from '../i18n';
-import { Button } from './Button';
-import { IconButton } from './IconButton';
-import { TextField } from './TextField';
+} from "react-native";
+import type { PetResponse, PetSize, PetSpecies } from "../api/types";
+import { colors, radius, spacing, typography } from "../design/tokens";
+import { t } from "../i18n";
+import { Button } from "./Button";
+import { IconButton } from "./IconButton";
+import { TextField } from "./TextField";
 
 const NAME_LIMIT = 120;
 const BREED_LIMIT = 120;
 const AGE_RANGE_LIMIT = 60;
 const NOTES_LIMIT = 2000;
 
-const SPECIES_OPTIONS: PetSpecies[] = ['dog', 'cat', 'other'];
+const SPECIES_OPTIONS: PetSpecies[] = ["dog", "cat", "other"];
 const SIZE_OPTIONS: PetSize[] = [
-  'small',
-  'medium',
-  'large',
-  'giant',
-  'unknown',
+  "small",
+  "medium",
+  "large",
+  "giant",
+  "unknown",
 ];
 
 /**
@@ -51,7 +51,7 @@ export interface PetSheetSubmission {
 
 interface PetSheetProps {
   visible: boolean;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   initialPet?: PetResponse;
   isSubmitting: boolean;
   /** Surfaced from the parent mutation; the sheet only renders it. */
@@ -78,14 +78,14 @@ export function PetSheet({
   onClose,
   onSubmit,
 }: PetSheetProps) {
-  const [name, setName] = useState(initialPet?.name ?? '');
+  const [name, setName] = useState(initialPet?.name ?? "");
   const [species, setSpecies] = useState<PetSpecies>(
-    initialPet?.species ?? 'other',
+    initialPet?.species ?? "other",
   );
-  const [size, setSize] = useState<PetSize>(initialPet?.size ?? 'unknown');
-  const [breed, setBreed] = useState(initialPet?.breed ?? '');
-  const [ageRange, setAgeRange] = useState(initialPet?.ageRange ?? '');
-  const [notes, setNotes] = useState(initialPet?.notes ?? '');
+  const [size, setSize] = useState<PetSize>(initialPet?.size ?? "unknown");
+  const [breed, setBreed] = useState(initialPet?.breed ?? "");
+  const [ageRange, setAgeRange] = useState(initialPet?.ageRange ?? "");
+  const [notes, setNotes] = useState(initialPet?.notes ?? "");
 
   const trimmedName = name.trim();
   const isNameValid =
@@ -105,9 +105,11 @@ export function PetSheet({
   }
 
   const headerTitle =
-    mode === 'edit' ? t('profile.pet.sheet.titleEdit') : t('profile.pet.sheet.title');
+    mode === "edit"
+      ? t("profile.pet.sheet.titleEdit")
+      : t("profile.pet.sheet.title");
   const saveLabel =
-    mode === 'edit' ? t('profile.pet.update') : t('profile.pet.save');
+    mode === "edit" ? t("profile.pet.update") : t("profile.pet.save");
 
   return (
     <Modal
@@ -121,14 +123,14 @@ export function PetSheet({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{headerTitle}</Text>
           <IconButton
-            accessibilityLabel={t('profile.pet.sheet.close')}
+            accessibilityLabel={t("profile.pet.sheet.close")}
             icon="close"
             onPress={onClose}
             variant="soft"
           />
         </View>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.flex}
         >
           <ScrollView
@@ -139,21 +141,21 @@ export function PetSheet({
               <TextField
                 autoCapitalize="words"
                 autoCorrect={false}
-                label={t('profile.petName')}
+                label={t("profile.petName")}
                 maxLength={NAME_LIMIT}
                 onChangeText={setName}
-                placeholder={t('profile.petNamePlaceholder')}
+                placeholder={t("profile.petNamePlaceholder")}
                 value={name}
               />
               {name.length > 0 && !isNameValid ? (
                 <Text style={styles.errorMessage}>
-                  {t('profile.petNameInvalid')}
+                  {t("profile.petNameInvalid")}
                 </Text>
               ) : null}
             </View>
 
             <SegmentField
-              label={t('profile.pet.field.species')}
+              label={t("profile.pet.field.species")}
               options={SPECIES_OPTIONS}
               selected={species}
               onChange={setSpecies}
@@ -161,7 +163,7 @@ export function PetSheet({
             />
 
             <SegmentField
-              label={t('profile.pet.field.size')}
+              label={t("profile.pet.field.size")}
               options={SIZE_OPTIONS}
               selected={size}
               onChange={setSize}
@@ -172,10 +174,10 @@ export function PetSheet({
               <TextField
                 autoCapitalize="words"
                 autoCorrect={false}
-                label={t('profile.pet.field.breed')}
+                label={t("profile.pet.field.breed")}
                 maxLength={BREED_LIMIT}
                 onChangeText={setBreed}
-                placeholder={t('profile.pet.placeholder.breed')}
+                placeholder={t("profile.pet.placeholder.breed")}
                 value={breed}
               />
             </View>
@@ -184,31 +186,31 @@ export function PetSheet({
               <TextField
                 autoCapitalize="sentences"
                 autoCorrect={false}
-                label={t('profile.pet.field.ageRange')}
+                label={t("profile.pet.field.ageRange")}
                 maxLength={AGE_RANGE_LIMIT}
                 onChangeText={setAgeRange}
-                placeholder={t('profile.pet.placeholder.ageRange')}
+                placeholder={t("profile.pet.placeholder.ageRange")}
                 value={ageRange}
               />
             </View>
 
             <View style={styles.section}>
               <Text style={styles.fieldLabel}>
-                {t('profile.pet.field.notes')}
+                {t("profile.pet.field.notes")}
               </Text>
               <TextInput
-                accessibilityLabel={t('profile.pet.field.notes')}
+                accessibilityLabel={t("profile.pet.field.notes")}
                 multiline
                 numberOfLines={5}
                 maxLength={NOTES_LIMIT}
                 onChangeText={setNotes}
-                placeholder={t('profile.pet.placeholder.notes')}
+                placeholder={t("profile.pet.placeholder.notes")}
                 placeholderTextColor={colors.muted}
                 style={styles.notesInput}
                 textAlignVertical="top"
                 value={notes}
               />
-              <Text style={styles.help}>{t('profile.pet.help.notes')}</Text>
+              <Text style={styles.help}>{t("profile.pet.help.notes")}</Text>
             </View>
 
             {externalErrorMessage ? (
@@ -220,7 +222,7 @@ export function PetSheet({
           <View style={styles.footerActions}>
             <Button
               disabled={isSubmitting}
-              label={t('common.cancel')}
+              label={t("common.cancel")}
               onPress={onClose}
               variant="secondary"
             />
@@ -303,18 +305,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: spacing[5],
     paddingVertical: spacing[3],
   },
   headerTitle: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   scrollContent: {
     gap: spacing[5],
@@ -326,11 +328,11 @@ const styles = StyleSheet.create({
   fieldLabel: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   segmentRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing[2],
   },
   segment: {
@@ -350,8 +352,8 @@ const styles = StyleSheet.create({
   segmentLabel: {
     color: colors.muted,
     fontSize: typography.small,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
   },
   segmentSelectedLabel: {
     color: colors.accentPressed,
@@ -375,7 +377,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     color: colors.danger,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   footer: {
     backgroundColor: colors.surface,
@@ -385,8 +387,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
   },
   footerActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
 });

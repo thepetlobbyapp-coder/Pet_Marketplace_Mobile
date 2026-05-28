@@ -1,4 +1,4 @@
-import type { Session } from '@supabase/supabase-js';
+import type { Session } from "@supabase/auth-js";
 import {
   createContext,
   useCallback,
@@ -7,9 +7,9 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from 'react';
-import { t } from '../i18n';
-import { getSupabaseClient } from './supabaseClient';
+} from "react";
+import { t } from "../i18n";
+import { getSupabaseClient } from "./supabaseClient";
 
 interface AuthResult {
   message?: string;
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     let isMounted = true;
 
-    supabase.auth
+    supabase
       .getSession()
       .then(({ data }) => {
         if (isMounted) {
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
+    const { data: listener } = supabase.onAuthStateChange(
       (_event, nextSession) => {
         setSession(nextSession);
       },
@@ -81,10 +81,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signIn = useCallback(
     async (email: string, password: string): Promise<AuthResult> => {
       if (!supabase) {
-        return { ok: false, message: t('auth.config.body') };
+        return { ok: false, message: t("auth.config.body") };
       }
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.signInWithPassword({
         email,
         password,
       });
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (error) {
         return {
           ok: false,
-          message: error.message || t('auth.login.genericError'),
+          message: error.message || t("auth.login.genericError"),
         };
       }
 
@@ -104,16 +104,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signUp = useCallback(
     async (email: string, password: string): Promise<AuthResult> => {
       if (!supabase) {
-        return { ok: false, message: t('auth.config.body') };
+        return { ok: false, message: t("auth.config.body") };
       }
 
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.signUp({ email, password });
 
       if (error) {
         // Keep sign-up errors generic so provider details are not exposed.
         return {
           ok: false,
-          message: t('auth.signUp.genericError'),
+          message: t("auth.signUp.genericError"),
         };
       }
 
@@ -129,19 +129,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const resetPassword = useCallback(
     async (email: string): Promise<AuthResult> => {
       if (!supabase) {
-        return { ok: false, message: t('auth.config.body') };
+        return { ok: false, message: t("auth.config.body") };
       }
 
       // Anti email enumeration: ignore provider-specific errors and let the
       // screen show the same confirmation copy.
-      await supabase.auth.resetPasswordForEmail(email);
+      await supabase.resetPasswordForEmail(email);
       return { ok: true };
     },
     [supabase],
   );
 
   const signOut = useCallback(async () => {
-    await supabase?.auth.signOut();
+    await supabase?.signOut();
     setSession(null);
   }, [supabase]);
 
@@ -156,15 +156,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       resetPassword,
       signOut,
     }),
-    [
-      isInitialising,
-      session,
-      signIn,
-      signUp,
-      resetPassword,
-      signOut,
-      supabase,
-    ],
+    [isInitialising, session, signIn, signUp, resetPassword, signOut, supabase],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -173,7 +165,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 export function useAuth(): AuthContextValue {
   const value = useContext(AuthContext);
   if (!value) {
-    throw new Error('useAuth must be used inside AuthProvider.');
+    throw new Error("useAuth must be used inside AuthProvider.");
   }
   return value;
 }

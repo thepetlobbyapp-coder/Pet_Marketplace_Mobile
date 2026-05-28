@@ -28,6 +28,11 @@ export interface ConversationRecord {
   last_message_text: string | null;
   last_message_at: string | null;
   last_message_from_provider: boolean;
+  counterpart_avatar_url?: string | null;
+  counterpart_name?: string | null;
+  counterpart_service_label?: string | null;
+  created_at?: string;
+  viewer_is_provider?: boolean;
 }
 
 /** Linha segura de `public.messages`. */
@@ -81,18 +86,14 @@ export function conversationColdStartRateLimited(): DomainException {
 
 export function parseConversationId(value: unknown): string {
   if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
-    throw conversationValidationError(
-      'Conversation id must be a valid UUID.',
-    );
+    throw conversationValidationError('Conversation id must be a valid UUID.');
   }
   return value;
 }
 
 export function parseProviderId(value: unknown): string {
   if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
-    throw conversationValidationError(
-      'providerId must be a valid UUID.',
-    );
+    throw conversationValidationError('providerId must be a valid UUID.');
   }
   return value;
 }
@@ -124,9 +125,7 @@ export function asAllowlistedBody(
  */
 export function parseMessageText(value: unknown): string {
   if (typeof value !== 'string') {
-    throw conversationValidationError(
-      'text is required and must be a string.',
-    );
+    throw conversationValidationError('text is required and must be a string.');
   }
   const trimmed = value.trim();
   if (!trimmed) {

@@ -77,7 +77,18 @@ describe('Bookings (e2e)', () => {
     getProviderAvailability: jest.fn(
       async (_providerId: string, _date: string) => availabilityResult,
     ),
-    listBookings: jest.fn(async (_tutorProfileId: string) => [BOOKING_ROW]),
+    listBookings: jest.fn(
+      async (_tutorProfileId: string, _pagination: unknown) => ({
+        items: [BOOKING_ROW],
+        nextCursor: null,
+      }),
+    ),
+    listBookingsForUser: jest.fn(
+      async (_user: AuthUser, _pagination: unknown) => ({
+        items: [BOOKING_ROW],
+        nextCursor: null,
+      }),
+    ),
     createBooking: jest.fn(
       async (_tutorProfileId: string, input: CreateBookingInput) => {
         if (createError) throw createError;
@@ -125,6 +136,7 @@ describe('Bookings (e2e)', () => {
     supabaseMock.resolveUser.mockClear();
     supabaseAdminMock.getProviderAvailability.mockClear();
     supabaseAdminMock.listBookings.mockClear();
+    supabaseAdminMock.listBookingsForUser.mockClear();
     supabaseAdminMock.createBooking.mockClear();
     supabaseAdminMock.updateBookingStatus.mockClear();
   });
@@ -177,19 +189,16 @@ describe('Bookings (e2e)', () => {
     ['missing date', {}],
     ['malformed date', { date: '01-06-2026' }],
     ['impossible date', { date: '2026-02-31' }],
-  ])(
-    'GET /providers/:id/availability rejects %s',
-    async (_caseName, query) => {
-      const res = await request(app.getHttpServer())
-        .get(`/api/v1/providers/${PROVIDER_ID}/availability`)
-        .query(query)
-        .set('Authorization', 'Bearer test-token')
-        .expect(400);
+  ])('GET /providers/:id/availability rejects %s', async (_caseName, query) => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/providers/${PROVIDER_ID}/availability`)
+      .query(query)
+      .set('Authorization', 'Bearer test-token')
+      .expect(400);
 
-      expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      expect(supabaseAdminMock.getProviderAvailability).not.toHaveBeenCalled();
-    },
-  );
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(supabaseAdminMock.getProviderAvailability).not.toHaveBeenCalled();
+  });
 
   // --- POST /bookings ---
 
@@ -288,14 +297,18 @@ describe('Bookings (e2e)', () => {
       .set('Authorization', 'Bearer test-token')
       .expect(200);
 
-    expect(res.body).toEqual([EXPECTED_BOOKING]);
-    expect(supabaseAdminMock.listBookings).toHaveBeenCalledWith(
-      TUTOR_PROFILE_ID,
+    expect(res.body).toEqual({
+      items: [EXPECTED_BOOKING],
+      nextCursor: null,
+    });
+    expect(supabaseAdminMock.listBookingsForUser).toHaveBeenCalledWith(
+      ACTIVE_USER,
+      { cursor: null, limit: 20 },
     );
     expectSafeBookingPayload(res.body);
   });
 
-  it('GET /bookings returns an empty list when the user has no tutor profile', async () => {
+  it('GET /bookings returns an empty list when the user has no care profile', async () => {
     resolvedUser = { ...ACTIVE_USER, profiles: {} };
 
     const res = await request(app.getHttpServer())
@@ -303,8 +316,19 @@ describe('Bookings (e2e)', () => {
       .set('Authorization', 'Bearer test-token')
       .expect(200);
 
-    expect(res.body).toEqual([]);
-    expect(supabaseAdminMock.listBookings).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ items: [], nextCursor: null });
+    expect(supabaseAdminMock.listBookingsForUser).not.toHaveBeenCalled();
+  });
+
+  it('GET /bookings rejects pagination limits above the server cap', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/bookings')
+      .query({ limit: '51' })
+      .set('Authorization', 'Bearer test-token')
+      .expect(400);
+
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(supabaseAdminMock.listBookingsForUser).not.toHaveBeenCalled();
   });
 
   // --- PATCH /bookings/:id ---

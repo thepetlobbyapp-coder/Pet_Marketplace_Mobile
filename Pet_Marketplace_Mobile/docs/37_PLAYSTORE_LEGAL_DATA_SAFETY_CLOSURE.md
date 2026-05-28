@@ -58,9 +58,10 @@ Implementation facts relevant to Data Safety:
 - `android.permissions` is `[]`.
 - The Mobile package has no dedicated ads, analytics, crash reporting, payment,
   maps or native device-location SDK.
-- `expo-image-picker` and avatar-upload feature surface exist; do not include
-  avatar upload, camera or photo-library flows in screenshots/claims unless the
-  submitted build and Data Safety are re-reviewed.
+- Native photo picker dependency and avatar-upload UI are present for optional
+  profile pictures; `microphonePermission: false` keeps the Expo public config
+  at `android.permissions: []`. The exact generated manifest still needs to be
+  checked before Play submission.
 - Public legal pages are conservative: they describe account/auth data,
   profiles, pets, addresses, provider search, bookings, chat messages,
   reports/block, Supabase/DigitalOcean processing, no sale of personal data, no
@@ -103,7 +104,7 @@ Official references rechecked on 2026-05-26:
 | Technical logs/diagnostics | Limited; no dedicated crash/analytics SDK observed | Security and operational diagnosis | Hosting/infrastructure logs may exist | Minimize PII; retention class pending if logs contain personal data | Legal basis/retention class pending |
 | Payments, cards, bank data, subscriptions, IAP | Not collected in current phase | Not applicable | None in submitted scope | Not applicable | Do not claim payment protection or checkout |
 | Ads ID, behavioural ads, contacts, device location permission, audio, chat media, file access | Not collected in current declared scope | Not applicable | None observed in Mobile package/config | Not applicable | Re-review if SDKs/permissions/features change |
-| Camera/photo library/avatar upload | Not in screenshot/release claim scope | Future profile media only if enabled | `expo-image-picker` surface exists | Re-review permissions and Data Safety before use | Blocked for screenshots/claims in this checkpoint |
+| Camera/photo library/avatar upload | Collected only when the user chooses a profile picture | Profile personalisation | Native picker/upload UI present; backend stores in private `avatars` bucket and returns signed URLs | Re-review exact manifest, Privacy and Data Safety before submission | Include only if screenshots/listing claims match the submitted build |
 
 Data Safety posture:
 

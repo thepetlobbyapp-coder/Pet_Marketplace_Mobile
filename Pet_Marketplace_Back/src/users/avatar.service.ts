@@ -100,7 +100,6 @@ export class AvatarService {
           position: 'attention',
         })
         .jpeg({ quality: 82, mozjpeg: true })
-        .withMetadata({}) // strip EXIF (no GPS/PII leaks)
         .toBuffer();
     } catch (error) {
       if (error instanceof Error && error.name === 'DomainException') throw error;

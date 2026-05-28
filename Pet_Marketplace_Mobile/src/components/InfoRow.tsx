@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 interface InfoRowProps {
   icon: IconName;
@@ -27,16 +27,16 @@ export function InfoRow({ icon, label, value }: InfoRowProps) {
 
 const styles = StyleSheet.create({
   row: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: spacing[3],
   },
   iconBox: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accentSoft,
     borderRadius: radius.md,
     height: 40,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 40,
   },
   text: {
@@ -46,12 +46,12 @@ const styles = StyleSheet.create({
   label: {
     color: colors.muted,
     fontSize: typography.caption,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   value: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

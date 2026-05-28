@@ -5806,3 +5806,342 @@ As copias equivalentes foram sincronizadas para `Pet_Marketplace_Back/docs`,
 
 - Fazer stage/commit com escopo cirurgico do Checkpoint 094, evitando `git add`
   amplo por causa de mudancas preexistentes nao relacionadas na worktree.
+
+## Checkpoint 095 - P2-B auditoria persistida em audit_logs
+
+- **Data:** 2026-05-27.
+- **Tipo:** Implementacao Backend local, sem Mobile, sem Admin UI, sem EAS,
+  sem Play Console, sem deploy, sem fixture e sem leitura/impressao de `.env`
+  ou `Credenciais.txt`.
+- **Status:** **P2-B IMPLEMENTADO / AUDITLOGGER PERSISTE EM `audit_logs` /
+  RECORTE APROVADO COM RESSALVA DE ATOMICIDADE**.
+
+### Gate
+
+- `@PICK/@V` paralelo retornou GO condicionado.
+- Padrao aprovado: `AuditLogger.record` assincrono, sanitizacao centralizada
+  antes do Pino e do insert, e `SupabaseAdminService.appendAuditLog(...)`
+  via service role.
+- Ressalva: `PATCH /admin/reports/:id` ainda executa update do report e insert
+  do audit log em operacoes separadas. Se o insert de auditoria falhar, a API
+  retorna erro explicito, mas a mutacao anterior pode ja ter ocorrido. Fechar
+  atomicidade forte exige RPC/migration aditiva em ciclo proprio.
+
+### Recorte entregue
+
+- `AuditLogger.record(...)` agora persiste eventos em `public.audit_logs` e
+  preserva o log estruturado Pino.
+- Todos os call sites existentes passaram a aguardar a auditoria:
+  `auth.logout`, account deletion publica, avatar upload/delete, deletion
+  request autenticado, report created, user blocked e report status updated.
+- Metadata foi minimizada por allowlist: `category`, `conversationId`,
+  `status`, `targetType`.
+- Campos como `description`, `internalNote`, `email`, `phone`, `token`,
+  `address`, `location`, `source`, `mime` e `sizeBytes` nao sao persistidos nem
+  repassados ao Pino pelo `AuditLogger`.
+- `/admin/audit-logs` continua retornando envelope paginado minimizado, sem
+  `metadata`.
+- `reviews` segue fora do escopo e sem endpoint fake.
+
+### Validacoes
+
+- `cd Pet_Marketplace_Back; pnpm typecheck` - exit 0, com warning conhecido de
+  engine Node local v24.12.0 vs projeto 22.x.
+- `cd Pet_Marketplace_Back; pnpm lint` - exit 0, com o mesmo warning conhecido.
+- `cd Pet_Marketplace_Back; pnpm test` - exit 0, sem testes unitarios
+  encontrados pelo runner padrao.
+- `cd Pet_Marketplace_Back; pnpm exec jest --config jest-e2e.json test/audit-logger.e2e-spec.ts test/trust-safety.e2e-spec.ts test/me.e2e-spec.ts test/admin.e2e-spec.ts` - exit 0, 4 suites, 45 testes.
+- `cd Pet_Marketplace_Back; pnpm test:e2e -- --runInBand` - exit 0, 16 suites,
+  163 testes.
+- `cd Pet_Marketplace_Back; pnpm build` - exit 0.
+- `cd Pet_Marketplace_Back; pnpm db:smoke` - exit 0.
+- `cd Pet_Marketplace_Back; pnpm db:smoke:trust-safety` - exit 0.
+
+### Riscos residuais
+
+- Atomicidade forte entre mutacoes de dominio e insert em `audit_logs` ainda
+  nao existe para todas as acoes. O comportamento atual evita sucesso
+  silencioso quando a auditoria falha, mas nao desfaz uma mutacao ja executada.
+- Para fechar completamente a ressalva, criar RPC transacional por fluxo
+  critico, com migration aditiva e testes especificos, sem aplicar em banco
+  remoto sem autorizacao explicita.
+
+### Proximo passo recomendado
+
+- Rodar validacao final `@V/@Q` sobre o diff P2-B e, se aprovado, preparar
+  stage/commit cirurgico apenas dos arquivos deste recorte.
+
+## Checkpoint 096 - Alinhamento de toolchain Node/pnpm
+
+- **Data:** 2026-05-27.
+- **Tipo:** Higiene de toolchain local, sem mudanca funcional de produto, sem
+  Mobile Playstore, sem EAS, sem deploy, sem migrations e sem leitura/impressao
+  de secrets.
+- **Status:** **VALIDADO / TOOLCHAIN RAIZ ALINHADA AO BACKEND**.
+
+### Recorte planejado
+
+- Alinhar a raiz ao contrato mais estrito ja vigente no Backend:
+  Node `22.x` e pnpm `10.30.3`.
+- Atualizar `.nvmrc`, `package.json` raiz e README para remover a divergencia
+  historica de Node 20/pnpm 9 no setup raiz.
+- Manter `Pet_Marketplace_Back/package.json` como fonte confirmada do runtime
+  de validacao do Backend.
+- Nao relaxar o Backend para Node 24, porque isso ampliaria o contrato sem
+  necessidade e sem matriz de compatibilidade dedicada.
+
+### Validacoes
+
+Runtime usado nas validacoes com Node portatil local, sem trocar o Node global
+da maquina:
+
+- Raiz: `node -v` - `v22.21.1`.
+- Raiz: `pnpm -v` - `10.30.3`.
+- `Pet_Marketplace_Back`: `pnpm typecheck` - exit 0, sem warning de engine.
+- `Pet_Marketplace_Back`: `pnpm lint` - exit 0, sem warning de engine.
+- `Pet_Marketplace_Back`: `pnpm test` - exit 0, sem testes unitarios
+  encontrados pelo runner padrao.
+- `Pet_Marketplace_Back`: `pnpm test:e2e -- --runInBand` - exit 0,
+  16 suites, 163 testes.
+- `Pet_Marketplace_Back`: `pnpm build` - exit 0.
+- `Pet_Marketplace_Admin`: `pnpm typecheck` - exit 0.
+- `Pet_Marketplace_Admin`: `pnpm lint` - exit 0.
+- `Pet_Marketplace_Admin`: `pnpm test` - exit 0.
+- `Pet_Marketplace_Admin`: `pnpm build` - exit 0.
+- `Pet_Marketplace_Mobile`: `pnpm typecheck` - exit 0.
+- `Pet_Marketplace_Mobile`: `pnpm lint` - exit 0.
+
+### Decisao
+
+- Mantido Node `22.x` como contrato do projeto em vez de aceitar Node 24.
+  Motivo: o Backend ja declarava `22.x`, as validacoes passaram sem warning
+  nesse runtime, e ampliar para Node 24 exigiria uma matriz dedicada sem ganho
+  funcional para este recorte.
+
+## Checkpoint 097 - P2-C atomicidade de status de report com audit log
+
+- **Data:** 2026-05-27.
+- **Tipo:** Implementacao Backend local com migration aditiva preparada, sem
+  aplicacao remota, sem Mobile, sem Admin UI, sem EAS, sem Play Console, sem
+  deploy, sem fixtures reais e sem leitura/impressao de secrets.
+- **Status:** **P2-C IMPLEMENTADO / RPC TRANSACIONAL PREPARADA / VALIDADO
+  LOCALMENTE**.
+
+### Recorte entregue
+
+- Criada migration local
+  `Pet_Marketplace_Back/supabase/migrations/20260527_016_admin_report_status_audit_rpc.sql`.
+- A migration adiciona a RPC
+  `public.admin_update_report_status_with_audit(...)`, grantada apenas para
+  `service_role`.
+- A RPC atualiza `reports.status`, `assigned_admin_id`, `internal_note` e
+  `updated_at`, e insere `trust_safety.report_status_updated` em
+  `audit_logs` na mesma transacao do Postgres.
+- Metadata de auditoria da RPC e minimizada para
+  `{"status": <novo_status>}`; `internal_note` nao entra em `audit_logs`.
+- `PATCH /admin/reports/:id` passou a usar
+  `SupabaseAdminService.updateAdminReportStatusWithAudit(...)` e nao chama mais
+  `AuditLogger.record(...)` nesse fluxo, evitando insert duplicado.
+- `AuditLogger` segue responsavel pelos demais eventos nao transacionais.
+- `/admin/audit-logs` continua paginado e minimizado, sem `metadata`.
+- `reviews` segue bloqueado, sem endpoint fake.
+
+### Status da migration
+
+- Migration **preparada para revisao** e **nao aplicada** no Supabase remoto.
+- Os smokes read-only abaixo validam o estado atual do banco remoto, nao a nova
+  RPC 016 ainda nao aplicada.
+
+### Validacoes
+
+Runtime usado: Node `v22.21.1` e pnpm `10.30.3`.
+
+- `Pet_Marketplace_Back`: `node -v` - `v22.21.1`.
+- `Pet_Marketplace_Back`: `pnpm -v` - `10.30.3`.
+- `Pet_Marketplace_Back`: `pnpm typecheck` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm lint` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm test` - exit 0, sem testes unitarios
+  encontrados pelo runner padrao.
+- `Pet_Marketplace_Back`: `pnpm exec jest --config jest-e2e.json test/admin-report-status-audit-rpc.e2e-spec.ts test/trust-safety.e2e-spec.ts test/admin.e2e-spec.ts --runInBand` - exit 0, 3 suites, 16 testes.
+- `Pet_Marketplace_Back`: `pnpm test:e2e -- --runInBand` - exit 0,
+  17 suites, 166 testes.
+- `Pet_Marketplace_Back`: `pnpm build` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm db:smoke` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm db:smoke:trust-safety` - exit 0.
+
+### Decisao de atomicidade
+
+- Fechada para `PATCH /admin/reports/:id` no desenho da RPC: update do report
+  e insert em `audit_logs` acontecem dentro da mesma funcao Postgres.
+- Como a migration nao foi aplicada remotamente neste ciclo, a garantia vale
+  para o codigo/migration preparados e passara a valer no banco alvo apos
+  aplicacao explicitamente autorizada da migration 016.
+
+### Riscos residuais
+
+- A RPC 016 ainda precisa de rollout remoto controlado antes de o ambiente
+  Supabase atual oferecer a atomicidade em runtime real.
+- Outros fluxos auditados por `AuditLogger` continuam com persistencia separada
+  da mutacao de dominio; este ciclo fechou apenas o fluxo Admin critico de
+  status de report.
+
+### Proximo passo recomendado
+
+- Revisar/aprovar a migration 016 e, com confirmacao explicita do ambiente
+  alvo, aplicar a migration e rodar smoke read-only que confirme a funcao RPC e
+  o grant `service_role`.
+
+## Checkpoint 098 - Rollout remoto da migration 016
+
+- **Data:** 2026-05-27.
+- **Tipo:** Aplicacao remota controlada de migration aditiva, sem deploy, sem
+  Mobile, sem Admin UI, sem EAS, sem Play Console, sem fixture real, sem
+  alteracao de roles de usuarios e sem leitura/impressao de secrets.
+- **Status:** **MIGRATION 016 APLICADA NO SUPABASE DEV / RPC VALIDADA**.
+
+### Autorizacao e alvo
+
+- Autorizacao recebida literalmente:
+  `APLICAR MIGRATION 016 NO SUPABASE dev oumrtrcqsyugdvildfmr`.
+- Ambiente alvo: Supabase dev.
+- Project ref confirmado por smoke read-only: `oumrtrcqsyugdvildfmr`.
+
+### Recorte executado
+
+- Aplicada somente a migration
+  `supabase/migrations/20260527_016_admin_report_status_audit_rpc.sql`.
+- Comando executado no Backend:
+  `pnpm db:run-sql supabase/migrations/20260527_016_admin_report_status_audit_rpc.sql`.
+- Nenhum deploy foi executado.
+- Nenhuma outra migration foi aplicada.
+- Nenhum token, URL completa de banco, `.env`, `Credenciais.txt` ou PII foi
+  impresso.
+
+### Ajuste durante o rollout
+
+- A primeira verificacao read-only da RPC encontrou `EXECUTE=true` para
+  `anon` e `authenticated`, apesar do `REVOKE ... FROM public`.
+- A migration 016 foi corrigida localmente para revogar explicitamente:
+  `from anon, authenticated`.
+- O mesmo arquivo 016 foi reaplicado no alvo autorizado.
+- Verificacao final confirmou:
+  - funcao `public.admin_update_report_status_with_audit` existe;
+  - assinatura esperada existe;
+  - `SECURITY DEFINER=true`;
+  - `VOLATILE`;
+  - `service_role` tem `EXECUTE`;
+  - `authenticated` nao tem `EXECUTE`;
+  - `anon` nao tem `EXECUTE`;
+  - comentario da funcao nao contem PII nem termos sensiveis proibidos.
+
+### Validacoes
+
+Runtime usado: Node `v22.21.1` e pnpm `10.30.3`.
+
+- `Pet_Marketplace_Back`: `node -v` - `v22.21.1`.
+- `Pet_Marketplace_Back`: `pnpm -v` - `10.30.3`.
+- `Pet_Marketplace_Back`: `pnpm db:smoke:trust-safety` pre-aplicacao - exit 0,
+  refs `oumrtrcqsyugdvildfmr` consistentes.
+- `Pet_Marketplace_Back`: `pnpm db:run-sql supabase/migrations/20260527_016_admin_report_status_audit_rpc.sql` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm db:run-sql supabase/migrations/20260527_016_admin_report_status_audit_rpc.sql` pos-correcao de grants - exit 0.
+- `Pet_Marketplace_Back`: `pnpm db:smoke` - exit 0.
+- `Pet_Marketplace_Back`: `pnpm db:smoke:trust-safety` - exit 0.
+- Verificacao read-only especifica de RPC/grants - exit 0, `status=ok`,
+  `failures=[]`.
+
+### Decisao
+
+- A RPC 016 agora esta aplicada no Supabase dev e pronta para o Backend que chama
+  `SupabaseAdminService.updateAdminReportStatusWithAudit(...)`.
+- A ordem segura para proximo ciclo passa a ser validar diff/stage/commit e,
+  so depois, planejar deploy Backend separado.
+
+### Rollback preparado, nao executado
+
+```sql
+drop function if exists public.admin_update_report_status_with_audit(
+  uuid,
+  uuid,
+  public.report_status,
+  text
+);
+```
+
+Rollback remoto exige nova autorizacao explicita do ambiente alvo.
+
+---
+
+## Checkpoint 099 - Validacao de ambientes e sincronizacao geral
+
+- **Data:** 2026-05-28.
+- **Tipo:** Auditoria local de ambientes, paridade documental e preparo de
+  fechamento Git, sem deploy, sem Play Console, sem EAS, sem migration, sem
+  smoke remoto autenticado e sem leitura/impressao de secrets.
+- **Status:** **AMBIENTES LOCAIS VALIDADOS / DOCS E CODEX SINCRONIZADOS /
+  WORKTREE AINDA COM ARQUIVOS NAO COMMITADOS**.
+
+### Selecao @PICK
+
+- Time aplicado: `@PICK`, `@ENV`, `@X`, `@FLOW`, `@GSD`, `@Q` e `@V`.
+- A tarefa foi classificada como VALIDACAO de risco medio: audita paridade dos
+  ambientes locais e estado Git antes do fechamento.
+- `@CRED` nao foi acionado porque nao houve acesso remoto autenticado, deploy,
+  banco, Play Console, EAS ou leitura de `.env`/`Credenciais.txt`.
+
+### Sincronizacao
+
+- Rodado `pnpm sync:win` para propagar `docs/` e `.codex/` canonicos da raiz
+  para `Pet_Marketplace_Back`, `Pet_Marketplace_Mobile` e
+  `Pet_Marketplace_Admin`.
+- Detectado que artefatos de release estavam apenas em
+  `Pet_Marketplace_Mobile/docs`; eles eram referenciados pelos docs canonicos.
+- Promovidos para `docs/` canonico:
+  - `docs/MOBILE_SECURITY.md`;
+  - `docs/logo/`;
+  - `docs/playstore-screenshots/`.
+- Reexecutado `pnpm sync:win` apos a promocao dos artefatos.
+- Normalizados finais de linha LF nos textos compartilhados para manter
+  `git diff --check` limpo.
+
+### Validacoes de paridade
+
+- Hash recursivo de `docs/` entre raiz, Back, Mobile e Admin - OK.
+- Hash recursivo de `.codex/` entre raiz, Back, Mobile e Admin - OK.
+- `git diff --check` - exit 0.
+- `git status --short --branch` confirmou branch
+  `codex/consolidate-checkpoints-through-094` ahead 1 do remoto e worktree com
+  alteracoes locais ainda nao commitadas.
+
+### Validacoes de runtime e codigo
+
+- Raiz: `pnpm env:check` - exit 0, Node `v22.22.3`, pnpm `10.30.3`.
+- Backend: `pnpm typecheck` - exit 0.
+- Backend: `pnpm lint` - exit 0.
+- Backend: `pnpm test:e2e -- --runInBand` - exit 0, 17 suites, 174 testes.
+- Backend: `pnpm build` - exit 0.
+- Admin: `pnpm typecheck` - exit 0.
+- Admin: `pnpm lint` - exit 0.
+- Admin: `pnpm test` - exit 0, 7 suites locais.
+- Admin: `pnpm build` - exit 0.
+- Mobile: `pnpm typecheck` - exit 0.
+- Mobile: `pnpm lint` - exit 0.
+- Mobile: `pnpm test` - exit 0, confirma `typecheck` + `lint`.
+
+### Achados Git
+
+- Ha arquivos modificados e nao rastreados em Back, Mobile, Admin, docs raiz e
+  governanca raiz.
+- A branch local possui 1 commit ainda nao enviado para o remoto.
+- Nao foi feito stage nem commit neste checkpoint antes do inventario final.
+
+### Riscos residuais
+
+- A validacao foi local; nao comprova deploy remoto atual, EAS artifact atual,
+  Play Console ou paridade de variaveis reais fora do repositorio.
+- Como ha muitos arquivos nao rastreados, o fechamento deve revisar o escopo de
+  stage para evitar incluir artefatos locais indesejados.
+
+### Proximo passo recomendado
+
+- Revisar o inventario Git final, excluir qualquer arquivo local que nao deva
+  entrar, e fazer stage/commit do conjunto validado.

@@ -28,6 +28,11 @@ import type {
   ProviderResponse,
   ReportCategory,
 } from "../../src/api/types";
+import {
+  hasProviderProfile,
+  hasTutorProfile,
+  useMeQuery,
+} from "../../src/api/useMeQuery";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { Avatar } from "../../src/components/Avatar";
 import { ConversationRow } from "../../src/components/ConversationRow";
@@ -35,6 +40,7 @@ import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
 import { LoadingState } from "../../src/components/LoadingState";
 import { MessageBubble } from "../../src/components/MessageBubble";
+import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
 import { Screen } from "../../src/components/Screen";
 import { colors, radius, spacing, typography } from "../../src/design/tokens";
 import { t } from "../../src/i18n";
@@ -45,7 +51,10 @@ const REPORT_CATEGORY_OPTIONS: {
   category: ReportCategory;
   labelKey: TranslationKey;
 }[] = [
-  { category: "safety_concern", labelKey: "chat.report.category.safetyConcern" },
+  {
+    category: "safety_concern",
+    labelKey: "chat.report.category.safetyConcern",
+  },
   { category: "harassment", labelKey: "chat.report.category.harassment" },
   { category: "spam_scam", labelKey: "chat.report.category.spamScam" },
   {
@@ -64,7 +73,10 @@ interface ReportTargetInput {
 
 export default function ChatScreen() {
   const { accessToken, session } = useAuth();
+  const meQuery = useMeQuery();
   const userId = session?.user.id;
+  const canUseChat =
+    hasTutorProfile(meQuery.data) || hasProviderProfile(meQuery.data);
   const [openConversation, setOpenConversation] =
     useState<ConversationResponse | null>(null);
   const params = useLocalSearchParams<{ conversationId?: string }>();
@@ -73,9 +85,10 @@ export default function ChatScreen() {
   const consumedDeepLinkRef = useRef<string | null>(null);
 
   const conversationsQuery = useQuery({
-    enabled: Boolean(accessToken),
+    enabled: Boolean(accessToken && canUseChat),
     queryKey: ["conversations", userId],
     queryFn: () => getConversations(accessToken),
+    refetchInterval: 3000,
     retry: 1,
   });
 
@@ -99,17 +112,6 @@ export default function ChatScreen() {
     router.setParams({ conversationId: undefined });
   }, [conversationIdParam, conversationsQuery.data]);
 
-  if (openConversation) {
-    return (
-      <ChatThread
-        accessToken={accessToken}
-        conversation={openConversation}
-        onBack={() => setOpenConversation(null)}
-        userId={userId}
-      />
-    );
-  }
-
   if (!accessToken) {
     return (
       <Screen>
@@ -126,6 +128,46 @@ export default function ChatScreen() {
       <Screen>
         <LoadingState label={t("chat.conversations.loading")} />
       </Screen>
+    );
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label={t("profile.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState
+          actionLabel={t("common.retry")}
+          message={t("profile.error")}
+          onRetry={() => meQuery.refetch()}
+          title={t("common.error")}
+        />
+      </Screen>
+    );
+  }
+
+  if (!canUseChat) {
+    return (
+      <Screen>
+        <TutorProfileRequiredState message={t("chat.profileRequired.body")} />
+      </Screen>
+    );
+  }
+
+  if (openConversation) {
+    return (
+      <ChatThread
+        accessToken={accessToken}
+        conversation={openConversation}
+        onBack={() => setOpenConversation(null)}
+        userId={userId}
+      />
     );
   }
 
@@ -182,17 +224,18 @@ function ConversationListItem({
 }) {
   const providerQuery = useProviderQuery({
     accessToken,
+    enabled: isTutorConversationView(conversation),
     providerId: conversation.providerId,
     userId,
   });
   const provider = providerQuery.data;
-  const providerName =
-    provider?.name ?? formatProviderFallback(conversation.providerId);
-  const service = provider?.service ?? t("chat.serviceFallback");
+  const providerName = getCounterpartName(conversation, provider);
+  const service = getCounterpartService(conversation, provider);
+  const avatarUri = getCounterpartAvatarUri(conversation, provider);
 
   return (
     <ConversationRow
-      avatarUri={provider?.avatarUrl ?? undefined}
+      avatarUri={avatarUri}
       lastMessage={conversation.lastMessage ?? t("chat.noMessagesYet")}
       name={providerName}
       onPress={onPress}
@@ -231,6 +274,7 @@ function ChatThread({
   );
   const providerQuery = useProviderQuery({
     accessToken,
+    enabled: isTutorConversationView(conversation),
     providerId: conversation.providerId,
     userId,
   });
@@ -238,6 +282,7 @@ function ChatThread({
     enabled: Boolean(accessToken),
     queryKey: messagesQueryKey,
     queryFn: () => getConversationMessages(accessToken, conversation.id),
+    refetchInterval: 2000,
     retry: 1,
   });
   const sendMutation = useMutation({
@@ -294,9 +339,9 @@ function ChatThread({
   });
 
   const provider = providerQuery.data;
-  const providerName =
-    provider?.name ?? formatProviderFallback(conversation.providerId);
-  const service = provider?.service ?? t("chat.serviceFallback");
+  const providerName = getCounterpartName(conversation, provider);
+  const service = getCounterpartService(conversation, provider);
+  const avatarUri = getCounterpartAvatarUri(conversation, provider);
   const trimmedDraft = draft.trim();
   const canSend =
     Boolean(accessToken) &&
@@ -321,11 +366,7 @@ function ChatThread({
         >
           <Ionicons color={colors.text} name="chevron-back" size={26} />
         </Pressable>
-        <Avatar
-          name={providerName}
-          size={40}
-          uri={provider?.avatarUrl ?? undefined}
-        />
+        <Avatar name={providerName} size={40} uri={avatarUri} />
         <View style={styles.threadHeaderText}>
           <Text numberOfLines={1} style={styles.threadName}>
             {providerName}
@@ -399,9 +440,7 @@ function ChatThread({
       {isBlockConfirmOpen ? (
         <View style={styles.safetyPanel}>
           <Text style={styles.safetyTitle}>{t("chat.block.title")}</Text>
-          <Text style={styles.safetyCopy}>
-            {t("chat.block.body")}
-          </Text>
+          <Text style={styles.safetyCopy}>{t("chat.block.body")}</Text>
           <View style={styles.safetyRow}>
             <Pressable
               accessibilityRole="button"
@@ -448,7 +487,11 @@ function ChatThread({
           ) : messagesQuery.data && messagesQuery.data.length > 0 ? (
             messagesQuery.data.map((message) => (
               <MessageBubble
-                fromProvider={message.fromProvider}
+                fromProvider={
+                  conversation.viewerIsProvider
+                    ? !message.fromProvider
+                    : message.fromProvider
+                }
                 isReportPending={reportMutation.isPending}
                 key={message.id}
                 onReport={() => {
@@ -529,15 +572,17 @@ function ChatThread({
 
 function useProviderQuery({
   accessToken,
+  enabled = true,
   providerId,
   userId,
 }: {
   accessToken: string | null;
+  enabled?: boolean;
   providerId: string;
   userId?: string;
 }) {
   return useQuery<ProviderResponse>({
-    enabled: Boolean(accessToken && providerId),
+    enabled: Boolean(enabled && accessToken && providerId),
     queryKey: ["provider", userId, providerId],
     queryFn: () => getProvider(accessToken, providerId),
     retry: 1,
@@ -559,6 +604,43 @@ function formatChatTime(value: string | null): string {
 
 function formatProviderFallback(providerId: string): string {
   return `${t("chat.providerFallback")} ${providerId.slice(0, 8)}...`;
+}
+
+function isTutorConversationView(conversation: ConversationResponse): boolean {
+  return conversation.viewerIsProvider === false;
+}
+
+function getCounterpartName(
+  conversation: ConversationResponse,
+  provider?: ProviderResponse,
+): string {
+  if (conversation.counterpartName) return conversation.counterpartName;
+  if (isTutorConversationView(conversation)) {
+    return provider?.name ?? formatProviderFallback(conversation.providerId);
+  }
+  return t("chat.tutorFallback");
+}
+
+function getCounterpartService(
+  conversation: ConversationResponse,
+  provider?: ProviderResponse,
+): string {
+  if (conversation.counterpartService) return conversation.counterpartService;
+  if (isTutorConversationView(conversation)) {
+    return provider?.service ?? t("chat.serviceFallback");
+  }
+  return t("chat.tutorServiceFallback");
+}
+
+function getCounterpartAvatarUri(
+  conversation: ConversationResponse,
+  provider?: ProviderResponse,
+): string | undefined {
+  if (conversation.counterpartAvatarUrl)
+    return conversation.counterpartAvatarUrl;
+  return isTutorConversationView(conversation)
+    ? (provider?.avatarUrl ?? undefined)
+    : undefined;
 }
 
 function getConversationListErrorMessage(error: unknown): string {

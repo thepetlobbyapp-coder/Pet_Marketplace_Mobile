@@ -15,6 +15,8 @@ import {
   getMe,
   updateAddress,
   updatePet,
+  updateProviderProfile,
+  updateTutorProfile,
 } from "../../src/api/client";
 import type {
   AddressLocationPrecision,
@@ -24,6 +26,7 @@ import type {
   MeResponse,
   PetResponse,
   PetSpecies,
+  ProviderCategory,
   ProviderProfileStatus,
   Role,
   UpdateAddressRequest,
@@ -60,9 +63,14 @@ type AddressSheetState =
   | { mode: "create" }
   | { mode: "edit"; address: AddressResponse };
 
-type PetSheetState =
-  | { mode: "create" }
-  | { mode: "edit"; pet: PetResponse };
+type PetSheetState = { mode: "create" } | { mode: "edit"; pet: PetResponse };
+
+const PROVIDER_CATEGORY_OPTIONS: readonly ProviderCategory[] = [
+  "walk",
+  "sitting",
+  "transport",
+  "boarding",
+];
 
 export default function ProfileScreen() {
   const { accessToken, session, signOut } = useAuth();
@@ -86,6 +94,15 @@ export default function ProfileScreen() {
     null,
   );
   const [providerDisplayNameDraft, setProviderDisplayNameDraft] = useState<
+    string | null
+  >(null);
+  const [providerBioDraft, setProviderBioDraft] = useState<string | null>(null);
+  const [providerCategoryDraft, setProviderCategoryDraft] =
+    useState<ProviderCategory | null>(null);
+  const [providerPriceDraft, setProviderPriceDraft] = useState<string | null>(
+    null,
+  );
+  const [providerServiceDraft, setProviderServiceDraft] = useState<
     string | null
   >(null);
   const [providerProfileMessage, setProviderProfileMessage] = useState<
@@ -131,12 +148,28 @@ export default function ProfileScreen() {
   const providerProfile = meQuery.data?.profiles?.provider;
   const providerDisplayName =
     providerDisplayNameDraft ?? providerProfile?.displayName ?? "";
+  const providerBio = providerBioDraft ?? providerProfile?.bio ?? "";
+  const providerCategory =
+    providerCategoryDraft ?? providerProfile?.categoryId ?? "walk";
+  const providerPrice =
+    providerPriceDraft ??
+    (providerProfile?.pricePerHour !== null &&
+    providerProfile?.pricePerHour !== undefined
+      ? String(providerProfile.pricePerHour)
+      : "");
+  const providerService =
+    providerServiceDraft ?? providerProfile?.service ?? "";
 
   const upsertTutorProfile = useMutation({
-    mutationFn: () =>
-      createTutorProfile(accessToken, {
+    mutationFn: () => {
+      const saveTutorProfile = tutorProfile
+        ? updateTutorProfile
+        : createTutorProfile;
+
+      return saveTutorProfile(accessToken, {
         displayName: tutorDisplayName.trim(),
-      }),
+      });
+    },
     onError: () => {
       setTutorProfileMessage(t("profile.tutorProfileSaveError"));
     },
@@ -148,16 +181,32 @@ export default function ProfileScreen() {
   });
 
   const upsertProviderProfile = useMutation({
-    mutationFn: () =>
-      createProviderProfile(accessToken, {
+    mutationFn: () => {
+      const saveProviderProfile = providerProfile
+        ? updateProviderProfile
+        : createProviderProfile;
+
+      return saveProviderProfile(accessToken, {
+        bio: providerBio.trim() || null,
+        categoryId: providerCategory,
         displayName: providerDisplayName.trim(),
-      }),
+        isAvailable: providerProfile?.isAvailable ?? true,
+        pricePerHour: Number(providerPrice.trim()),
+        publish: true,
+        service: providerService.trim(),
+        serviceRadiusKm: providerProfile?.serviceRadiusKm ?? 5,
+      });
+    },
     onError: () => {
       setProviderProfileMessage(t("profile.providerProfileSaveError"));
     },
     onSuccess: async (profile) => {
       await queryClient.invalidateQueries({ queryKey: meQueryKey });
       setProviderDisplayNameDraft(null);
+      setProviderBioDraft(null);
+      setProviderCategoryDraft(null);
+      setProviderPriceDraft(null);
+      setProviderServiceDraft(null);
       setProviderProfileMessage(
         profile.status === "paused"
           ? t("profile.providerProfilePausedSuccess")
@@ -167,7 +216,8 @@ export default function ProfileScreen() {
   });
 
   const createAddressMutation = useMutation({
-    mutationFn: (body: CreateAddressRequest) => createAddress(accessToken, body),
+    mutationFn: (body: CreateAddressRequest) =>
+      createAddress(accessToken, body),
     onError: (error) => {
       setAddressMessage(formatAddressError(error));
     },
@@ -235,12 +285,35 @@ export default function ProfileScreen() {
   const isTutorDisplayNameValid =
     trimmedTutorDisplayName.length > 0 && trimmedTutorDisplayName.length <= 80;
   const trimmedProviderDisplayName = providerDisplayName.trim();
+  const trimmedProviderBio = providerBio.trim();
+  const trimmedProviderService = providerService.trim();
+  const trimmedProviderPrice = providerPrice.trim();
+  const providerPriceNumber = Number(trimmedProviderPrice);
   const savedProviderDisplayName = providerProfile?.displayName ?? "";
+  const savedProviderBio = providerProfile?.bio ?? "";
+  const savedProviderCategory = providerProfile?.categoryId ?? "walk";
+  const savedProviderPrice =
+    providerProfile?.pricePerHour !== null &&
+    providerProfile?.pricePerHour !== undefined
+      ? String(providerProfile.pricePerHour)
+      : "";
+  const savedProviderService = providerProfile?.service ?? "";
   const hasProviderProfileChanges =
-    trimmedProviderDisplayName !== savedProviderDisplayName;
+    trimmedProviderDisplayName !== savedProviderDisplayName ||
+    trimmedProviderBio !== savedProviderBio ||
+    providerCategory !== savedProviderCategory ||
+    trimmedProviderPrice !== savedProviderPrice ||
+    trimmedProviderService !== savedProviderService ||
+    providerProfile?.status !== "active";
   const isProviderDisplayNameValid =
     trimmedProviderDisplayName.length > 0 &&
     trimmedProviderDisplayName.length <= 80;
+  const isProviderListingValid =
+    trimmedProviderService.length > 0 &&
+    trimmedProviderService.length <= 160 &&
+    trimmedProviderPrice.length > 0 &&
+    Number.isFinite(providerPriceNumber) &&
+    providerPriceNumber >= 0;
   const shouldShowTutorDisplayNameError =
     tutorDisplayNameDraft !== null && !isTutorDisplayNameValid;
   const shouldShowProviderDisplayNameError =
@@ -254,6 +327,7 @@ export default function ProfileScreen() {
     Boolean(accessToken) &&
     Boolean(meQuery.data) &&
     isProviderDisplayNameValid &&
+    isProviderListingValid &&
     !upsertProviderProfile.isPending;
   const isAddressSheetSubmitting =
     createAddressMutation.isPending || updateAddressMutation.isPending;
@@ -379,13 +453,16 @@ export default function ProfileScreen() {
     const original = petSheet.pet;
     const body: UpdatePetRequest = {};
     if (submission.name !== original.name) body.name = submission.name;
-    if (submission.species !== original.species) body.species = submission.species;
+    if (submission.species !== original.species)
+      body.species = submission.species;
     if (submission.size !== original.size) body.size = submission.size;
-    if (submission.breed !== (original.breed ?? null)) body.breed = submission.breed;
+    if (submission.breed !== (original.breed ?? null))
+      body.breed = submission.breed;
     if (submission.ageRange !== (original.ageRange ?? null)) {
       body.ageRange = submission.ageRange;
     }
-    if (submission.notes !== (original.notes ?? null)) body.notes = submission.notes;
+    if (submission.notes !== (original.notes ?? null))
+      body.notes = submission.notes;
 
     if (Object.keys(body).length === 0) {
       setPetSheet(null);
@@ -394,10 +471,6 @@ export default function ProfileScreen() {
     updatePetMutation.mutate({ id: original.id, body });
   }
 
-  // Patch the cached /me response in place so the hero avatar updates
-  // instantly after upload/remove, without round-tripping through a
-  // refetch. The next natural invalidation will reconcile if the server
-  // returns extra fields.
   function handleAvatarChange(nextAvatarUrl: string | null) {
     queryClient.setQueryData(meQueryKey, (prev: MeResponse | undefined) => {
       if (!prev) return prev;
@@ -453,10 +526,7 @@ export default function ProfileScreen() {
                 />
               ) : null}
               {!tutorProfile && !providerProfile ? (
-                <Badge
-                  label={t("profile.hero.noRoles")}
-                  tone="neutral"
-                />
+                <Badge label={t("profile.hero.noRoles")} tone="neutral" />
               ) : null}
             </View>
           ) : null}
@@ -659,9 +729,78 @@ export default function ProfileScreen() {
                 <Text style={styles.help}>
                   {t("profile.providerDisplayNameHelp")}
                 </Text>
+                <TextField
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  label="Speciality"
+                  maxLength={160}
+                  onChangeText={(value) => {
+                    setProviderServiceDraft(value);
+                    setProviderProfileMessage(null);
+                  }}
+                  placeholder="Dog walking, home visits, boarding..."
+                  value={providerService}
+                />
+                <View style={styles.segmentGroup}>
+                  {PROVIDER_CATEGORY_OPTIONS.map((category) => {
+                    const selected = providerCategory === category;
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={category}
+                        onPress={() => {
+                          setProviderCategoryDraft(category);
+                          setProviderProfileMessage(null);
+                        }}
+                        style={[
+                          styles.segment,
+                          selected ? styles.segmentSelected : null,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.segmentLabel,
+                            selected ? styles.segmentSelectedLabel : null,
+                          ]}
+                        >
+                          {formatProviderCategory(category)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <TextField
+                  keyboardType="decimal-pad"
+                  label="Price per hour"
+                  maxLength={8}
+                  onChangeText={(value) => {
+                    setProviderPriceDraft(value.replace(",", "."));
+                    setProviderProfileMessage(null);
+                  }}
+                  placeholder="18"
+                  value={providerPrice}
+                />
+                <TextField
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  label="Provider bio"
+                  maxLength={600}
+                  multiline
+                  onChangeText={(value) => {
+                    setProviderBioDraft(value);
+                    setProviderProfileMessage(null);
+                  }}
+                  placeholder="Tell tutors about your experience with pets."
+                  value={providerBio}
+                />
                 {shouldShowProviderDisplayNameError ? (
                   <Text style={styles.errorMessage}>
                     {t("profile.providerDisplayNameInvalid")}
+                  </Text>
+                ) : null}
+                {!isProviderListingValid ? (
+                  <Text style={styles.errorMessage}>
+                    Add a speciality and a valid hourly price to publish.
                   </Text>
                 ) : null}
                 {hasProviderProfileChanges ? (
@@ -690,6 +829,10 @@ export default function ProfileScreen() {
                     label={t("common.cancel")}
                     onPress={() => {
                       setProviderDisplayNameDraft(null);
+                      setProviderBioDraft(null);
+                      setProviderCategoryDraft(null);
+                      setProviderPriceDraft(null);
+                      setProviderServiceDraft(null);
                       setProviderProfileMessage(null);
                     }}
                     variant="secondary"
@@ -786,10 +929,7 @@ export default function ProfileScreen() {
 
           <Card>
             <View style={styles.details}>
-              <SectionHeader
-                icon="paw"
-                title={t("profile.section.pets")}
-              />
+              <SectionHeader icon="paw" title={t("profile.section.pets")} />
               {!canUseTutorTools ? (
                 <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
               ) : (
@@ -816,7 +956,8 @@ export default function ProfileScreen() {
                   ) : petsQuery.data && petsQuery.data.length > 0 ? (
                     <View style={styles.petList}>
                       {petsQuery.data.map((pet) => {
-                        const isConfirmingDelete = pendingDeletePetId === pet.id;
+                        const isConfirmingDelete =
+                          pendingDeletePetId === pet.id;
                         const isDeleting =
                           deletePetMutation.isPending &&
                           deletePetMutation.variables?.id === pet.id;
@@ -848,10 +989,7 @@ export default function ProfileScreen() {
                                 ) : null}
                               </View>
                               {pet.notes ? (
-                                <Text
-                                  numberOfLines={2}
-                                  style={styles.petNotes}
-                                >
+                                <Text numberOfLines={2} style={styles.petNotes}>
                                   {pet.notes}
                                 </Text>
                               ) : null}
@@ -983,17 +1121,9 @@ export default function ProfileScreen() {
         <PetSheet
           // Re-key on mode/target so internal form state resets cleanly when
           // the parent switches between create and editing a different pet.
-          key={
-            petSheet.mode === "edit"
-              ? `edit:${petSheet.pet.id}`
-              : "create"
-          }
-          externalErrorMessage={
-            petMutationsHaveError ? petMessage : null
-          }
-          initialPet={
-            petSheet.mode === "edit" ? petSheet.pet : undefined
-          }
+          key={petSheet.mode === "edit" ? `edit:${petSheet.pet.id}` : "create"}
+          externalErrorMessage={petMutationsHaveError ? petMessage : null}
+          initialPet={petSheet.mode === "edit" ? petSheet.pet : undefined}
           isSubmitting={isPetSheetSubmitting}
           mode={petSheet.mode}
           onClose={closePetSheet}
@@ -1003,28 +1133,28 @@ export default function ProfileScreen() {
       ) : null}
       {addressSheet ? (
         <AddressSheet
-        // switches modes — no useEffect-driven reset needed.
-        key={
-          addressSheet.mode === "edit"
-            ? `edit:${addressSheet.address.id}`
-            : "create"
-        }
-        defaultLocked={
-          addressSheet.mode === "edit"
-            ? addressSheet.address.isDefaultTutorAddress
-            : false
-        }
-        externalErrorMessage={
-          addressMutationsHaveError ? addressMessage : null
-        }
-        initialAddress={
-          addressSheet.mode === "edit" ? addressSheet.address : undefined
-        }
-        isSubmitting={isAddressSheetSubmitting}
-        mode={addressSheet.mode}
-        onClose={closeAddressSheet}
-        onSubmit={handleAddressSubmit}
-        showDefaultControl={Boolean(tutorProfile)}
+          // switches modes — no useEffect-driven reset needed.
+          key={
+            addressSheet.mode === "edit"
+              ? `edit:${addressSheet.address.id}`
+              : "create"
+          }
+          defaultLocked={
+            addressSheet.mode === "edit"
+              ? addressSheet.address.isDefaultTutorAddress
+              : false
+          }
+          externalErrorMessage={
+            addressMutationsHaveError ? addressMessage : null
+          }
+          initialAddress={
+            addressSheet.mode === "edit" ? addressSheet.address : undefined
+          }
+          isSubmitting={isAddressSheetSubmitting}
+          mode={addressSheet.mode}
+          onClose={closeAddressSheet}
+          onSubmit={handleAddressSubmit}
+          showDefaultControl={Boolean(tutorProfile)}
           visible
         />
       ) : null}
@@ -1210,8 +1340,10 @@ function formatTutorProfile(profile?: { displayName: string; id: string }) {
 function formatProviderProfile(profile?: {
   displayName: string;
   id: string;
+  pricePerHour: number | null;
   ratingAverage: number | null;
   ratingCount: number;
+  service: string | null;
   serviceRadiusKm: number;
   status: ProviderProfileStatus;
 }) {
@@ -1219,7 +1351,12 @@ function formatProviderProfile(profile?: {
     return t("profile.notSet");
   }
 
-  return `${profile.displayName} - ${formatProviderStatus(profile.status)}`;
+  const service = profile.service ? ` - ${profile.service}` : "";
+  const price =
+    profile.pricePerHour !== null ? ` - GBP ${profile.pricePerHour}/h` : "";
+  return `${profile.displayName}${service}${price} - ${formatProviderStatus(
+    profile.status,
+  )}`;
 }
 
 function formatProviderStatus(status: ProviderProfileStatus): string {
@@ -1227,6 +1364,13 @@ function formatProviderStatus(status: ProviderProfileStatus): string {
   if (status === "active") return t("profile.providerStatus.active");
   if (status === "blocked") return t("profile.providerStatus.blocked");
   return t("profile.providerStatus.deleted");
+}
+
+function formatProviderCategory(category: ProviderCategory): string {
+  if (category === "walk") return t("search.categories.walk");
+  if (category === "sitting") return t("search.categories.sitting");
+  if (category === "transport") return t("search.categories.transport");
+  return t("search.categories.boarding");
 }
 
 const styles = StyleSheet.create({

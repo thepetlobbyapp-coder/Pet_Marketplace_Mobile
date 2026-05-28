@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { colors, radius, shadow, spacing } from '../design/tokens';
+import type { ReactNode } from "react";
+import { StyleSheet, View } from "react-native";
+import { colors, radius, shadow, spacing } from "../design/tokens";
 
 interface CardProps {
   children: ReactNode;

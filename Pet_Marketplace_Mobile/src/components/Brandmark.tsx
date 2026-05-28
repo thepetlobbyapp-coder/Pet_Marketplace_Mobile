@@ -1,5 +1,5 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Image, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
 interface BrandmarkProps {
   size?: number;
@@ -7,7 +7,7 @@ interface BrandmarkProps {
   tagline?: string;
 }
 
-const logoSource = require('../../assets/pet-lobby-logo.png');
+const logoSource = require("../../assets/pet-lobby-logo.png");
 
 /**
  * The Pet Lobby brandmark: paw-marker logo, optional wordmark and tagline.
@@ -38,23 +38,23 @@ export function Brandmark({
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[2],
   },
   // Keeps the border radius clipping consistent on iOS and Web.
   logo: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   wordmark: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 0.3,
   },
   tagline: {
     color: colors.muted,
     fontSize: typography.small,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

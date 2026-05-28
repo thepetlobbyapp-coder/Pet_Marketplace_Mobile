@@ -14,10 +14,12 @@ import type {
   CreateMessageRequest,
   CreatePetRequest,
   CreateReportRequest,
+  CursorPaginationParams,
   HealthResponse,
   ListProvidersParams,
   MeResponse,
   MessageResponse,
+  PaginatedResponse,
   PetResponse,
   ProviderProfileResponse,
   ProviderResponse,
@@ -25,6 +27,7 @@ import type {
   TimeSlotResponse,
   TutorProfileResponse,
   UpdateAddressRequest,
+  UpdateBookingRequest,
   UpdatePetRequest,
   UpdateMeRequest,
   UpsertProviderProfileRequest,
@@ -32,10 +35,10 @@ import type {
   UserBlockResponse,
 } from "./types";
 
+const apiV1BaseUrl = `${env.apiBaseUrl}/api/v1`;
+
 /** Client-side hard cap mirrors the backend validator (5 MB). */
 export const AVATAR_MAX_SIZE_BYTES = 5 * 1024 * 1024;
-
-const apiV1BaseUrl = `${env.apiBaseUrl}/api/v1`;
 
 export async function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
@@ -71,13 +74,6 @@ export async function updateMe(
   });
 }
 
-/**
- * Upload a new avatar image. Uses multipart/form-data; does NOT set
- * Content-Type manually so the runtime appends the correct boundary.
- *
- * Timeout is 30s (vs the 12s default for JSON requests) because the payload
- * is heavier and we don't want to abort mid-upload on slow mobile networks.
- */
 export async function uploadAvatar(
   accessToken: string | null,
   asset: AvatarUploadAsset,
@@ -86,27 +82,18 @@ export async function uploadAvatar(
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
 
-  // expo-file-system's `uploadAsync` performs the multipart upload on the
-  // native HTTP client, sidestepping two known incompatibilities of the
-  // RN 0.85 JS path:
-  //   - "Unsupported FormDataPart implementation" when appending the
-  //     legacy `{uri, name, type}` shape;
-  //   - `fetch(file://...)` failing to materialise the picker URI on
-  //     Android.
-  // The native uploader streams the file straight from disk, so we never
-  // buffer the image bytes in JS heap either.
   const result = await FileSystem.uploadAsync(
     `${apiV1BaseUrl}/me/avatar`,
     asset.uri,
     {
-      httpMethod: "POST",
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: "image",
-      mimeType: asset.mimeType ?? "image/jpeg",
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
+      httpMethod: "POST",
+      mimeType: asset.mimeType ?? "image/jpeg",
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
     },
   );
 
@@ -119,24 +106,15 @@ export async function uploadAvatar(
       apiError?.message,
     );
   }
+
   return body as AvatarResponse;
 }
 
-function parseUploadBody(raw: string | undefined | null): unknown {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-export async function deleteAvatar(
-  accessToken: string | null,
-): Promise<void> {
+export async function deleteAvatar(accessToken: string | null): Promise<void> {
   if (!accessToken) {
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
+
   return request<void>("/me/avatar", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -217,6 +195,24 @@ export async function createProviderProfile(
       "Content-Type": "application/json",
     },
     method: "POST",
+  });
+}
+
+export async function updateProviderProfile(
+  accessToken: string | null,
+  body: UpsertProviderProfileRequest,
+): Promise<ProviderProfileResponse> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<ProviderProfileResponse>("/me/provider-profile", {
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
   });
 }
 
@@ -358,30 +354,59 @@ export async function createBooking(
 
 export async function getBookings(
   accessToken: string | null,
+  params: CursorPaginationParams = {},
 ): Promise<BookingResponse[]> {
   if (!accessToken) {
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
 
-  return request<BookingResponse[]>("/bookings", {
+  const payload = await request<
+    PaginatedResponse<BookingResponse> | BookingResponse[]
+  >(cursorPaginatedPath("/bookings", params), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+  });
+
+  return readPaginatedItems(payload);
+}
+
+export async function updateBooking(
+  accessToken: string | null,
+  bookingId: string,
+  body: UpdateBookingRequest,
+): Promise<BookingResponse> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<BookingResponse>(bookingPath(bookingId), {
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
   });
 }
 
 export async function getConversations(
   accessToken: string | null,
+  params: CursorPaginationParams = {},
 ): Promise<ConversationResponse[]> {
   if (!accessToken) {
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
 
-  return request<ConversationResponse[]>("/conversations", {
+  const payload = await request<
+    PaginatedResponse<ConversationResponse> | ConversationResponse[]
+  >(cursorPaginatedPath("/conversations", params), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
   });
+
+  return readPaginatedItems(payload);
 }
 
 /**
@@ -413,16 +438,21 @@ export async function openConversation(
 export async function getConversationMessages(
   accessToken: string | null,
   conversationId: string,
+  params: CursorPaginationParams = {},
 ): Promise<MessageResponse[]> {
   if (!accessToken) {
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
 
-  return request<MessageResponse[]>(conversationMessagesPath(conversationId), {
+  const payload = await request<
+    PaginatedResponse<MessageResponse> | MessageResponse[]
+  >(conversationMessagesPath(conversationId, params), {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
   });
+
+  return readPaginatedItems(payload);
 }
 
 export async function createConversationMessage(
@@ -560,8 +590,12 @@ async function request<T>(
     | `/providers/${string}`
     | `/providers/${string}/availability?${string}`
     | "/bookings"
+    | `/bookings?${string}`
+    | `/bookings/${string}`
     | "/conversations"
+    | `/conversations?${string}`
     | `/conversations/${string}/messages`
+    | `/conversations/${string}/messages?${string}`
     | `/conversations/${string}/block`
     | "/reports"
     | "/pets"
@@ -606,6 +640,10 @@ function addressPath(addressId: string): `/addresses/${string}` {
   return `/addresses/${encodeURIComponent(addressId)}`;
 }
 
+function bookingPath(bookingId: string): `/bookings/${string}` {
+  return `/bookings/${encodeURIComponent(bookingId)}`;
+}
+
 function providerPath(providerId: string): `/providers/${string}` {
   return `/providers/${encodeURIComponent(providerId)}`;
 }
@@ -620,8 +658,14 @@ function providerAvailabilityPath(
 
 function conversationMessagesPath(
   conversationId: string,
-): `/conversations/${string}/messages` {
-  return `/conversations/${encodeURIComponent(conversationId)}/messages`;
+  params: CursorPaginationParams = {},
+):
+  | `/conversations/${string}/messages`
+  | `/conversations/${string}/messages?${string}` {
+  return cursorPaginatedPath(
+    `/conversations/${encodeURIComponent(conversationId)}/messages`,
+    params,
+  );
 }
 
 function conversationBlockPath(
@@ -645,9 +689,36 @@ function providersPath(
   return queryString ? `/providers?${queryString}` : "/providers";
 }
 
+function cursorPaginatedPath<TBase extends string>(
+  basePath: TBase,
+  params: CursorPaginationParams,
+): TBase | `${TBase}?${string}` {
+  const search = new URLSearchParams();
+
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.cursor) search.set("cursor", params.cursor);
+
+  const queryString = search.toString();
+  return queryString ? `${basePath}?${queryString}` : basePath;
+}
+
+function readPaginatedItems<T>(payload: PaginatedResponse<T> | T[]): T[] {
+  if (Array.isArray(payload)) return payload;
+  return payload.items;
+}
+
 async function readJson(response: Response): Promise<ApiErrorBody | unknown> {
   try {
     return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function parseUploadBody(raw: string | undefined | null): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
   } catch {
     return null;
   }

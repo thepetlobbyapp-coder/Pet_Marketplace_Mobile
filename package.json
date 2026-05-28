@@ -9,6 +9,7 @@
     "pnpm": "10.30.3"
   },
   "scripts": {
+    "env:check": "node scripts/check-runtime.mjs",
     "sync": "bash scripts/sync-shared.sh",
     "sync:win": "powershell -ExecutionPolicy Bypass -File scripts/sync-shared.ps1"
   },

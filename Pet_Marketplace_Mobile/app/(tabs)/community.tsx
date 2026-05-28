@@ -1,5 +1,5 @@
-import { EmptyState } from '../../src/components/EmptyState';
-import { Screen } from '../../src/components/Screen';
+import { EmptyState } from "../../src/components/EmptyState";
+import { Screen } from "../../src/components/Screen";
 
 /**
  * Stub for the community feed (Mobile01 §"Comunidade", design.md §7). The

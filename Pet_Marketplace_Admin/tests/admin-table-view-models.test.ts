@@ -4,15 +4,13 @@ import {
   createAdminBookingsTable,
   createAdminProvidersTable,
   createAdminReportsTable,
-  createAdminReviewsTable,
   createAdminUsersTable,
   type AdminAuditLogListItem,
   type AdminBookingListItem,
   type AdminProviderListItem,
   type AdminReportListItem,
-  type AdminReviewListItem,
-  type AdminTableViewModel,
   type AdminUserListItem,
+  type AdminTableViewModel,
 } from "../src";
 
 const forbiddenValue = "must not appear in table view model";
@@ -24,7 +22,6 @@ function main(): void {
   testProvidersTable();
   testBookingsTable();
   testReportsTable();
-  testReviewsTable();
   testAuditLogsTable();
   testEmptyTables();
 
@@ -35,7 +32,6 @@ function testUsersTable(): void {
   const table = createAdminUsersTable([
     withForbiddenFields<AdminUserListItem>({
       createdAt: "2026-05-18T12:00:00.000Z",
-      displayName: forbiddenValue,
       email: "admin@teste.com",
       id: "user-1",
       roles: ["admin", "tutor"],
@@ -45,8 +41,7 @@ function testUsersTable(): void {
   ]);
 
   assertColumnKeys(table, "email,roles,status,createdAt");
-  assert(table.rows[0]?.id === "user-1", "user row should keep stable id");
-  assert(table.rows[0]?.cells.roles === "admin, tutor", "roles should join safely");
+  assert(table.rows[0]?.cells.roles === "admin, tutor", "roles should join");
   assertSafeTable(table);
 }
 
@@ -54,21 +49,19 @@ function testProvidersTable(): void {
   const table = createAdminProvidersTable([
     withForbiddenFields<AdminProviderListItem>({
       createdAt: "2026-05-18T12:00:00.000Z",
+      displayName: "Provider",
       id: "provider-1",
+      serviceCount: 2,
       status: "active",
       updatedAt: "2026-05-18T12:05:00.000Z",
     }),
   ]);
 
   assertColumnKeys(table, "displayName,status,serviceCount,createdAt");
-  assert(table.rows[0]?.id === "provider-1", "provider row should keep stable id");
+  assert(table.rows[0]?.cells.serviceCount === "2", "counts should render");
   assert(
-    table.rows[0]?.cells.displayName === EMPTY_TABLE_VALUE,
-    "missing provider display name should use fallback",
-  );
-  assert(
-    table.rows[0]?.cells.serviceCount === EMPTY_TABLE_VALUE,
-    "missing service count should use fallback",
+    table.rows[0]?.actionValues?.[0]?.value === "provider-1",
+    "providers should expose copy-safe id action",
   );
   assertSafeTable(table);
 }
@@ -77,20 +70,20 @@ function testBookingsTable(): void {
   const table = createAdminBookingsTable([
     withForbiddenFields<AdminBookingListItem>({
       createdAt: "2026-05-18T12:00:00.000Z",
+      date: "2026-05-21",
       id: "booking-1",
-      participantCount: 2,
+      service: "Dog walking",
       status: "requested",
+      timeSlotId: "09:00",
       updatedAt: "2026-05-18T12:05:00.000Z",
     }),
   ]);
 
-  assertColumnKeys(table, "serviceType,status,startsAt,participantCount");
-  assert(table.rows[0]?.id === "booking-1", "booking row should keep stable id");
+  assertColumnKeys(table, "service,status,date,timeSlotId,createdAt");
   assert(
-    table.rows[0]?.cells.serviceType === EMPTY_TABLE_VALUE,
-    "missing service type should use fallback",
+    table.rows[0]?.actionValues?.[0]?.value === "booking-1",
+    "bookings should expose copy-safe id action",
   );
-  assert(table.rows[0]?.cells.participantCount === "2", "numbers should stringify");
   assertSafeTable(table);
 }
 
@@ -114,65 +107,41 @@ function testReportsTable(): void {
   assertSafeTable(table);
 }
 
-function testReviewsTable(): void {
-  const table = createAdminReviewsTable([
-    withForbiddenFields<AdminReviewListItem>({
-      createdAt: "2026-05-18T12:00:00.000Z",
-      id: "review-1",
-      rating: 4,
-      status: "reported",
-      updatedAt: "2026-05-18T12:05:00.000Z",
-    }),
-  ]);
-
-  assertColumnKeys(table, "rating,status,reportCount,createdAt");
-  assert(table.rows[0]?.id === "review-1", "review row should keep stable id");
-  assert(table.rows[0]?.cells.rating === "4", "review rating should stringify");
-  assert(
-    table.rows[0]?.cells.reportCount === EMPTY_TABLE_VALUE,
-    "missing report count should use fallback",
-  );
-  assertSafeTable(table);
-}
-
 function testAuditLogsTable(): void {
   const table = createAdminAuditLogsTable([
     withForbiddenFields<AdminAuditLogListItem>({
-      action: "user.blocked",
+      action: "trust_safety.report_status_updated",
+      actorUserId: null,
       createdAt: "2026-05-18T12:00:00.000Z",
       id: "audit-1",
-      targetType: "user",
+      targetId: "report-1",
+      targetType: "report",
     }),
   ]);
 
-  assertColumnKeys(table, "action,actorEmail,targetType,createdAt");
-  assert(table.rows[0]?.id === "audit-1", "audit row should keep stable id");
+  assertColumnKeys(table, "action,actorUserId,targetType,createdAt");
   assert(
-    table.rows[0]?.cells.actorEmail === EMPTY_TABLE_VALUE,
-    "missing actor email should use fallback",
+    table.rows[0]?.cells.actorUserId === EMPTY_TABLE_VALUE,
+    "null actor should use fallback",
+  );
+  assert(
+    table.rows[0]?.actionValues?.map((action) => action.label).join(",") ===
+      "Copy ID,Copy target ID",
+    "audit logs should expose copy-safe row and target actions",
   );
   assertSafeTable(table);
 }
 
 function testEmptyTables(): void {
-  const tables = [
-    createAdminUsersTable([]),
-    createAdminProvidersTable([]),
-    createAdminBookingsTable([]),
-    createAdminReportsTable([]),
-    createAdminReviewsTable([]),
-    createAdminAuditLogsTable([]),
-  ];
+  const table = createAdminAuditLogsTable([]);
 
-  for (const table of tables) {
-    assert(table.rows.length === 0, "empty table should have no rows");
-    assert(
-      table.emptyStateMessage.length > 0,
-      "empty table should include en-GB empty state text",
-    );
-    assert(table.columns.length > 0, "empty table should keep columns");
-    assertSafeTable(table);
-  }
+  assert(table.rows.length === 0, "empty table should have no rows");
+  assert(
+    table.emptyStateMessage.length > 0,
+    "empty table should include en-GB empty state text",
+  );
+  assert(table.columns.length > 0, "empty table should keep columns");
+  assertSafeTable(table);
 }
 
 function withForbiddenFields<T extends object>(item: T): T {

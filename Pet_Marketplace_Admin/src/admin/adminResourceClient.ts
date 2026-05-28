@@ -4,20 +4,26 @@ import {
 } from "../api/adminApiClient";
 import type { AdminConfig } from "../config/adminConfig";
 import {
-  parseAdminAuditLogsList,
-  parseAdminBookingsList,
-  parseAdminProvidersList,
+  parseAdminDashboardSummary,
+  type AdminDashboardSummary,
+} from "./adminDashboardSummary";
+import {
+  parseAdminAuditLogsPage,
+  parseAdminBookingsPage,
+  parseAdminProvidersPage,
   parseAdminReportsList,
-  parseAdminReviewsList,
-  parseAdminUsersList,
+  parseAdminReportsPage,
+  parseAdminUsersPage,
   AdminResourceContractError,
   type AdminAuditLogListItem,
   type AdminBookingListItem,
   type AdminProviderListItem,
   type AdminReportListItem,
-  type AdminReviewListItem,
+  type AdminResourceListParams,
+  type AdminResourcePage,
   type AdminUserListItem,
   type UpdateAdminReportRequest,
+  type UpdateAdminUserStatusRequest,
 } from "./adminResources";
 
 export interface AdminResourceClientOptions extends AdminApiClientOptions {
@@ -25,16 +31,30 @@ export interface AdminResourceClientOptions extends AdminApiClientOptions {
 }
 
 export interface AdminResourceClient {
-  readonly listAdminUsers: () => Promise<readonly AdminUserListItem[]>;
-  readonly listAdminProviders: () => Promise<readonly AdminProviderListItem[]>;
-  readonly listAdminBookings: () => Promise<readonly AdminBookingListItem[]>;
-  readonly listAdminReports: () => Promise<readonly AdminReportListItem[]>;
+  readonly getAdminDashboardSummary: () => Promise<AdminDashboardSummary>;
+  readonly listAdminAuditLogs: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminAuditLogListItem>>;
+  readonly listAdminBookings: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminBookingListItem>>;
+  readonly listAdminProviders: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminProviderListItem>>;
+  readonly listAdminReports: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminReportListItem>>;
+  readonly listAdminUsers: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminUserListItem>>;
   readonly updateAdminReport: (
     reportId: string,
     body: UpdateAdminReportRequest,
   ) => Promise<AdminReportListItem>;
-  readonly listAdminReviews: () => Promise<readonly AdminReviewListItem[]>;
-  readonly listAdminAuditLogs: () => Promise<readonly AdminAuditLogListItem[]>;
+  readonly updateAdminUserStatus: (
+    userId: string,
+    body: UpdateAdminUserStatusRequest,
+  ) => Promise<AdminUserListItem>;
 }
 
 export function createAdminResourceClient(
@@ -43,36 +63,52 @@ export function createAdminResourceClient(
   const baseUrl = options.baseUrl ?? options.config?.apiBaseUrl;
 
   return {
-    listAdminAuditLogs: async () =>
-      parseAdminAuditLogsList(
+    getAdminDashboardSummary: async () =>
+      parseAdminDashboardSummary(
         await requestAdminApiJson({
           ...options,
           baseUrl,
-          path: "/admin/audit-logs",
+          path: "/admin/dashboard",
         }),
       ),
-    listAdminBookings: async () =>
-      parseAdminBookingsList(
+    listAdminAuditLogs: async (params = {}) =>
+      parseAdminAuditLogsPage(
         await requestAdminApiJson({
           ...options,
           baseUrl,
-          path: "/admin/bookings",
+          path: adminResourcePath("/admin/audit-logs", params),
         }),
       ),
-    listAdminProviders: async () =>
-      parseAdminProvidersList(
+    listAdminBookings: async (params = {}) =>
+      parseAdminBookingsPage(
         await requestAdminApiJson({
           ...options,
           baseUrl,
-          path: "/admin/providers",
+          path: adminResourcePath("/admin/bookings", params),
         }),
       ),
-    listAdminReports: async () =>
-      parseAdminReportsList(
+    listAdminProviders: async (params = {}) =>
+      parseAdminProvidersPage(
         await requestAdminApiJson({
           ...options,
           baseUrl,
-          path: "/admin/reports",
+          path: adminResourcePath("/admin/providers", params),
+        }),
+      ),
+    listAdminReports: async (params = {}) =>
+      parseAdminReportsPage(
+        await requestAdminApiJson({
+          ...options,
+          baseUrl,
+          path: adminResourcePath("/admin/reports", params),
+        }),
+      ),
+    listAdminUsers: async (params = {}) =>
+      parseAdminUsersPage(
+        await requestAdminApiJson({
+          ...options,
+          baseUrl,
+          path: adminResourcePath("/admin/users", params),
         }),
       ),
     updateAdminReport: async (reportId, body) => {
@@ -90,21 +126,33 @@ export function createAdminResourceClient(
       }
       return report;
     },
-    listAdminReviews: async () =>
-      parseAdminReviewsList(
+    updateAdminUserStatus: async (userId, body) => {
+      const user = parseAdminUsersPage([
         await requestAdminApiJson({
           ...options,
           baseUrl,
-          path: "/admin/reviews",
+          body,
+          method: "PATCH",
+          path: `/admin/users/${encodeURIComponent(userId)}/status`,
         }),
-      ),
-    listAdminUsers: async () =>
-      parseAdminUsersList(
-        await requestAdminApiJson({
-          ...options,
-          baseUrl,
-          path: "/admin/users",
-        }),
-      ),
+      ]).items[0];
+      if (!user) {
+        throw new AdminResourceContractError("admin user response is empty.");
+      }
+      return user;
+    },
   };
+}
+
+function adminResourcePath(
+  path: string,
+  params: AdminResourceListParams,
+): string {
+  const search = new URLSearchParams();
+
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.cursor) search.set("cursor", params.cursor);
+
+  const queryString = search.toString();
+  return queryString ? `${path}?${queryString}` : path;
 }

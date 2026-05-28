@@ -1,23 +1,23 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useAuth } from '../../src/auth/AuthProvider';
-import { Brandmark } from '../../src/components/Brandmark';
-import { Button } from '../../src/components/Button';
-import { Screen } from '../../src/components/Screen';
-import { TextField } from '../../src/components/TextField';
-import { colors, radius, spacing, typography } from '../../src/design/tokens';
-import { t } from '../../src/i18n';
+import { Ionicons } from "@expo/vector-icons";
+import { Link, router } from "expo-router";
+import { useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { Brandmark } from "../../src/components/Brandmark";
+import { Button } from "../../src/components/Button";
+import { Screen } from "../../src/components/Screen";
+import { TextField } from "../../src/components/TextField";
+import { colors, radius, spacing, typography } from "../../src/design/tokens";
+import { t } from "../../src/i18n";
 
 const PASSWORD_MIN_LENGTH = 8;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function SignUpScreen() {
   const { isAuthConfigured, signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,10 +33,8 @@ export default function SignUpScreen() {
     termsAccepted &&
     !isSubmitting;
 
-  const showPasswordError =
-    password.length > 0 && !passwordValid;
-  const showConfirmError =
-    confirmPassword.length > 0 && !passwordsMatch;
+  const showPasswordError = password.length > 0 && !passwordValid;
+  const showConfirmError = confirmPassword.length > 0 && !passwordsMatch;
 
   async function handleSubmit() {
     setIsSubmitting(true);
@@ -45,41 +43,41 @@ export default function SignUpScreen() {
 
     if (!result.ok) {
       Alert.alert(
-        t('auth.signUp.errorTitle'),
-        result.message ?? t('auth.signUp.genericError'),
+        t("auth.signUp.errorTitle"),
+        result.message ?? t("auth.signUp.genericError"),
       );
       return;
     }
 
     if (result.requiresEmailConfirmation) {
       Alert.alert(
-        t('auth.signUp.emailConfirmation.title'),
-        t('auth.signUp.emailConfirmation.body'),
+        t("auth.signUp.emailConfirmation.title"),
+        t("auth.signUp.emailConfirmation.body"),
       );
-      router.replace('/(auth)/login');
+      router.replace("/(auth)/login");
       return;
     }
 
-    router.replace('/(tabs)/home');
+    router.replace("/(tabs)/profile");
   }
 
   return (
     <Screen>
       <View style={styles.brand}>
-        <Brandmark size={72} tagline={t('auth.login.tagline')} />
+        <Brandmark size={72} tagline={t("auth.login.tagline")} />
       </View>
 
       <View style={styles.hero}>
-        <Text style={styles.title}>{t('auth.signUp.title')}</Text>
-        <Text style={styles.subtitle}>{t('auth.signUp.subtitle')}</Text>
+        <Text style={styles.title}>{t("auth.signUp.title")}</Text>
+        <Text style={styles.subtitle}>{t("auth.signUp.subtitle")}</Text>
       </View>
 
       {!isAuthConfigured ? (
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>
-            {t('auth.signUp.unavailableTitle')}
+            {t("auth.signUp.unavailableTitle")}
           </Text>
-          <Text style={styles.noticeBody}>{t('auth.unavailable.body')}</Text>
+          <Text style={styles.noticeBody}>{t("auth.unavailable.body")}</Text>
         </View>
       ) : null}
 
@@ -88,9 +86,9 @@ export default function SignUpScreen() {
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
-          label={t('auth.email.label')}
+          label={t("auth.email.label")}
           onChangeText={setEmail}
-          placeholder={t('auth.email.placeholder')}
+          placeholder={t("auth.email.placeholder")}
           textContentType="emailAddress"
           value={email}
         />
@@ -98,38 +96,38 @@ export default function SignUpScreen() {
         <TextField
           autoCapitalize="none"
           autoComplete="password-new"
-          label={t('auth.password.label')}
+          label={t("auth.password.label")}
           onChangeText={setPassword}
-          placeholder={t('auth.signUp.password.placeholder')}
+          placeholder={t("auth.signUp.password.placeholder")}
           secureTextEntry
           textContentType="newPassword"
           value={password}
         />
         {showPasswordError ? (
           <Text style={styles.errorText}>
-            {t('auth.signUp.passwordInvalid')}
+            {t("auth.signUp.passwordInvalid")}
           </Text>
         ) : null}
 
         <TextField
           autoCapitalize="none"
           autoComplete="password-new"
-          label={t('auth.signUp.confirmPassword.label')}
+          label={t("auth.signUp.confirmPassword.label")}
           onChangeText={setConfirmPassword}
-          placeholder={t('auth.signUp.confirmPassword.placeholder')}
+          placeholder={t("auth.signUp.confirmPassword.placeholder")}
           secureTextEntry
           textContentType="newPassword"
           value={confirmPassword}
         />
         {showConfirmError ? (
           <Text style={styles.errorText}>
-            {t('auth.signUp.confirmPasswordInvalid')}
+            {t("auth.signUp.confirmPasswordInvalid")}
           </Text>
         ) : null}
 
         <View style={styles.termsRow}>
           <Pressable
-            accessibilityLabel={t('auth.signUp.terms.accessibilityLabel')}
+            accessibilityLabel={t("auth.signUp.terms.accessibilityLabel")}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: termsAccepted }}
             hitSlop={8}
@@ -144,15 +142,15 @@ export default function SignUpScreen() {
             ) : null}
           </Pressable>
           <Text style={styles.termsText}>
-            {t('auth.signUp.terms.prefix')}
+            {t("auth.signUp.terms.prefix")}
             <Link href="/legal/terms" style={styles.termsLink}>
-              {t('legal.terms.title')}
+              {t("legal.terms.title")}
             </Link>
-            {t('auth.signUp.terms.and')}
+            {t("auth.signUp.terms.and")}
             <Link href="/legal/privacy" style={styles.termsLink}>
-              {t('legal.privacy.title')}
+              {t("legal.privacy.title")}
             </Link>
-            {t('auth.signUp.terms.suffix')}
+            {t("auth.signUp.terms.suffix")}
           </Text>
         </View>
 
@@ -160,7 +158,7 @@ export default function SignUpScreen() {
           <Button
             disabled={!canSubmit}
             isLoading={isSubmitting}
-            label={t('auth.signUp.button')}
+            label={t("auth.signUp.button")}
             onPress={handleSubmit}
           />
         </View>
@@ -168,7 +166,7 @@ export default function SignUpScreen() {
 
       <View style={styles.links}>
         <Link href="/(auth)/login" style={styles.link}>
-          {t('auth.signUp.alreadyHaveAccount')}
+          {t("auth.signUp.alreadyHaveAccount")}
         </Link>
       </View>
     </Screen>
@@ -177,25 +175,25 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
   brand: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing[2],
   },
   hero: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[2],
     marginBottom: spacing[3],
   },
   title: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
   },
   subtitle: {
     color: colors.muted,
     fontSize: typography.body,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
     gap: spacing[4],
@@ -206,18 +204,18 @@ const styles = StyleSheet.create({
     marginTop: -spacing[3],
   },
   termsRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: spacing[3],
   },
   checkbox: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.sm,
     borderWidth: 1,
     height: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginTop: 2,
     width: 24,
   },
@@ -233,22 +231,22 @@ const styles = StyleSheet.create({
   },
   termsLink: {
     color: colors.accent,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   submitWrap: {
-    alignSelf: 'center',
+    alignSelf: "center",
     marginTop: spacing[2],
     minWidth: 200,
-    width: '60%',
+    width: "60%",
   },
   links: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: spacing[6],
   },
   link: {
     color: colors.accent,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   notice: {
     backgroundColor: colors.warningSurface,
@@ -262,7 +260,7 @@ const styles = StyleSheet.create({
   noticeTitle: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   noticeBody: {
     color: colors.muted,

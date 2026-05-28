@@ -13,43 +13,47 @@ export const ADMIN_RESOURCE_FORBIDDEN_FIELDS = [
 export type AdminResourceForbiddenField =
   (typeof ADMIN_RESOURCE_FORBIDDEN_FIELDS)[number];
 
+export interface AdminResourcePage<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: string | null;
+}
+
+export interface AdminResourceListParams {
+  readonly cursor?: string | null;
+  readonly limit?: number;
+}
+
 export interface AdminUserListItem {
   readonly id: string;
   readonly email: string;
-  readonly displayName?: string;
   readonly roles: readonly string[];
-  readonly status: string;
+  readonly status: AdminUserStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
+export type AdminUserStatus = "active" | "blocked" | "deleted";
+
+export const ADMIN_MUTABLE_USER_STATUSES: readonly Exclude<
+  AdminUserStatus,
+  "deleted"
+>[] = ["active", "blocked"] as const;
+
 export interface AdminProviderListItem {
   readonly id: string;
-  readonly userId?: string;
-  readonly displayName?: string;
+  readonly displayName: string;
   readonly status: string;
-  readonly serviceCount?: number;
+  readonly serviceCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
 export interface AdminBookingListItem {
   readonly id: string;
+  readonly service: string;
+  readonly date: string;
+  readonly timeSlotId: string;
   readonly status: string;
-  readonly serviceType?: string;
-  readonly startsAt?: string;
-  readonly endsAt?: string;
-  readonly participantCount?: number;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-}
-
-export interface AdminReportListItem {
-  readonly id: string;
-  readonly status: string;
-  readonly category: string;
-  readonly targetType?: string;
-  readonly targetId?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -61,44 +65,50 @@ export type AdminReportStatus =
   | "dismissed"
   | "closed";
 
-export interface UpdateAdminReportRequest {
-  readonly internalNote?: string | null;
-  readonly status: AdminReportStatus;
-}
+export const ADMIN_REPORT_STATUSES: readonly AdminReportStatus[] = [
+  "open",
+  "in_review",
+  "action_taken",
+  "dismissed",
+  "closed",
+] as const;
 
-export interface AdminReviewListItem {
+export interface AdminReportListItem {
   readonly id: string;
-  readonly status: string;
-  readonly rating: number;
-  readonly reportCount?: number;
+  readonly status: AdminReportStatus;
+  readonly category: string;
+  readonly targetType?: string;
+  readonly targetId?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
 
 export interface AdminAuditLogListItem {
   readonly id: string;
+  readonly actorUserId: string | null;
   readonly action: string;
-  readonly actorEmail?: string;
-  readonly targetType?: string;
-  readonly targetId?: string;
+  readonly targetType: string | null;
+  readonly targetId: string | null;
   readonly createdAt: string;
+}
+
+export interface UpdateAdminReportRequest {
+  readonly internalNote?: string | null;
+  readonly status: AdminReportStatus;
+}
+
+export interface UpdateAdminUserStatusRequest {
+  readonly status: Exclude<AdminUserStatus, "deleted">;
 }
 
 type AssertNoForbiddenFields<T> =
   Extract<keyof T, AdminResourceForbiddenField> extends never ? true : never;
 
-export const adminUserListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminUserListItem> =
-  true;
-export const adminProviderListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminProviderListItem> =
-  true;
-export const adminBookingListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminBookingListItem> =
-  true;
-export const adminReportListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminReportListItem> =
-  true;
-export const adminReviewListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminReviewListItem> =
-  true;
-export const adminAuditLogListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminAuditLogListItem> =
-  true;
+export const adminUserListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminUserListItem> = true;
+export const adminProviderListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminProviderListItem> = true;
+export const adminBookingListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminBookingListItem> = true;
+export const adminReportListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminReportListItem> = true;
+export const adminAuditLogListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminAuditLogListItem> = true;
 
 export class AdminResourceContractError extends Error {
   constructor(message: string) {
@@ -107,21 +117,28 @@ export class AdminResourceContractError extends Error {
   }
 }
 
-export function parseAdminUsersList(payload: unknown): readonly AdminUserListItem[] {
+export function parseAdminUsersList(
+  payload: unknown,
+): readonly AdminUserListItem[] {
   return readList(payload, "admin users").map((item, index) => {
     const record = expectRecord(item, `admin users[${index}]`);
 
     return {
-      createdAt: expectString(record.createdAt, `admin users[${index}].createdAt`),
-      displayName: readOptionalString(
-        record.displayName,
-        `admin users[${index}].displayName`,
+      createdAt: expectString(
+        record.createdAt,
+        `admin users[${index}].createdAt`,
       ),
       email: expectString(record.email, `admin users[${index}].email`),
       id: expectString(record.id, `admin users[${index}].id`),
       roles: expectStringArray(record.roles, `admin users[${index}].roles`),
-      status: expectString(record.status, `admin users[${index}].status`),
-      updatedAt: expectString(record.updatedAt, `admin users[${index}].updatedAt`),
+      status: expectAdminUserStatus(
+        record.status,
+        `admin users[${index}].status`,
+      ),
+      updatedAt: expectString(
+        record.updatedAt,
+        `admin users[${index}].updatedAt`,
+      ),
     };
   });
 }
@@ -137,12 +154,12 @@ export function parseAdminProvidersList(
         record.createdAt,
         `admin providers[${index}].createdAt`,
       ),
-      displayName: readOptionalString(
+      displayName: expectString(
         record.displayName,
         `admin providers[${index}].displayName`,
       ),
       id: expectString(record.id, `admin providers[${index}].id`),
-      serviceCount: readOptionalNumber(
+      serviceCount: expectNumber(
         record.serviceCount,
         `admin providers[${index}].serviceCount`,
       ),
@@ -151,7 +168,6 @@ export function parseAdminProvidersList(
         record.updatedAt,
         `admin providers[${index}].updatedAt`,
       ),
-      userId: readOptionalString(record.userId, `admin providers[${index}].userId`),
     };
   });
 }
@@ -167,21 +183,14 @@ export function parseAdminBookingsList(
         record.createdAt,
         `admin bookings[${index}].createdAt`,
       ),
-      endsAt: readOptionalString(record.endsAt, `admin bookings[${index}].endsAt`),
+      date: expectString(record.date, `admin bookings[${index}].date`),
       id: expectString(record.id, `admin bookings[${index}].id`),
-      participantCount: readOptionalNumber(
-        record.participantCount,
-        `admin bookings[${index}].participantCount`,
-      ),
-      serviceType: readOptionalString(
-        record.serviceType,
-        `admin bookings[${index}].serviceType`,
-      ),
-      startsAt: readOptionalString(
-        record.startsAt,
-        `admin bookings[${index}].startsAt`,
-      ),
+      service: expectString(record.service, `admin bookings[${index}].service`),
       status: expectString(record.status, `admin bookings[${index}].status`),
+      timeSlotId: expectString(
+        record.timeSlotId,
+        `admin bookings[${index}].timeSlotId`,
+      ),
       updatedAt: expectString(
         record.updatedAt,
         `admin bookings[${index}].updatedAt`,
@@ -197,13 +206,19 @@ export function parseAdminReportsList(
     const record = expectRecord(item, `admin reports[${index}]`);
 
     return {
-      category: expectString(record.category, `admin reports[${index}].category`),
+      category: expectString(
+        record.category,
+        `admin reports[${index}].category`,
+      ),
       createdAt: expectString(
         record.createdAt,
         `admin reports[${index}].createdAt`,
       ),
       id: expectString(record.id, `admin reports[${index}].id`),
-      status: expectString(record.status, `admin reports[${index}].status`),
+      status: expectAdminReportStatus(
+        record.status,
+        `admin reports[${index}].status`,
+      ),
       targetId: readOptionalString(
         record.targetId,
         `admin reports[${index}].targetId`,
@@ -220,32 +235,6 @@ export function parseAdminReportsList(
   });
 }
 
-export function parseAdminReviewsList(
-  payload: unknown,
-): readonly AdminReviewListItem[] {
-  return readList(payload, "admin reviews").map((item, index) => {
-    const record = expectRecord(item, `admin reviews[${index}]`);
-
-    return {
-      createdAt: expectString(
-        record.createdAt,
-        `admin reviews[${index}].createdAt`,
-      ),
-      id: expectString(record.id, `admin reviews[${index}].id`),
-      rating: expectNumber(record.rating, `admin reviews[${index}].rating`),
-      reportCount: readOptionalNumber(
-        record.reportCount,
-        `admin reviews[${index}].reportCount`,
-      ),
-      status: expectString(record.status, `admin reviews[${index}].status`),
-      updatedAt: expectString(
-        record.updatedAt,
-        `admin reviews[${index}].updatedAt`,
-      ),
-    };
-  });
-}
-
 export function parseAdminAuditLogsList(
   payload: unknown,
 ): readonly AdminAuditLogListItem[] {
@@ -254,25 +243,82 @@ export function parseAdminAuditLogsList(
 
     return {
       action: expectString(record.action, `admin audit logs[${index}].action`),
-      actorEmail: readOptionalString(
-        record.actorEmail,
-        `admin audit logs[${index}].actorEmail`,
+      actorUserId: readNullableString(
+        record.actorUserId,
+        `admin audit logs[${index}].actorUserId`,
       ),
       createdAt: expectString(
         record.createdAt,
         `admin audit logs[${index}].createdAt`,
       ),
       id: expectString(record.id, `admin audit logs[${index}].id`),
-      targetId: readOptionalString(
+      targetId: readNullableString(
         record.targetId,
         `admin audit logs[${index}].targetId`,
       ),
-      targetType: readOptionalString(
+      targetType: readNullableString(
         record.targetType,
         `admin audit logs[${index}].targetType`,
       ),
     };
   });
+}
+
+export function parseAdminUsersPage(
+  payload: unknown,
+): AdminResourcePage<AdminUserListItem> {
+  return parseAdminResourcePage(payload, "admin users", parseAdminUsersList);
+}
+
+export function parseAdminProvidersPage(
+  payload: unknown,
+): AdminResourcePage<AdminProviderListItem> {
+  return parseAdminResourcePage(
+    payload,
+    "admin providers",
+    parseAdminProvidersList,
+  );
+}
+
+export function parseAdminBookingsPage(
+  payload: unknown,
+): AdminResourcePage<AdminBookingListItem> {
+  return parseAdminResourcePage(
+    payload,
+    "admin bookings",
+    parseAdminBookingsList,
+  );
+}
+
+export function parseAdminReportsPage(
+  payload: unknown,
+): AdminResourcePage<AdminReportListItem> {
+  return parseAdminResourcePage(
+    payload,
+    "admin reports",
+    parseAdminReportsList,
+  );
+}
+
+export function parseAdminAuditLogsPage(
+  payload: unknown,
+): AdminResourcePage<AdminAuditLogListItem> {
+  return parseAdminResourcePage(
+    payload,
+    "admin audit logs",
+    parseAdminAuditLogsList,
+  );
+}
+
+function parseAdminResourcePage<T>(
+  payload: unknown,
+  label: string,
+  parseList: (payload: unknown) => readonly T[],
+): AdminResourcePage<T> {
+  return {
+    items: parseList(payload),
+    nextCursor: readNextCursor(payload, label),
+  };
 }
 
 function readList(payload: unknown, label: string): readonly unknown[] {
@@ -289,6 +335,19 @@ function readList(payload: unknown, label: string): readonly unknown[] {
   return record.items;
 }
 
+function readNextCursor(payload: unknown, label: string): string | null {
+  if (Array.isArray(payload)) {
+    return null;
+  }
+
+  const record = expectRecord(payload, label);
+  if (record.nextCursor === undefined || record.nextCursor === null) {
+    return null;
+  }
+
+  return expectString(record.nextCursor, `${label}.nextCursor`);
+}
+
 function expectRecord(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new AdminResourceContractError(`${label} must be an object.`);
@@ -299,18 +358,12 @@ function expectRecord(value: unknown, label: string): Record<string, unknown> {
 
 function expectString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
-    throw new AdminResourceContractError(`${label} must be a non-empty string.`);
+    throw new AdminResourceContractError(
+      `${label} must be a non-empty string.`,
+    );
   }
 
   return value;
-}
-
-function readOptionalString(value: unknown, label: string): string | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  return expectString(value, label);
 }
 
 function expectNumber(value: unknown, label: string): number {
@@ -321,26 +374,47 @@ function expectNumber(value: unknown, label: string): number {
   return value;
 }
 
-function readOptionalNumber(value: unknown, label: string): number | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  return expectNumber(value, label);
-}
-
 function expectStringArray(value: unknown, label: string): readonly string[] {
   if (!Array.isArray(value)) {
     throw new AdminResourceContractError(`${label} must be an array.`);
   }
 
-  return value.map((item, index) => {
-    if (typeof item !== "string" || item.length === 0) {
-      throw new AdminResourceContractError(
-        `${label}[${index}] must be a non-empty string.`,
-      );
-    }
+  return value.map((item, index) => expectString(item, `${label}[${index}]`));
+}
 
-    return item;
-  });
+function expectAdminReportStatus(
+  value: unknown,
+  label: string,
+): AdminReportStatus {
+  const status = expectString(value, label);
+  if (!ADMIN_REPORT_STATUSES.includes(status as AdminReportStatus)) {
+    throw new AdminResourceContractError(`${label} is not supported.`);
+  }
+
+  return status as AdminReportStatus;
+}
+
+function expectAdminUserStatus(value: unknown, label: string): AdminUserStatus {
+  const status = expectString(value, label);
+  if (!["active", "blocked", "deleted"].includes(status)) {
+    throw new AdminResourceContractError(`${label} is not supported.`);
+  }
+
+  return status as AdminUserStatus;
+}
+
+function readOptionalString(value: unknown, label: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return expectString(value, label);
+}
+
+function readNullableString(value: unknown, label: string): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return expectString(value, label);
 }

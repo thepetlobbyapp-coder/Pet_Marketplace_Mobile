@@ -1,7 +1,7 @@
-import { StyleSheet, Text } from 'react-native';
-import { Card } from '../components/Card';
-import { Screen } from '../components/Screen';
-import { colors, spacing, typography } from '../design/tokens';
+import { StyleSheet, Text } from "react-native";
+import { Card } from "../components/Card";
+import { Screen } from "../components/Screen";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface ComingNextScreenProps {
   body: string;
@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: spacing[2],
   },
   body: {

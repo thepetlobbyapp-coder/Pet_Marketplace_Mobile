@@ -1,5 +1,5 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface LoadingStateProps {
   label: string;
@@ -16,7 +16,7 @@ export function LoadingState({ label }: LoadingStateProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[3],
     paddingVertical: spacing[4],
   },

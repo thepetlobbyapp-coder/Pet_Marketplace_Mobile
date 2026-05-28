@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ApiClientError,
   createBooking,
@@ -10,34 +10,48 @@ import {
   getPets,
   getProvider,
   getProviderAvailability,
-} from '../../src/api/client';
+  updateBooking,
+} from "../../src/api/client";
 import type {
   BookingResponse,
   PetResponse,
   ProviderResponse,
-} from '../../src/api/types';
-import { useAuth } from '../../src/auth/AuthProvider';
-import { Avatar } from '../../src/components/Avatar';
-import { Button } from '../../src/components/Button';
-import { buildUpcomingDates, DateStrip } from '../../src/components/DateStrip';
-import { EmptyState } from '../../src/components/EmptyState';
-import { ErrorState } from '../../src/components/ErrorState';
-import { LoadingState } from '../../src/components/LoadingState';
-import { RatingStars } from '../../src/components/RatingStars';
-import { Screen } from '../../src/components/Screen';
-import { SectionHeader } from '../../src/components/SectionHeader';
-import { TimeChip } from '../../src/components/TimeChip';
-import { demoProviders, demoTimeSlots } from '../../src/data/demoFixtures';
-import { colors, radius, shadow, spacing, typography } from '../../src/design/tokens';
-import { t } from '../../src/i18n';
-import { formatPriceBRL, formatPriceGBP } from '../../src/lib/format';
+} from "../../src/api/types";
+import {
+  hasProviderProfile,
+  hasTutorProfile,
+  useMeQuery,
+} from "../../src/api/useMeQuery";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { Avatar } from "../../src/components/Avatar";
+import { Button } from "../../src/components/Button";
+import { buildUpcomingDates, DateStrip } from "../../src/components/DateStrip";
+import { EmptyState } from "../../src/components/EmptyState";
+import { ErrorState } from "../../src/components/ErrorState";
+import { LoadingState } from "../../src/components/LoadingState";
+import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
+import { RatingStars } from "../../src/components/RatingStars";
+import { Screen } from "../../src/components/Screen";
+import { SectionHeader } from "../../src/components/SectionHeader";
+import { TimeChip } from "../../src/components/TimeChip";
+import { demoProviders, demoTimeSlots } from "../../src/data/demoFixtures";
+import {
+  colors,
+  radius,
+  shadow,
+  spacing,
+  typography,
+} from "../../src/design/tokens";
+import { t } from "../../src/i18n";
+import { env } from "../../src/lib/env";
+import { formatPriceBRL, formatPriceGBP } from "../../src/lib/format";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function BookScreen() {
   const { providerId } = useLocalSearchParams<{ providerId?: string }>();
-  const routeProviderId = typeof providerId === 'string' ? providerId : '';
+  const routeProviderId = typeof providerId === "string" ? providerId : "";
 
   if (UUID_PATTERN.test(routeProviderId)) {
     return <RealBookScreen providerId={routeProviderId} />;
@@ -47,16 +61,38 @@ export default function BookScreen() {
     return <RealBookingsListScreen />;
   }
 
+  if (!env.isDemoFixturesEnabled) {
+    return <UnsupportedDemoBookingRoute />;
+  }
+
   return <DemoBookScreen providerId={routeProviderId} />;
+}
+
+function UnsupportedDemoBookingRoute() {
+  return (
+    <Screen>
+      <EmptyState
+        actionLabel={t("book.findProvider")}
+        message={t("book.error.provider.body")}
+        onAction={() => router.push("/search")}
+        title={t("book.error.provider.title")}
+      />
+    </Screen>
+  );
 }
 
 function RealBookingsListScreen() {
   const { accessToken, session } = useAuth();
+  const meQuery = useMeQuery();
   const userId = session?.user.id;
+  const canUseBookings =
+    hasTutorProfile(meQuery.data) || hasProviderProfile(meQuery.data);
+  const viewerIsProvider = hasProviderProfile(meQuery.data);
   const bookingsQuery = useQuery({
-    enabled: Boolean(accessToken),
-    queryKey: ['bookings', userId],
+    enabled: Boolean(accessToken && canUseBookings),
+    queryKey: ["bookings", userId],
     queryFn: () => getBookings(accessToken),
+    refetchInterval: 5000,
     retry: 1,
   });
 
@@ -64,10 +100,10 @@ function RealBookingsListScreen() {
     return (
       <Screen>
         <EmptyState
-          actionLabel={t('common.signIn')}
-          message={t('book.authenticatedList.body')}
-          onAction={() => router.push('/login')}
-          title={t('book.authenticatedList.title')}
+          actionLabel={t("common.signIn")}
+          message={t("book.authenticatedList.body")}
+          onAction={() => router.push("/login")}
+          title={t("book.authenticatedList.title")}
         />
       </Screen>
     );
@@ -76,7 +112,36 @@ function RealBookingsListScreen() {
   if (bookingsQuery.isLoading) {
     return (
       <Screen>
-        <LoadingState label={t('book.list.loading')} />
+        <LoadingState label={t("book.list.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label={t("profile.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState
+          actionLabel={t("common.retry")}
+          message={t("profile.error")}
+          onRetry={() => meQuery.refetch()}
+          title={t("common.error")}
+        />
+      </Screen>
+    );
+  }
+
+  if (!canUseBookings) {
+    return (
+      <Screen>
+        <TutorProfileRequiredState message={t("book.profileRequired.body")} />
       </Screen>
     );
   }
@@ -85,10 +150,10 @@ function RealBookingsListScreen() {
     return (
       <Screen>
         <ErrorState
-          actionLabel={t('common.retry')}
-          message={t('book.listUnavailable.body')}
+          actionLabel={t("common.retry")}
+          message={t("book.listUnavailable.body")}
           onRetry={() => bookingsQuery.refetch()}
-          title={t('book.listUnavailable.title')}
+          title={t("book.listUnavailable.title")}
         />
       </Screen>
     );
@@ -100,27 +165,31 @@ function RealBookingsListScreen() {
     <Screen variant="top">
       <View style={styles.listHeader}>
         <View style={styles.listTitleBlock}>
-          <Text style={styles.title}>{t('book.list.title')}</Text>
-          <Text style={styles.listSubtitle}>{t('book.list.subtitle')}</Text>
+          <Text style={styles.title}>{t("book.list.title")}</Text>
+          <Text style={styles.listSubtitle}>{t("book.list.subtitle")}</Text>
         </View>
         <Button
-          label={t('book.findProvider')}
-          onPress={() => router.push('/home')}
+          label={t("book.findProvider")}
+          onPress={() => router.push("/home")}
           variant="secondary"
         />
       </View>
 
       {bookings.length === 0 ? (
         <EmptyState
-          actionLabel={t('book.empty.action')}
-          message={t('book.empty.body')}
-          onAction={() => router.push('/home')}
-          title={t('book.empty.title')}
+          actionLabel={t("book.empty.action")}
+          message={t("book.empty.body")}
+          onAction={() => router.push("/home")}
+          title={t("book.empty.title")}
         />
       ) : (
         <View style={styles.bookingList}>
           {bookings.map((booking) => (
-            <BookingListCard booking={booking} key={booking.id} />
+            <BookingListCard
+              booking={booking}
+              key={booking.id}
+              viewerIsProvider={viewerIsProvider}
+            />
           ))}
         </View>
       )}
@@ -130,6 +199,7 @@ function RealBookingsListScreen() {
 
 function RealBookScreen({ providerId }: { providerId: string }) {
   const { accessToken, session } = useAuth();
+  const meQuery = useMeQuery();
   const dates = useMemo(() => buildUpcomingDates(10), []);
   const [selectedDate, setSelectedDate] = useState(dates[0]!.id);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -138,22 +208,24 @@ function RealBookScreen({ providerId }: { providerId: string }) {
     useState<BookingResponse | null>(null);
 
   const userId = session?.user.id;
+  const canUseMarketplace = hasTutorProfile(meQuery.data);
   const providerQuery = useQuery({
-    enabled: Boolean(accessToken),
-    queryKey: ['provider', userId, providerId],
+    enabled: Boolean(accessToken && canUseMarketplace),
+    queryKey: ["provider", userId, providerId],
     queryFn: () => getProvider(accessToken, providerId),
     retry: 1,
   });
   const petsQuery = useQuery({
-    enabled: Boolean(accessToken),
-    queryKey: ['pets', userId],
+    enabled: Boolean(accessToken && canUseMarketplace),
+    queryKey: ["pets", userId],
     queryFn: () => getPets(accessToken),
     retry: 1,
   });
   const availabilityQuery = useQuery({
-    enabled: Boolean(accessToken),
-    queryKey: ['providerAvailability', userId, providerId, selectedDate],
-    queryFn: () => getProviderAvailability(accessToken, providerId, selectedDate),
+    enabled: Boolean(accessToken && canUseMarketplace),
+    queryKey: ["providerAvailability", userId, providerId, selectedDate],
+    queryFn: () =>
+      getProviderAvailability(accessToken, providerId, selectedDate),
     retry: 1,
   });
 
@@ -164,13 +236,18 @@ function RealBookScreen({ providerId }: { providerId: string }) {
   const selectedSlot = availabilityQuery.data?.find(
     (slot) => slot.id === selectedTime,
   );
-  const selectedTimeForBooking = selectedSlot?.isAvailable ? selectedTime : null;
+  const selectedTimeForBooking = selectedSlot?.isAvailable
+    ? selectedTime
+    : null;
   const timeLabel = selectedSlot?.label ?? selectedTime;
 
   const bookingMutation = useMutation({
     mutationFn: () => {
       if (!selectedTimeForBooking || !selectedPet || !providerQuery.data) {
-        throw new Error('BOOKING_INPUT_MISSING');
+        throw new Error("BOOKING_INPUT_MISSING");
+      }
+      if (!providerQuery.data.isAvailable) {
+        throw new Error("PROVIDER_UNAVAILABLE");
       }
 
       return createBooking(accessToken, {
@@ -190,10 +267,10 @@ function RealBookScreen({ providerId }: { providerId: string }) {
     return (
       <Screen>
         <EmptyState
-          actionLabel={t('common.signIn')}
-          message={t('book.authenticatedBooking.body')}
-          onAction={() => router.push('/login')}
-          title={t('book.authenticatedBooking.title')}
+          actionLabel={t("common.signIn")}
+          message={t("book.authenticatedBooking.body")}
+          onAction={() => router.push("/login")}
+          title={t("book.authenticatedBooking.title")}
         />
       </Screen>
     );
@@ -202,7 +279,36 @@ function RealBookScreen({ providerId }: { providerId: string }) {
   if (providerQuery.isLoading || petsQuery.isLoading) {
     return (
       <Screen>
-        <LoadingState label={t('book.loading')} />
+        <LoadingState label={t("book.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label={t("profile.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState
+          actionLabel={t("common.retry")}
+          message={t("profile.error")}
+          onRetry={() => meQuery.refetch()}
+          title={t("common.error")}
+        />
+      </Screen>
+    );
+  }
+
+  if (!canUseMarketplace) {
+    return (
+      <Screen>
+        <TutorProfileRequiredState message={t("book.profileRequired.body")} />
       </Screen>
     );
   }
@@ -211,10 +317,10 @@ function RealBookScreen({ providerId }: { providerId: string }) {
     return (
       <Screen>
         <ErrorState
-          actionLabel={t('common.retry')}
-          message={t('book.error.provider.body')}
+          actionLabel={t("common.retry")}
+          message={t("book.error.provider.body")}
           onRetry={() => providerQuery.refetch()}
-          title={t('book.error.provider.title')}
+          title={t("book.error.provider.title")}
         />
       </Screen>
     );
@@ -224,7 +330,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
     return (
       <Screen>
         <ErrorState
-          actionLabel={t('common.retry')}
+          actionLabel={t("common.retry")}
           message="The app could not load your pets right now."
           onRetry={() => petsQuery.refetch()}
           title="Pets unavailable"
@@ -237,16 +343,31 @@ function RealBookScreen({ providerId }: { providerId: string }) {
     return (
       <Screen>
         <EmptyState
-          actionLabel={t('book.noPet.action')}
-          message={t('book.noPet.body')}
-          onAction={() => router.push('/profile')}
-          title={t('book.noPet.title')}
+          actionLabel={t("book.noPet.action")}
+          message={t("book.noPet.body")}
+          onAction={() => router.push("/profile")}
+          title={t("book.noPet.title")}
         />
       </Screen>
     );
   }
 
   const provider = providerQuery.data;
+
+  if (!provider.isAvailable) {
+    return (
+      <Screen variant="top">
+        <Text style={styles.title}>{t("book.title")}</Text>
+        <ProviderSummary provider={provider} />
+        <EmptyState
+          actionLabel={t("book.findProvider")}
+          message={t("book.providerUnavailable.body")}
+          onAction={() => router.push("/search")}
+          title={t("book.providerUnavailable.title")}
+        />
+      </Screen>
+    );
+  }
 
   if (confirmedBooking) {
     return (
@@ -268,11 +389,11 @@ function RealBookScreen({ providerId }: { providerId: string }) {
 
   return (
     <Screen variant="top">
-      <Text style={styles.title}>{t('book.title')}</Text>
+      <Text style={styles.title}>{t("book.title")}</Text>
 
       <ProviderSummary provider={provider} />
 
-      <SectionHeader title={t('book.choosePet')} />
+      <SectionHeader title={t("book.choosePet")} />
       <View style={styles.petGrid}>
         {pets.map((pet) => (
           <PetChip
@@ -284,7 +405,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         ))}
       </View>
 
-      <SectionHeader title={t('book.chooseDate')} />
+      <SectionHeader title={t("book.chooseDate")} />
       <DateStrip
         dates={dates}
         onSelect={(date) => {
@@ -295,15 +416,15 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         selectedId={selectedDate}
       />
 
-      <SectionHeader title={t('book.slots.title')} />
+      <SectionHeader title={t("book.slots.title")} />
       {availabilityQuery.isLoading ? (
-        <LoadingState label={t('book.slots.loading')} />
+        <LoadingState label={t("book.slots.loading")} />
       ) : availabilityQuery.isError ? (
         <ErrorState
-          actionLabel={t('common.retry')}
-          message={t('book.error.availability.body')}
+          actionLabel={t("common.retry")}
+          message={t("book.error.availability.body")}
           onRetry={() => availabilityQuery.refetch()}
-          title={t('book.error.availability.title')}
+          title={t("book.error.availability.title")}
         />
       ) : (
         <View style={styles.timeGrid}>
@@ -323,26 +444,26 @@ function RealBookScreen({ providerId }: { providerId: string }) {
       )}
 
       <View style={styles.summary}>
-        <Text style={styles.summaryTitle}>{t('book.summary.title')}</Text>
-        <SummaryRow label={t('book.provider')} value={provider.name} />
-        <SummaryRow label={t('book.summary.pet')} value={selectedPet.name} />
-        <SummaryRow label={t('book.service')} value={provider.service} />
-        <SummaryRow label={t('book.bookingDate')} value={dateLabel} />
+        <Text style={styles.summaryTitle}>{t("book.summary.title")}</Text>
+        <SummaryRow label={t("book.provider")} value={provider.name} />
+        <SummaryRow label={t("book.summary.pet")} value={selectedPet.name} />
+        <SummaryRow label={t("book.service")} value={provider.service} />
+        <SummaryRow label={t("book.bookingDate")} value={dateLabel} />
         <SummaryRow
-          label={t('book.bookingTime')}
-          value={timeLabel ?? t('book.selectTime')}
+          label={t("book.bookingTime")}
+          value={timeLabel ?? t("book.selectTime")}
         />
         <View style={styles.divider} />
         <SummaryRow
-          label={t('book.summary.estimatedPrice')}
+          label={t("book.summary.estimatedPrice")}
           strong
           value={`${formatPriceGBP(provider.pricePerHour)} / ${t(
-            'book.summary.perHour',
+            "book.summary.perHour",
           )}`}
         />
       </View>
 
-      <Text style={styles.disclaimer}>{t('book.disclaimer')}</Text>
+      <Text style={styles.disclaimer}>{t("book.disclaimer")}</Text>
 
       {bookingMutation.isError ? (
         <Text accessibilityRole="alert" style={styles.errorText}>
@@ -351,9 +472,13 @@ function RealBookScreen({ providerId }: { providerId: string }) {
       ) : null}
 
       <Button
-        disabled={!selectedTimeForBooking || availabilityQuery.isLoading}
+        disabled={
+          !provider.isAvailable ||
+          !selectedTimeForBooking ||
+          availabilityQuery.isLoading
+        }
         isLoading={bookingMutation.isPending}
-        label={t('book.confirm')}
+        label={t("book.confirm")}
         onPress={() => bookingMutation.mutate()}
       />
     </Screen>
@@ -361,6 +486,9 @@ function RealBookScreen({ providerId }: { providerId: string }) {
 }
 
 function DemoBookScreen({ providerId }: { providerId: string }) {
+  const { accessToken } = useAuth();
+  const meQuery = useMeQuery();
+  const canUseMarketplace = hasTutorProfile(meQuery.data);
   // DEMO SEED: local IDs still use fixtures so the standalone Book tab and
   // legacy demo providers remain renderable. UUID providers use the real API.
   const provider =
@@ -375,6 +503,48 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
   const timeLabel =
     demoTimeSlots.find((slot) => slot.id === selectedTime)?.label ?? null;
 
+  if (!accessToken) {
+    return (
+      <Screen>
+        <EmptyState
+          actionLabel={t("common.signIn")}
+          message={t("book.authenticatedBooking.body")}
+          onAction={() => router.push("/login")}
+          title={t("book.authenticatedBooking.title")}
+        />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label={t("profile.loading")} />
+      </Screen>
+    );
+  }
+
+  if (meQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState
+          actionLabel={t("common.retry")}
+          message={t("profile.error")}
+          onRetry={() => meQuery.refetch()}
+          title={t("common.error")}
+        />
+      </Screen>
+    );
+  }
+
+  if (!canUseMarketplace) {
+    return (
+      <Screen>
+        <TutorProfileRequiredState message={t("book.profileRequired.body")} />
+      </Screen>
+    );
+  }
+
   if (confirmed) {
     return (
       <Screen>
@@ -382,17 +552,20 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
           <View style={styles.successIcon}>
             <Ionicons color={colors.successText} name="checkmark" size={44} />
           </View>
-          <Text style={styles.successTitle}>{t('book.demo.successTitle')}</Text>
+          <Text style={styles.successTitle}>{t("book.demo.successTitle")}</Text>
           <Text style={styles.successBody}>
-            {provider.name} received your {provider.service.toLowerCase()}{' '}
-            request for {dateLabel} at {timeLabel}.{' '}
-            {t('book.demo.successBodySuffix')}
+            {provider.name} received your {provider.service.toLowerCase()}{" "}
+            request for {dateLabel} at {timeLabel}.{" "}
+            {t("book.demo.successBodySuffix")}
           </Text>
           <View style={styles.successActions}>
-            <Button label={t('tabs.chat')} onPress={() => router.push('/chat')} />
             <Button
-              label={t('book.success.home')}
-              onPress={() => router.push('/home')}
+              label={t("tabs.chat")}
+              onPress={() => router.push("/chat")}
+            />
+            <Button
+              label={t("book.success.home")}
+              onPress={() => router.push("/home")}
               variant="secondary"
             />
           </View>
@@ -403,7 +576,7 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
 
   return (
     <Screen variant="top">
-      <Text style={styles.title}>{t('book.title')}</Text>
+      <Text style={styles.title}>{t("book.title")}</Text>
 
       <View style={styles.card}>
         <Avatar name={provider.name} size={52} uri={provider.avatarUri} />
@@ -417,14 +590,14 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
         </View>
       </View>
 
-      <SectionHeader title={t('book.chooseDate')} />
+      <SectionHeader title={t("book.chooseDate")} />
       <DateStrip
         dates={dates}
         onSelect={setSelectedDate}
         selectedId={selectedDate}
       />
 
-      <SectionHeader title={t('book.slots.title')} />
+      <SectionHeader title={t("book.slots.title")} />
       <View style={styles.timeGrid}>
         {demoTimeSlots.map((slot) => (
           <TimeChip
@@ -438,28 +611,28 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
       </View>
 
       <View style={styles.summary}>
-        <Text style={styles.summaryTitle}>{t('book.summary.title')}</Text>
-        <SummaryRow label={t('book.service')} value={provider.service} />
-        <SummaryRow label={t('book.bookingDate')} value={dateLabel} />
+        <Text style={styles.summaryTitle}>{t("book.summary.title")}</Text>
+        <SummaryRow label={t("book.service")} value={provider.service} />
+        <SummaryRow label={t("book.bookingDate")} value={dateLabel} />
         <SummaryRow
-          label={t('book.bookingTime')}
-          value={timeLabel ?? t('book.selectTime')}
+          label={t("book.bookingTime")}
+          value={timeLabel ?? t("book.selectTime")}
         />
         <View style={styles.divider} />
         <SummaryRow
-          label={t('book.summary.estimatedPrice')}
+          label={t("book.summary.estimatedPrice")}
           strong
           value={`${formatPriceBRL(provider.pricePerHour)} / ${t(
-            'book.summary.perHour',
+            "book.summary.perHour",
           )}`}
         />
       </View>
 
-      <Text style={styles.disclaimer}>{t('book.demo.disclaimer')}</Text>
+      <Text style={styles.disclaimer}>{t("book.demo.disclaimer")}</Text>
 
       <Button
         disabled={selectedTime === null}
-        label={t('book.confirm')}
+        label={t("book.confirm")}
         onPress={() => setConfirmed(true)}
       />
     </Screen>
@@ -469,11 +642,18 @@ function DemoBookScreen({ providerId }: { providerId: string }) {
 function ProviderSummary({ provider }: { provider: ProviderResponse }) {
   return (
     <View style={styles.card}>
-      <Avatar name={provider.name} size={52} uri={provider.avatarUrl ?? undefined} />
+      <Avatar
+        name={provider.name}
+        size={52}
+        uri={provider.avatarUrl ?? undefined}
+      />
       <View style={styles.providerBody}>
         <Text style={styles.providerName}>{provider.name}</Text>
         <Text style={styles.providerService}>{provider.service}</Text>
-        <RatingStars rating={provider.rating} reviewCount={provider.reviewCount} />
+        <RatingStars
+          rating={provider.rating}
+          reviewCount={provider.reviewCount}
+        />
       </View>
     </View>
   );
@@ -531,16 +711,19 @@ function RealBookingSuccess({
         <View style={styles.successIcon}>
           <Ionicons color={colors.successText} name="checkmark" size={44} />
         </View>
-        <Text style={styles.successTitle}>{t('book.success.title')}</Text>
+        <Text style={styles.successTitle}>{t("book.success.title")}</Text>
         <Text style={styles.successBody}>
-          {provider.name} {t('book.success.bodyPrefix')} {pet.name} on{' '}
-          {dateLabel} at {timeLabel}. {t('book.success.status')}{' '}
+          {provider.name} {t("book.success.bodyPrefix")} {pet.name} on{" "}
+          {dateLabel} at {timeLabel}. {t("book.success.status")}{" "}
           {formatBookingStatus(booking.status)}.
         </Text>
         <View style={styles.successActions}>
-          <Button label={t('book.success.home')} onPress={() => router.push('/home')} />
           <Button
-            label={t('book.success.newBooking')}
+            label={t("book.success.home")}
+            onPress={() => router.push("/home")}
+          />
+          <Button
+            label={t("book.success.newBooking")}
             onPress={onNewBooking}
             variant="secondary"
           />
@@ -550,7 +733,36 @@ function RealBookingSuccess({
   );
 }
 
-function BookingListCard({ booking }: { booking: BookingResponse }) {
+function BookingListCard({
+  booking,
+  viewerIsProvider,
+}: {
+  booking: BookingResponse;
+  viewerIsProvider: boolean;
+}) {
+  const { accessToken, session } = useAuth();
+  const queryClient = useQueryClient();
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const bookingsQueryKey = useMemo(
+    () => ["bookings", session?.user.id],
+    [session?.user.id],
+  );
+  const statusMutation = useMutation({
+    mutationFn: (status: BookingResponse["status"]) =>
+      updateBooking(accessToken, booking.id, { status }),
+    onError: () => {
+      setStatusMessage("The booking status could not be updated.");
+    },
+    onSuccess: async () => {
+      setStatusMessage("Booking updated.");
+      await queryClient.invalidateQueries({ queryKey: bookingsQueryKey });
+    },
+  });
+  const canConfirm = viewerIsProvider && booking.status === "requested";
+  const canComplete = viewerIsProvider && booking.status === "confirmed";
+  const canCancel =
+    booking.status === "requested" || booking.status === "confirmed";
+
   return (
     <View style={styles.bookingCard}>
       <View style={styles.bookingTopRow}>
@@ -565,13 +777,13 @@ function BookingListCard({ booking }: { booking: BookingResponse }) {
         <View
           style={[
             styles.bookingStatusPill,
-            booking.status === 'cancelled' ? styles.bookingStatusMuted : null,
+            booking.status === "cancelled" ? styles.bookingStatusMuted : null,
           ]}
         >
           <Text
             style={[
               styles.bookingStatusText,
-              booking.status === 'cancelled'
+              booking.status === "cancelled"
                 ? styles.bookingStatusTextMuted
                 : null,
             ]}
@@ -582,12 +794,58 @@ function BookingListCard({ booking }: { booking: BookingResponse }) {
       </View>
 
       <View style={styles.bookingDetails}>
-        <SummaryRow label="Provider ID" value={formatIdPrefix(booking.providerId)} />
+        <SummaryRow
+          label="Provider ID"
+          value={formatIdPrefix(booking.providerId)}
+        />
         <SummaryRow label="Pet ID" value={formatIdPrefix(booking.petId)} />
-        <SummaryRow label={t('book.bookingDate')} value={booking.date} />
-        <SummaryRow label={t('book.bookingTime')} value={booking.timeSlotId} />
+        <SummaryRow label={t("book.bookingDate")} value={booking.date} />
+        <SummaryRow label={t("book.bookingTime")} value={booking.timeSlotId} />
         <SummaryRow label="Status" value={booking.status} />
       </View>
+
+      {statusMessage ? (
+        <Text style={styles.noticeText}>{statusMessage}</Text>
+      ) : null}
+
+      {canConfirm || canComplete || canCancel ? (
+        <View style={styles.bookingActions}>
+          {canConfirm ? (
+            <Button
+              disabled={statusMutation.isPending}
+              isLoading={
+                statusMutation.isPending &&
+                statusMutation.variables === "confirmed"
+              }
+              label="Confirm care"
+              onPress={() => statusMutation.mutate("confirmed")}
+            />
+          ) : null}
+          {canComplete ? (
+            <Button
+              disabled={statusMutation.isPending}
+              isLoading={
+                statusMutation.isPending &&
+                statusMutation.variables === "completed"
+              }
+              label="Complete care"
+              onPress={() => statusMutation.mutate("completed")}
+            />
+          ) : null}
+          {canCancel ? (
+            <Button
+              disabled={statusMutation.isPending}
+              isLoading={
+                statusMutation.isPending &&
+                statusMutation.variables === "cancelled"
+              }
+              label="Cancel request"
+              onPress={() => statusMutation.mutate("cancelled")}
+              variant="secondary"
+            />
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -604,7 +862,9 @@ function SummaryRow({
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, strong ? styles.summaryValueStrong : null]}>
+      <Text
+        style={[styles.summaryValue, strong ? styles.summaryValueStrong : null]}
+      >
         {value}
       </Text>
     </View>
@@ -617,45 +877,48 @@ function useDateLabel(
 ): string {
   return useMemo(() => {
     const found = dates.find((date) => date.id === selectedDate);
-    return found ? `${found.weekday}, ${found.day}` : '—';
+    return found ? `${found.weekday}, ${found.day}` : "—";
   }, [dates, selectedDate]);
 }
 
 function getBookingErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message === 'BOOKING_INPUT_MISSING') {
-    return t('book.error.inputMissing');
+  if (error instanceof Error && error.message === "BOOKING_INPUT_MISSING") {
+    return t("book.error.inputMissing");
+  }
+  if (error instanceof Error && error.message === "PROVIDER_UNAVAILABLE") {
+    return t("book.error.providerUnavailable");
   }
 
   if (error instanceof ApiClientError) {
-    if (error.status === 409 || error.code === 'CONFLICT') {
-      return t('book.error.slotUnavailable');
+    if (error.status === 409 || error.code === "CONFLICT") {
+      return t("book.error.slotUnavailable");
     }
     if (error.status === 404) {
-      return t('book.error.notFound');
+      return t("book.error.notFound");
     }
     if (error.status === 400) {
-      return t('book.error.validation');
+      return t("book.error.validation");
     }
   }
 
-  return t('book.error.create');
+  return t("book.error.create");
 }
 
-function formatPetSpecies(species: PetResponse['species']): string {
-  if (species === 'dog') return t('book.petSpecies.dog');
-  if (species === 'cat') return t('book.petSpecies.cat');
-  return t('book.petSpecies.other');
+function formatPetSpecies(species: PetResponse["species"]): string {
+  if (species === "dog") return t("book.petSpecies.dog");
+  if (species === "cat") return t("book.petSpecies.cat");
+  return t("book.petSpecies.other");
 }
 
-function formatBookingStatus(status: BookingResponse['status']): string {
-  if (status === 'requested') return t('book.status.requested');
-  if (status === 'confirmed') return t('book.status.confirmed');
-  if (status === 'cancelled') return t('book.status.cancelled');
-  return t('book.status.completed');
+function formatBookingStatus(status: BookingResponse["status"]): string {
+  if (status === "requested") return t("book.status.requested");
+  if (status === "confirmed") return t("book.status.confirmed");
+  if (status === "cancelled") return t("book.status.cancelled");
+  return t("book.status.completed");
 }
 
 function formatBookingDate(date: string): string {
-  const [year, month, day] = date.split('-');
+  const [year, month, day] = date.split("-");
   if (!year || !month || !day) return date;
   return `${day}/${month}/${year}`;
 }
@@ -668,7 +931,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   listHeader: {
     gap: spacing[3],
@@ -694,10 +957,10 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   bookingTopRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
+    alignItems: "flex-start",
+    flexDirection: "row",
     gap: spacing[3],
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   bookingTitleBlock: {
     flex: 1,
@@ -706,13 +969,13 @@ const styles = StyleSheet.create({
   bookingService: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
     lineHeight: 26,
   },
   bookingWhen: {
     color: colors.muted,
     fontSize: typography.small,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   bookingStatusPill: {
     backgroundColor: colors.accentSoft,
@@ -726,7 +989,7 @@ const styles = StyleSheet.create({
   bookingStatusText: {
     color: colors.accent,
     fontSize: typography.caption,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   bookingStatusTextMuted: {
     color: colors.muted,
@@ -734,13 +997,16 @@ const styles = StyleSheet.create({
   bookingDetails: {
     gap: spacing[3],
   },
+  bookingActions: {
+    gap: spacing[3],
+  },
   card: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.lg,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
     padding: spacing[4],
     ...shadow.sm,
@@ -752,15 +1018,15 @@ const styles = StyleSheet.create({
   providerName: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   providerService: {
     color: colors.muted,
     fontSize: typography.small,
   },
   petGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing[2],
   },
   petChip: {
@@ -780,12 +1046,12 @@ const styles = StyleSheet.create({
   petName: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   petMeta: {
     color: colors.muted,
     fontSize: typography.caption,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   petTextSelected: {
     color: colors.onAccent,
@@ -794,8 +1060,8 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   timeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing[2],
   },
   summary: {
@@ -809,12 +1075,12 @@ const styles = StyleSheet.create({
   summaryTitle: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   summaryRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   summaryLabel: {
     color: colors.muted,
@@ -824,12 +1090,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
     fontSize: typography.body,
-    fontWeight: '600',
-    textAlign: 'right',
+    fontWeight: "600",
+    textAlign: "right",
   },
   summaryValueStrong: {
     color: colors.accent,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   divider: {
     backgroundColor: colors.border,
@@ -843,35 +1109,41 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  noticeText: {
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "700",
     lineHeight: 20,
   },
   successWrap: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[3],
     paddingVertical: spacing[6],
   },
   successIcon: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.successSurface,
     borderRadius: radius.pill,
     height: 88,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 88,
   },
   successTitle: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   successBody: {
     color: colors.muted,
     fontSize: typography.body,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   successActions: {
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
     gap: spacing[3],
     marginTop: spacing[2],
   },

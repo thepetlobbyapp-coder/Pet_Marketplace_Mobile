@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   BOOKING_STATUSES,
   type BookingRecord,
@@ -49,6 +49,24 @@ export class BookingResponseDto {
       status: record.status,
       createdAt: record.created_at,
       updatedAt: record.updated_at,
+    };
+  }
+}
+
+export class BookingListResponseDto {
+  @ApiProperty({ type: [BookingResponseDto] })
+  items!: BookingResponseDto[];
+
+  @ApiPropertyOptional({ nullable: true })
+  nextCursor!: string | null;
+
+  static fromRecords(
+    records: BookingRecord[],
+    nextCursor: string | null,
+  ): BookingListResponseDto {
+    return {
+      items: records.map((record) => BookingResponseDto.fromRecord(record)),
+      nextCursor,
     };
   }
 }

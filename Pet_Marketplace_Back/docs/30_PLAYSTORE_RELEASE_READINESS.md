@@ -95,9 +95,11 @@ Referências operacionais:
 - [x] `android.permissions` = `[]`.
 - [x] `adaptiveIcon.backgroundColor` alinhado ao fundo (`#FAFAFC`).
 
-Decisão Checkpoint 089:
-- [x] `expo-image-picker` removido/deferido de `app.json`, `package.json` e
-  lockfile; Profile renderiza avatar read-only e não oferece camera/galeria.
+Decisão atual:
+- [x] `expo-image-picker`/`AvatarUploader` reintroduzidos no Mobile para foto de
+  perfil.
+- [ ] Conferir Data Safety/Privacy e manifesto nativo do AAB exato antes de
+  Play Console, pois camera/galeria voltam a fazer parte da superficie.
 - [ ] Conferir o manifesto nativo gerado no build EAS exato: plugins/bibliotecas
   ainda podem adicionar permissões mesmo com `android.permissions = []`.
 
@@ -214,13 +216,13 @@ Regras de copy e screenshots:
 Base verificada em 2026-05-25:
 - Mobile usa Supabase Auth, SecureStore e API própria.
 - `android.permissions` está vazio; não há permissão nativa de localização,
-  câmera, contatos, microfone, arquivos ou notificações.
+  contatos, microfone, arquivos ou notificações.
 - `package.json` Mobile não contém SDK de analytics, crash reporting,
   ads, pagamentos ou mapas/localização.
-- Checkpoint 089 removeu/deferiu `expo-image-picker` e a flag pública de
-  avatar upload do Mobile Play-ready. Avatar existente pode ser exibido a
-  partir de `avatarUrl` retornado pela API, mas camera/galeria/upload não são
-  fluxo do build atual.
+- Avatar upload foi reintroduzido no Mobile via
+  `expo-image-picker`/`AvatarUploader`; foto de perfil e opcional, fornecida
+  pelo usuario, e deve ser refletida em Data Safety/Privacy quando estiver no
+  build submetido.
 - Backend atual expõe perfis, pets, endereços, providers/search, bookings,
   conversations/messages, reports/block/admin reports, solicitação de exclusão
   e páginas legais.
@@ -245,6 +247,7 @@ Preenchimento preliminar para Play Console, condicionado ao build real:
 | Senha/token de sessão | Sim, via Auth | Autenticação | Senha não deve ser armazenada em texto puro pelo app; tokens não entram em docs/logs |
 | ID de usuário/Auth ID | Sim | Conta, autorização, auditoria e segurança | Não expor a outros usuários |
 | Perfil tutor/provider, role, status, locale | Sim quando usado | Conta e marketplace | Provider onboarding ainda não deve ser prometido como fluxo completo |
+| Foto de perfil/camera/galeria | Sim quando o usuario usar o AvatarUploader | Personalizacao de perfil | Opcional; backend armazena no bucket `avatars` e entrega URL assinada |
 | Pets | Sim | Funcionalidade do app e booking | Minimizar notas sensíveis |
 | Endereço, postcode, área pública e coordenadas informadas | Sim | Proximidade, busca, booking e endereço padrão | Declarar endereço/localização; se a resolução final for menor que 3 km, revisar se entra como localização precisa no Data Safety |
 | Providers/search e distância aproximada | Sim | Descoberta de prestadores | Não expor endereço completo, telefone ou coordenadas exatas |
@@ -268,9 +271,10 @@ Declarações seguras:
 
 ## 7. Permissões
 
-- O app não declara permissões sensíveis (`android.permissions: []`).
-- Sem câmera, localização nativa, notificações, contatos, microfone ou arquivos.
-- Sem `expo-image-picker` no build Play-ready após o Checkpoint 089.
+- `android.permissions` permanece `[]`, mas `expo-image-picker` voltou ao app e
+  o manifesto nativo gerado precisa ser conferido no AAB exato.
+- Sem localização nativa, notificações, contatos, microfone ou arquivos fora do
+  fluxo opcional de foto de perfil.
 - Se localização do dispositivo, upload, push, mídia, contatos ou qualquer SDK
   de coleta for adicionado, atualizar app disclosure, Data Safety, privacy e
   testes antes de qualquer submissão.

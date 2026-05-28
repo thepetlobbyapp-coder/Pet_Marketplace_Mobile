@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, radius } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import { colors, radius } from "../design/tokens";
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 interface IconButtonProps {
   // Accessible label is required: an icon-only control needs a text name.
@@ -11,7 +11,7 @@ interface IconButtonProps {
   icon: IconName;
   onPress?: () => void;
   // 'soft' = light purple chip; 'plain' = transparent; 'accent' = filled.
-  variant?: 'soft' | 'plain' | 'accent';
+  variant?: "soft" | "plain" | "accent";
   size?: number;
   // Optional small dot to flag unread/pending state.
   showDot?: boolean;
@@ -21,11 +21,11 @@ export function IconButton({
   accessibilityLabel,
   icon,
   onPress,
-  variant = 'soft',
+  variant = "soft",
   size = 22,
   showDot = false,
 }: IconButtonProps) {
-  const iconColor = variant === 'accent' ? colors.onAccent : colors.text;
+  const iconColor = variant === "accent" ? colors.onAccent : colors.text;
 
   return (
     <Pressable
@@ -35,8 +35,8 @@ export function IconButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
-        variant === 'soft' ? styles.soft : null,
-        variant === 'accent' ? styles.accent : null,
+        variant === "soft" ? styles.soft : null,
+        variant === "accent" ? styles.accent : null,
         pressed ? styles.pressed : null,
       ]}
     >
@@ -48,10 +48,10 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   base: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: radius.md,
     height: 44,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 44,
   },
   soft: {
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 2,
     height: 12,
-    position: 'absolute',
+    position: "absolute",
     right: 8,
     top: 8,
     width: 12,

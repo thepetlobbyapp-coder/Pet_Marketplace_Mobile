@@ -45,10 +45,10 @@ Observed from `Pet_Marketplace_Mobile/app.json` and package metadata:
 | EAS production build type | `app-bundle` |
 
 Important caveat:
-- `expo-image-picker` exists in the Mobile dependency/config surface and
-  `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD` exists as an env flag. Do not use avatar
-  upload, camera or photo-library screenshots in this package until permission,
-  Data Safety and submitted-build behaviour are reviewed again.
+- The current Mobile surface includes optional avatar changes through camera or
+  photo library. Do not use avatar upload screenshots or listing claims unless
+  permission copy, Data Safety and submitted-build behaviour are reviewed
+  against the exact AAB.
 
 ---
 

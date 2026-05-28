@@ -20,7 +20,7 @@ private message text.
 | Target | Verdict | Reason |
 |---|---|---|
 | Future Play-ready EAS build | NO-GO | No local 1024x1024 Play-ready icon/splash PNG exists. |
-| Avatar/camera/gallery posture | GO | `expo-image-picker` was removed/deferred from the Mobile native surface. |
+| Avatar/camera/gallery posture | SUPERSEDED | Avatar upload was reintroduced in Mobile with `expo-image-picker`/`AvatarUploader`; review Data Safety, privacy copy and the exact generated manifest before Play submission. |
 | Android permissions posture | GO COM RESSALVAS | `android.permissions` remains `[]`; exact native manifest must still be checked after a future signed build. |
 | Play Console / submit / internal track | NO-GO | Out of scope and still blocked by human/legal Checkpoint 084 plus exact-build smoke. |
 
@@ -55,19 +55,20 @@ before any Play-ready EAS build is authorized.
 
 ## 3. Avatar and Permissions Decision
 
-Decision: **keep avatar upload out of the Play-ready build and remove/defer
-native image picking**.
+Decision: **current Mobile build includes optional avatar upload again**. Keep
+the feature, but treat Play submission as gated by Data Safety/Privacy review
+and exact generated-manifest inspection.
 
 Changes:
 
-- Removed the `expo-image-picker` config plugin from
+- Reintroduced the `expo-image-picker` config plugin in
   `Pet_Marketplace_Mobile/app.json`.
-- Removed `expo-image-picker` from `Pet_Marketplace_Mobile/package.json` and
-  `Pet_Marketplace_Mobile/pnpm-lock.yaml`.
-- Confirmed no public avatar-upload flag remains in `.env.example`,
-  `src/lib/env.ts` or `src/types/env.d.ts`.
-- Updated Profile to render read-only avatars only; no camera/gallery picker
-  path is reachable in the Play-ready UI.
+- Reintroduced `expo-image-picker` and `expo-file-system` in
+  `Pet_Marketplace_Mobile/package.json` and `Pet_Marketplace_Mobile/pnpm-lock.yaml`.
+- Kept `microphonePermission: false`; `expo config --type public` confirms
+  `android.permissions: []`.
+- Updated Profile to render `AvatarUploader`, with camera/gallery picker,
+  upload and delete using the existing `/me/avatar` API.
 - Kept `expo-image`, because it is used only to display existing avatar URLs
   returned by the API and does not create the camera/gallery permission posture.
 
@@ -86,7 +87,7 @@ manifest and screenshot/claim review.
 | `cd Pet_Marketplace_Mobile; pnpm lint` | 0 | ESLint passed. |
 | `git diff --check` | 0 | Passed; existing LF/CRLF normalization warnings only. |
 | Local asset dimension scan | 0 | No 1024x1024 Play-ready PNG found. |
-| Permission/package scan | 0 | No `expo-image-picker`, `ImagePicker` or avatar-upload flag remains in Mobile app/config/package surface. |
+| Permission/package scan | 0 | `expo-image-picker`/`AvatarUploader` present; `microphonePermission: false` keeps `android.permissions: []` in public Expo config. |
 
 ---
 
@@ -171,11 +172,13 @@ are not icon/splash assets and must not be reused for this purpose.
 
 ### Avatar and permissions confirmation
 
-The Checkpoint 089 posture remains valid:
+The Checkpoint 089 posture is superseded by the current Mobile implementation:
 
-- `expo-image-picker` is absent from the Mobile app/config/package surface.
-- `android.permissions` remains `[]`.
-- Avatar upload, camera and gallery remain outside the Play-ready build scope.
+- `expo-image-picker` is present in the Mobile app/config/package surface.
+- `android.permissions` remains `[]`, but the generated native manifest must be
+  checked on the exact AAB.
+- Avatar upload, camera and gallery are now part of the optional profile picture
+  flow and must be reflected in Data Safety/Privacy before Play submission.
 
 ### Checkpoint 090 result
 
@@ -192,7 +195,7 @@ the next EAS step.
 | `cd Pet_Marketplace_Mobile; pnpm lint` | 0 | ESLint passed. |
 | Canonical asset dimension check | 2 | Expected NO-GO: `docs/assets/pet-lobby-paw-marker-logo.png` is `288x288`, not `1024x1024`. |
 | Local PNG scan | 0 | No `1024x1024` PNG candidate found. |
-| Picker/avatar flag scan | 0 | No `expo-image-picker`, `ImagePicker` or avatar-upload flag remains in the Mobile surface checked. |
+| Picker/avatar flag scan | 0 | `expo-image-picker`/`AvatarUploader` present; no public avatar-upload env flag is required for visibility. |
 | `git diff --check` | 0 | Passed; existing LF/CRLF normalization warnings only. |
 | Docs hash sync check | 0 | Root docs and Back/Mobile/Admin copies match for the updated C090 docs. |
 
@@ -241,9 +244,9 @@ The canonical asset and all Back/Mobile/Admin copies now carry the same hash.
   `expo.splash.image` and `expo.android.adaptiveIcon.foregroundImage` to
   `./docs/assets/pet-lobby-paw-marker-logo.png`.
 - `android.permissions` remains `[]`.
-- `expo-image-picker`, `ImagePicker`, `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD`,
-  `enableAvatarUpload`, `photosPermission` and `cameraPermission` are absent
-  from the checked Mobile app/config/package surface.
+- `expo-image-picker`, `ImagePicker`, `photosPermission` and `cameraPermission`
+  are present for optional profile photo upload; `microphonePermission: false`
+  blocks accidental microphone permission.
 
 ### Checkpoint 091 command results
 
@@ -287,9 +290,9 @@ Verdict: **GO for local preflight only / NO-GO for remote actions**.
 - The final asset remains PNG real `1024x1024`, RGB 8-bit, with identical hash
   across root/Back/Mobile/Admin.
 - `android.permissions` remains `[]`.
-- `expo-image-picker`, `ImagePicker`, `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD`,
-  `enableAvatarUpload`, `photosPermission` and `cameraPermission` were not
-  found in the checked Mobile app/config/package surface.
+- `expo-image-picker`, `ImagePicker`, `photosPermission` and `cameraPermission`
+  are present for optional profile photo upload; `microphonePermission: false`
+  blocks accidental microphone permission.
 
 ### Checkpoint 092 command results
 

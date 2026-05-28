@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Pressable, StyleSheet, Text } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
 interface FilterPillProps {
   label: string;
@@ -7,7 +7,11 @@ interface FilterPillProps {
   onPress?: () => void;
 }
 
-export function FilterPill({ label, selected = false, onPress }: FilterPillProps) {
+export function FilterPill({
+  label,
+  selected = false,
+  onPress,
+}: FilterPillProps) {
   return (
     <Pressable
       accessibilityLabel={label}
@@ -46,7 +50,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   labelSelected: {
     color: colors.onAccent,

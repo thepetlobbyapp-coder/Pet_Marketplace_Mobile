@@ -15,7 +15,7 @@
  * errors must use generic copy and never echo the postcode back into logs.
  */
 
-const POSTCODES_BASE_URL = 'https://api.postcodes.io';
+const POSTCODES_BASE_URL = "https://api.postcodes.io";
 const LOOKUP_TIMEOUT_MS = 8_000;
 
 /**
@@ -29,11 +29,11 @@ const LOOKUP_TIMEOUT_MS = 8_000;
 const POSTCODE_REGEX = /^([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})$/i;
 
 export type PostcodeLookupErrorCode =
-  | 'INVALID_FORMAT'
-  | 'NOT_FOUND'
-  | 'NETWORK'
-  | 'TIMEOUT'
-  | 'SERVER';
+  | "INVALID_FORMAT"
+  | "NOT_FOUND"
+  | "NETWORK"
+  | "TIMEOUT"
+  | "SERVER";
 
 export class PostcodeLookupError extends Error {
   constructor(
@@ -41,7 +41,7 @@ export class PostcodeLookupError extends Error {
     message?: string,
   ) {
     super(message ?? code);
-    this.name = 'PostcodeLookupError';
+    this.name = "PostcodeLookupError";
   }
 }
 
@@ -117,7 +117,7 @@ export async function lookupPostcode(
 ): Promise<PostcodeLookupResult> {
   const canonical = normalisePostcode(rawPostcode);
   if (!canonical) {
-    throw new PostcodeLookupError('INVALID_FORMAT');
+    throw new PostcodeLookupError("INVALID_FORMAT");
   }
 
   const controller = new AbortController();
@@ -130,16 +130,16 @@ export async function lookupPostcode(
     response = await fetch(
       `${POSTCODES_BASE_URL}/postcodes/${encodeURIComponent(canonical)}`,
       {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: "application/json" },
         signal: controller.signal,
       },
     );
   } catch (error) {
     clearTimeout(timeout);
     if (isAbortError(error)) {
-      throw new PostcodeLookupError('TIMEOUT');
+      throw new PostcodeLookupError("TIMEOUT");
     }
-    throw new PostcodeLookupError('NETWORK');
+    throw new PostcodeLookupError("NETWORK");
   }
   clearTimeout(timeout);
 
@@ -151,15 +151,15 @@ export async function lookupPostcode(
   }
 
   if (response.status === 404) {
-    throw new PostcodeLookupError('NOT_FOUND');
+    throw new PostcodeLookupError("NOT_FOUND");
   }
 
   if (!response.ok) {
-    throw new PostcodeLookupError('SERVER');
+    throw new PostcodeLookupError("SERVER");
   }
 
   if (!isOkPayload(body)) {
-    throw new PostcodeLookupError('SERVER');
+    throw new PostcodeLookupError("SERVER");
   }
 
   const r = body.result;
@@ -174,30 +174,30 @@ export async function lookupPostcode(
 }
 
 function isOkPayload(value: unknown): value is PostcodesIoOk {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<PostcodesIoOk> & {
     result?: Record<string, unknown>;
   };
   if (candidate.status !== 200) return false;
   const result = candidate.result;
-  if (!result || typeof result !== 'object') return false;
+  if (!result || typeof result !== "object") return false;
   return (
-    typeof result.postcode === 'string' &&
-    typeof result.latitude === 'number' &&
-    typeof result.longitude === 'number'
+    typeof result.postcode === "string" &&
+    typeof result.latitude === "number" &&
+    typeof result.longitude === "number"
   );
 }
 
 function isAbortError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+  if (!error || typeof error !== "object") return false;
   const name = (error as { name?: unknown }).name;
-  return name === 'AbortError';
+  return name === "AbortError";
 }
 
 // Re-export the error type as a runtime hint that postcodes.io is the SOURCE
 // of any user-facing field we use to populate the address form. If we ever
 // swap providers, only this file changes.
-export const POSTCODE_PROVIDER = 'postcodes.io';
+export const POSTCODE_PROVIDER = "postcodes.io";
 // Silence the unused-export linter while keeping the error body type
 // addressable for future tests / proxies without re-importing.
 export type { PostcodesIoError as _PostcodesIoError };

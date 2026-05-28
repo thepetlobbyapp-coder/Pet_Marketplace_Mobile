@@ -30,7 +30,7 @@ const adminMePayload = {
 main();
 
 function main(): void {
-  testAdminSeesAllPlannedRoutes();
+  testAdminSeesPlannedRoutesWithBackendStatus();
   testNonAdminSeesNoRoutes();
   testBlockedReasons();
   testSafeIdentityShape();
@@ -38,7 +38,7 @@ function main(): void {
   console.log("admin-shell tests passed");
 }
 
-function testAdminSeesAllPlannedRoutes(): void {
+function testAdminSeesPlannedRoutesWithBackendStatus(): void {
   const admin = parseMeResponseDto(adminMePayload);
   const authViewModel = createAdminAuthViewModel({
     status: "authenticated",
@@ -59,6 +59,17 @@ function testAdminSeesAllPlannedRoutes(): void {
   assert(
     shell.visibleRoutes.every((route) => route.requiresAdmin === true),
     "every admin route should require admin",
+  );
+  assert(
+    routeStatuses(shell.visibleRoutes).join(",") ===
+      "dashboard:enabled,users:enabled,providers:enabled,bookings:enabled,reports:enabled,reviews:disabled,auditLogs:enabled",
+    "backend-backed admin routes should be enabled",
+  );
+  assert(
+    shell.visibleRoutes
+      .filter((route) => route.status === "disabled")
+      .every((route) => !!route.disabledReason),
+    "disabled routes should include a clear reason",
   );
   assert(
     getAccessibleAdminRoutes(authViewModel).length === ADMIN_ROUTES.length,
@@ -168,6 +179,12 @@ function testSafeIdentityShape(): void {
 
 function routeIds(routes: readonly { readonly id: string }[]): readonly string[] {
   return routes.map((route) => route.id);
+}
+
+function routeStatuses(
+  routes: readonly { readonly id: string; readonly status: string }[],
+): readonly string[] {
+  return routes.map((route) => `${route.id}:${route.status}`);
 }
 
 function assert(condition: unknown, message: string): asserts condition {

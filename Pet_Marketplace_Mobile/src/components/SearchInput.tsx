@@ -1,14 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
 import {
   Pressable,
   StyleSheet,
   TextInput,
   type TextInputProps,
   View,
-} from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+} from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
-interface SearchInputProps extends Pick<TextInputProps, 'value' | 'onChangeText'> {
+interface SearchInputProps extends Pick<
+  TextInputProps,
+  "value" | "onChangeText"
+> {
   placeholder?: string;
   accessibilityLabel?: string;
   // When provided, the field renders as a non-editable button (e.g. on Home,
@@ -19,8 +22,8 @@ interface SearchInputProps extends Pick<TextInputProps, 'value' | 'onChangeText'
 export function SearchInput({
   value,
   onChangeText,
-  placeholder = 'Search services or providers',
-  accessibilityLabel = 'Search',
+  placeholder = "Search services or providers",
+  accessibilityLabel = "Search",
   onPress,
 }: SearchInputProps) {
   if (onPress) {
@@ -63,12 +66,12 @@ export function SearchInput({
 
 const styles = StyleSheet.create({
   field: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[2],
     minHeight: 48,
     paddingHorizontal: spacing[4],

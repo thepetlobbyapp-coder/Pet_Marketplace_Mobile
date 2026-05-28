@@ -33,8 +33,7 @@ export const enGB = {
   "chat.accessibility.reportConversation": "Report conversation",
   "chat.accessibility.sendMessage": "Send message",
   "chat.accessibility.writeMessage": "Write a message",
-  "chat.authenticated.body":
-    "Sign in to access real service conversations.",
+  "chat.authenticated.body": "Sign in to access real service conversations.",
   "chat.authenticated.title": "Authenticated chat",
   "chat.block.action": "Block",
   "chat.block.body":
@@ -48,8 +47,7 @@ export const enGB = {
   "chat.block.title": "Block conversation",
   "chat.composer.blockedPlaceholder": "Conversation blocked",
   "chat.composer.placeholder": "Write a message...",
-  "chat.conversations.error.auth":
-    "Sign in again to load your conversations.",
+  "chat.conversations.error.auth": "Sign in again to load your conversations.",
   "chat.conversations.error.generic":
     "The app could not load your conversations right now.",
   "chat.conversations.errorTitle": "Conversations unavailable",
@@ -61,15 +59,14 @@ export const enGB = {
     "No real messages have been sent in this conversation yet.",
   "chat.messages.empty.title": "Empty conversation",
   "chat.messages.error.auth": "Sign in again to load messages.",
-  "chat.messages.error.generic":
-    "The app could not load messages right now.",
+  "chat.messages.error.generic": "The app could not load messages right now.",
   "chat.messages.error.notFound": "This conversation is not available.",
   "chat.messages.errorTitle": "Messages unavailable",
   "chat.messages.loading": "Loading messages",
   "chat.noMessagesYet": "No messages yet",
   "chat.providerFallback": "Provider",
   "chat.profileRequired.body":
-    "Only accounts with a tutor profile can message marketplace providers from this chat.",
+    "Create a tutor or provider profile before using marketplace chat.",
   "chat.report.category.harassment": "Harassment",
   "chat.report.category.inappropriateBehaviour": "Inappropriate behaviour",
   "chat.report.category.noShow": "No-show",
@@ -92,6 +89,8 @@ export const enGB = {
     "Write a message between 1 and 2000 characters.",
   "chat.serviceFallback": "Service conversation",
   "chat.title": "Messages",
+  "chat.tutorFallback": "Pet tutor",
+  "chat.tutorServiceFallback": "Tutor conversation",
 
   "auth.config.title": "Sign in is not configured yet",
   "auth.config.body":
@@ -121,8 +120,7 @@ export const enGB = {
   "auth.signUp.errorTitle": "Account could not be created",
   "auth.signUp.genericError": "Check your details and try again.",
   "auth.signUp.password.placeholder": "At least 8 characters",
-  "auth.signUp.passwordInvalid":
-    "Your password must be at least 8 characters.",
+  "auth.signUp.passwordInvalid": "Your password must be at least 8 characters.",
   "auth.signUp.subtitle":
     "Create your account to find pet care providers in your area.",
   "auth.signUp.terms.accessibilityLabel": "I agree to the Terms and Privacy",
@@ -193,8 +191,7 @@ export const enGB = {
   "search.count.profileRequired": "Set up a tutor profile to search",
   "search.count.refreshing": "Refreshing providers...",
   "search.empty.action": "Clear filters",
-  "search.empty.body":
-    "No real providers were returned for these filters.",
+  "search.empty.body": "No real providers were returned for these filters.",
   "search.empty.title": "No providers found",
   "search.error.body":
     "The app could not load providers right now. Check your session and try again.",
@@ -237,8 +234,7 @@ export const enGB = {
   "provider.detail.status.unavailable": "No slots right now",
   "provider.detail.status.noSlots": "No slots available",
 
-  "book.authenticatedBooking.body":
-    "Sign in to create a real booking request.",
+  "book.authenticatedBooking.body": "Sign in to create a real booking request.",
   "book.authenticatedBooking.title": "Authenticated booking",
   "book.authenticatedList.body": "Sign in to view your real bookings.",
   "book.authenticatedList.title": "Authenticated bookings",
@@ -254,8 +250,7 @@ export const enGB = {
   "book.disclaimer":
     "This creates a request for the provider. No payment is processed in this app.",
   "book.empty.action": "Find a provider",
-  "book.empty.body":
-    "Your real bookings will appear here after a request.",
+  "book.empty.body": "Your real bookings will appear here after a request.",
   "book.empty.title": "No bookings yet",
   "book.error.availability.body":
     "The app could not load this provider's slots.",
@@ -333,43 +328,42 @@ export const enGB = {
   "profile.provider.stats.radius": "Service radius",
   "profile.provider.stats.noRating": "No reviews yet",
   "profile.provider.stats.km": "km",
-  "profile.avatar.changeAction": "Change profile photo",
-  "profile.avatar.actionTitle": "Profile photo",
-  "profile.avatar.actionBody": "Choose how to update your photo.",
-  "profile.avatar.takePhoto": "Take a photo",
-  "profile.avatar.chooseLibrary": "Choose from library",
-  "profile.avatar.remove": "Remove photo",
-  "profile.avatar.uploading": "Uploading photo",
-  "profile.avatar.permissionTitle": "Permission needed",
-  "profile.avatar.permissionCamera":
-    "Allow camera access in your device settings to take a profile photo.",
-  "profile.avatar.permissionLibrary":
-    "Allow photo library access in your device settings to choose a profile photo.",
-  "profile.avatar.removeConfirmTitle": "Remove profile photo?",
-  "profile.avatar.removeConfirmBody":
-    "Your profile will show your initials again.",
-  "profile.avatar.uploadError.auth": "Sign in again to update your photo.",
-  "profile.avatar.uploadError.tooLarge":
-    "Photo is too large. Choose an image up to 5 MB.",
-  "profile.avatar.uploadError.unsupportedType":
-    "Use a JPEG, PNG or WEBP image.",
-  "profile.avatar.uploadError.dimensions":
-    "Pick a photo between 256×256 and 4096×4096 pixels.",
-  "profile.avatar.uploadError.missing":
-    "The photo could not be read. Try choosing it again.",
-  "profile.avatar.uploadError.storage":
-    "Photo storage is temporarily unavailable. Try again in a moment.",
-  "profile.avatar.uploadError.network":
-    "The photo could not be uploaded. Check your connection and try again.",
-  "profile.avatar.uploadError.generic":
-    "The photo could not be updated right now. Try again.",
-  "profile.avatar.deleteError.auth": "Sign in again to remove your photo.",
-  "profile.avatar.deleteError.generic":
-    "The photo could not be removed right now. Try again.",
   "profile.noSession": "Sign in to load your backend profile.",
   "profile.loading": "Loading your profile",
   "profile.error":
     "The app could not load your profile. Your session may have expired.",
+  "profile.avatar.actionBody":
+    "Choose a photo source or remove your current profile picture.",
+  "profile.avatar.actionTitle": "Profile picture",
+  "profile.avatar.changeAction": "Change profile picture",
+  "profile.avatar.chooseLibrary": "Choose from library",
+  "profile.avatar.deleteError.auth": "Sign in again to remove your picture.",
+  "profile.avatar.deleteError.generic":
+    "The app could not remove your profile picture. Try again.",
+  "profile.avatar.permissionCamera":
+    "Allow camera access to take a new profile picture.",
+  "profile.avatar.permissionLibrary":
+    "Allow photo library access to choose a profile picture.",
+  "profile.avatar.permissionTitle": "Permission needed",
+  "profile.avatar.remove": "Remove picture",
+  "profile.avatar.removeConfirmBody":
+    "Your profile will show initials until you upload another picture.",
+  "profile.avatar.removeConfirmTitle": "Remove profile picture?",
+  "profile.avatar.takePhoto": "Take photo",
+  "profile.avatar.uploadError.auth": "Sign in again to upload your picture.",
+  "profile.avatar.uploadError.dimensions":
+    "Choose an image between 256px and 4096px wide and high.",
+  "profile.avatar.uploadError.generic":
+    "The app could not upload your profile picture. Try again.",
+  "profile.avatar.uploadError.missing": "Choose an image before uploading.",
+  "profile.avatar.uploadError.network":
+    "The upload could not finish. Check your connection and try again.",
+  "profile.avatar.uploadError.storage":
+    "Profile picture storage is temporarily unavailable.",
+  "profile.avatar.uploadError.tooLarge": "Choose an image smaller than 5 MB.",
+  "profile.avatar.uploadError.unsupportedType":
+    "Choose a JPEG, PNG or WEBP image.",
+  "profile.avatar.uploading": "Uploading profile picture",
   "profile.saveError":
     "The app could not save your profile. Check the value and try again.",
   "profile.saveSuccess": "Profile saved",
@@ -458,8 +452,7 @@ export const enGB = {
   "profile.address.lookup.placeholder": "Postcode (e.g. SW1A 1AA)",
   "profile.address.lookup.cta": "Find address",
   "profile.address.lookup.searching": "Looking up postcode…",
-  "profile.address.lookup.invalid":
-    "Enter a valid UK postcode, like SW1A 1AA.",
+  "profile.address.lookup.invalid": "Enter a valid UK postcode, like SW1A 1AA.",
   "profile.address.lookup.notFound":
     "Postcode not recognised. Check spelling or enter your area manually.",
   "profile.address.lookup.network":
@@ -479,7 +472,8 @@ export const enGB = {
   "profile.address.labelHint": "A short name like Home or Work.",
   "profile.address.privacyHint":
     "We only store your area-level location to match you with nearby providers.",
-  "profile.address.fallback.toggle": "I can't find my postcode — enter manually",
+  "profile.address.fallback.toggle":
+    "I can't find my postcode — enter manually",
   "profile.address.fallback.hide": "Use postcode lookup instead",
   "profile.address.save": "Save address",
   "profile.address.update": "Update address",

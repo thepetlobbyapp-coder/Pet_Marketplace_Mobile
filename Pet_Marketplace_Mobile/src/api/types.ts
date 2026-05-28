@@ -20,10 +20,16 @@ export interface MeResponse {
   locale?: string;
   profiles?: {
     provider?: {
+      bio: string | null;
+      categoryId: ProviderCategory | null;
       displayName: string;
       id: string;
+      isAvailable: boolean | null;
+      listingId: string | null;
+      pricePerHour: number | null;
       ratingAverage: number | null;
       ratingCount: number;
+      service: string | null;
       serviceRadiusKm: number;
       status: ProviderProfileStatus;
     };
@@ -34,24 +40,18 @@ export interface MeResponse {
   updatedAt?: string;
 }
 
-/** Local representation of an image asset selected by the picker, before
- *  it is uploaded to the API. Kept thin to avoid coupling to a native picker
- *  shape in non-component layers. */
-export interface AvatarUploadAsset {
-  /** File URI selected by the client (file:// on iOS/Android). */
-  uri: string;
-  /** Best-effort MIME type, falls back to `image/jpeg`. */
-  mimeType?: string | null;
-  /** Filename without path, falls back to `avatar.jpg`. */
-  fileName?: string | null;
+export interface UpdateMeRequest {
+  locale: string;
 }
 
 export interface AvatarResponse {
   avatarUrl: string;
 }
 
-export interface UpdateMeRequest {
-  locale: string;
+export interface AvatarUploadAsset {
+  fileName: string | null;
+  mimeType: string | null;
+  uri: string;
 }
 
 export interface TutorProfileResponse {
@@ -66,18 +66,32 @@ export interface UpsertTutorProfileRequest {
 }
 
 export interface ProviderProfileResponse {
+  bio: string | null;
+  categoryId: ProviderCategory | null;
   createdAt: string;
   displayName: string;
   id: string;
+  isAvailable: boolean | null;
+  listingId: string | null;
+  pricePerHour: number | null;
   ratingAverage: number | null;
   ratingCount: number;
+  service: string | null;
   serviceRadiusKm: number;
   status: ProviderProfileStatus;
   updatedAt: string;
 }
 
 export interface UpsertProviderProfileRequest {
+  baseAddressId?: string | null;
+  bio?: string | null;
+  categoryId?: ProviderCategory;
   displayName: string;
+  isAvailable?: boolean;
+  pricePerHour?: number;
+  publish?: boolean;
+  service?: string;
+  serviceRadiusKm?: number;
 }
 
 export type AccountDeletionRequestStatus = "pending" | "processing" | "done";
@@ -152,6 +166,16 @@ export interface ListProvidersParams {
   q?: string;
 }
 
+export interface CursorPaginationParams {
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
 export interface TimeSlotResponse {
   id: string;
   isAvailable: boolean;
@@ -184,12 +208,20 @@ export interface CreateBookingRequest {
   timeSlotId: string;
 }
 
+export interface UpdateBookingRequest {
+  status: BookingStatus;
+}
+
 export interface ConversationResponse {
+  counterpartAvatarUrl: string | null;
+  counterpartName: string | null;
+  counterpartService: string | null;
   id: string;
   lastMessage: string | null;
   lastTime: string | null;
   providerId: string;
   unread: boolean;
+  viewerIsProvider: boolean;
 }
 
 export interface MessageResponse {

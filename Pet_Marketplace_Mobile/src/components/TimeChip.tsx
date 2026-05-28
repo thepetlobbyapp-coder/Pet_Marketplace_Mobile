@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Pressable, StyleSheet, Text } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
 interface TimeChipProps {
   label: string;
@@ -43,7 +43,7 @@ export function TimeChip({
 
 const styles = StyleSheet.create({
   chip: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -66,13 +66,13 @@ const styles = StyleSheet.create({
   label: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   labelSelected: {
     color: colors.onAccent,
   },
   labelDisabled: {
     color: colors.muted,
-    textDecorationLine: 'line-through',
+    textDecorationLine: "line-through",
   },
 });

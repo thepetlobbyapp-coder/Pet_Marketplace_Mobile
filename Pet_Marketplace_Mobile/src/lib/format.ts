@@ -6,7 +6,7 @@
  */
 export function formatDistance(meters: number | null | undefined): string {
   if (meters === null || meters === undefined) {
-    return 'Distance unavailable';
+    return "Distance unavailable";
   }
 
   if (meters < 1000) {
@@ -19,7 +19,7 @@ export function formatDistance(meters: number | null | undefined): string {
 /** Brazilian Real, no cents when the value is whole. */
 export function formatPriceBRL(value: number): string {
   const hasCents = value % 1 !== 0;
-  return `R$ ${value.toFixed(hasCents ? 2 : 0).replace('.', ',')}`;
+  return `R$ ${value.toFixed(hasCents ? 2 : 0).replace(".", ",")}`;
 }
 
 /** Pound sterling, no cents when the value is whole. */

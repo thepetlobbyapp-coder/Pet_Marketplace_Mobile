@@ -183,10 +183,11 @@ Estado Checkpoints 078-079:
   Home passar a usar `/me.profiles.tutor.displayName` com sanitização.
 - Checkpoint 088 validou o preflight EAS sem build: o pacote 087 é baseline,
   mas o AAB assinado exato ainda precisa de smoke nativo antes de Play Console.
-- Checkpoint 089 resolveu a postura de avatar/permissões para o build
-  Play-ready: `expo-image-picker` foi removido/deferido do Mobile, avatar
-  upload saiu do caminho renderizado e camera/galeria continuam fora do
-  escopo. O asset 1024x1024 segue bloqueante por não existir localmente.
+- Checkpoint 089 resolveu a postura anterior de avatar/permissões, mas o Mobile
+  voltou a incluir `expo-image-picker`/`AvatarUploader` para upload de foto de
+  perfil. Antes de Play Console, revisar manifesto nativo, Data Safety e Privacy
+  contra o AAB exato submetido. O asset 1024x1024 segue bloqueante por não
+  existir localmente.
 
 Regras de segurança:
 - nenhum e-mail real completo, senha, token, JWT, header, secret, ID completo,
@@ -226,11 +227,11 @@ Categorias que não existem hoje no build/listing aprovado:
 - localização nativa via permissão Android;
 - SDK dedicado de analytics/crash/ads/pagamentos.
 
-Decisão Checkpoint 089: para o build Play-ready, avatar upload permanece fora
-do escopo. `expo-image-picker` foi removido/deferido de `app.json`,
-`package.json` e lockfile, e o Profile renderiza apenas avatar read-only
-quando a API já retorna `avatarUrl`. Não declarar camera/galeria/fotos no
-Data Safety enquanto essa superfície não for reintroduzida e revisada.
+Decisão atual: avatar upload foi reintroduzido no Mobile via
+`expo-image-picker`/`AvatarUploader`. Quando esse fluxo estiver no build
+submetido, declarar camera/galeria/fotos como coleta opcional de foto de perfil,
+confirmar permissões no manifesto gerado e revisar Data Safety/Privacy antes de
+submissão.
 
 Para cada dado, registrar:
 
