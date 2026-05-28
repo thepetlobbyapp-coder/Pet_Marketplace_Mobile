@@ -6129,10 +6129,12 @@ Rollback remoto exige nova autorizacao explicita do ambiente alvo.
 
 ### Achados Git
 
-- Ha arquivos modificados e nao rastreados em Back, Mobile, Admin, docs raiz e
-  governanca raiz.
-- A branch local possui 1 commit ainda nao enviado para o remoto.
-- Nao foi feito stage nem commit neste checkpoint antes do inventario final.
+- No momento desta auditoria, havia arquivos modificados e nao rastreados em
+  Back, Mobile, Admin, docs raiz e governanca raiz.
+- No momento desta auditoria, a branch local possuia 1 commit ainda nao enviado
+  para o remoto.
+- O fechamento Git ocorreu depois deste checkpoint e esta registrado no
+  Checkpoint 100.
 
 ### Riscos residuais
 
@@ -6143,5 +6145,68 @@ Rollback remoto exige nova autorizacao explicita do ambiente alvo.
 
 ### Proximo passo recomendado
 
-- Revisar o inventario Git final, excluir qualquer arquivo local que nao deva
-  entrar, e fazer stage/commit do conjunto validado.
+- Ver Checkpoint 100 para o estado pos-commit/push e seguir o norte operacional
+  atualizado em `STATUS.md`.
+
+---
+
+## Checkpoint 100 - Alinhamento pos-push e norte operacional
+
+- **Data:** 2026-05-28.
+- **Tipo:** Validacao documental pos-push, alinhamento de status/progresso e
+  definicao de norte operacional, sem deploy, sem EAS, sem Play Console, sem
+  migration, sem smoke remoto autenticado e sem leitura/impressao de secrets.
+- **Status:** **DOCUMENTOS ALINHADOS / BRANCH SINCRONIZADA COM ORIGIN /
+  WORKTREE LIMPO / NORTE DEFINIDO**.
+
+### Estado Git confirmado
+
+- Branch local: `codex/consolidate-checkpoints-through-094`.
+- Remoto rastreado: `origin/codex/consolidate-checkpoints-through-094`.
+- `git status --short --branch` confirmou branch sincronizada e worktree limpo
+  antes desta atualizacao documental.
+- Este checkpoint deve ser commitado e enviado como a camada final de
+  alinhamento documental pos-push.
+
+### Paridade documental
+
+- `docs/PROGRESS.md` e as copias em Back, Mobile e Admin estao sincronizadas.
+- `docs/` canonico segue como fonte de verdade, propagado para:
+  - `Pet_Marketplace_Back/docs`;
+  - `Pet_Marketplace_Mobile/docs`;
+  - `Pet_Marketplace_Admin/docs`.
+- `.codex/` canonico segue como fonte de verdade, propagado para:
+  - `Pet_Marketplace_Back/.codex`;
+  - `Pet_Marketplace_Mobile/.codex`;
+  - `Pet_Marketplace_Admin/.codex`.
+
+### Norte operacional
+
+- Fase atual: **Integracao/Hardening**, com Admin Operations P1 implementado
+  localmente e commitado, aguardando ciclo separado de deploy/smoke remoto.
+- Proxima linha correta: nao abrir feature nova antes de escolher um unico
+  recorte e passar por `@PICK -> @C10 -> @C -> @GSD -> implementacao ou deploy
+  -> @GSD -> @Q -> @V -> documentacao`.
+- Proximo recorte recomendado: **deploy controlado do Backend/Admin Operations
+  P1 ja validado localmente**, seguido de smoke remoto minimo e atualizacao de
+  `STATUS.md`/`LOG.md`/`docs/PROGRESS.md`.
+- Play Store continua fora da linha imediata ate os bloqueios de runtime config,
+  artifact smoke exato e compliance/Data Safety serem reabertos em ciclo proprio.
+
+### Regra de andamento daqui em diante
+
+- Todo ciclo deve comecar com `git status`, leitura de `PROJECT.md`,
+  `STATUS.md`, ultimas linhas de `LOG.md` e tail de `docs/PROGRESS.md`.
+- Toda mudanca em `docs/` ou `.codex/` deve acontecer primeiro na raiz e depois
+  rodar `pnpm sync:win`.
+- Toda entrega que alterar codigo deve registrar comandos reais, exit code,
+  lacunas e proximo passo no `docs/PROGRESS.md`.
+- Nenhum deploy, migration, EAS, Play Console ou acesso remoto autenticado deve
+  acontecer sem autorizacao explicita do alvo e sem `@CRED`.
+
+### Proximo passo recomendado
+
+- Abrir o ciclo `Deploy remoto controlado Admin Operations P1`: confirmar alvo,
+  selecionar time com `@PICK`, validar credenciais com `@CRED`, planejar deploy
+  com `@ENV/@O`, executar somente apos autorizacao explicita e fechar com smoke
+  remoto + documentacao.

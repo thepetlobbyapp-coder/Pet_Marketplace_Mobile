@@ -78,5 +78,15 @@ Validation/sync pass:
 - Final local gates passed: root runtime check; Backend typecheck/lint/e2e/build;
   Admin typecheck/lint/test/build; Mobile typecheck/lint/test.
 - `git diff --check` is clean.
-- Git still has uncommitted modified and untracked files, and the branch is
-  ahead of origin by 1 commit.
+- The validated consolidation was pushed to
+  `origin/codex/consolidate-checkpoints-through-094`; current documentation
+  alignment should stay committed and pushed with a clean worktree.
+
+Current north:
+
+- Phase: Integration/Hardening.
+- Stay on one explicit recorte at a time.
+- Recommended next recorte: controlled remote deploy/smoke for the already
+  validated Admin Operations P1 Backend/Admin work.
+- Do not reopen Play Store submission until runtime config, exact artifact
+  smoke and compliance/Data Safety blockers are handled in their own cycle.
