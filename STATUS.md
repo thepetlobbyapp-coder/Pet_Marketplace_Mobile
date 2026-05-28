@@ -41,8 +41,8 @@ Open blockers before Play submission:
 
 ## 2026-05-28
 
-Phase: Admin Operations P1 local implementation after explicit backend
-authorization.
+Phase: Integration/Hardening after controlled Admin Operations P1 remote
+deploy.
 
 Admin user block/reactivation was implemented locally:
 
@@ -54,6 +54,18 @@ Admin user block/reactivation was implemented locally:
 - deleted users cannot be reactivated or blocked by the admin status action;
 - audit logs are appended for admin status actions without PII fields;
 - `/me` and Mobile functional code were not changed.
+
+Admin Operations P1 was deployed remotely after explicit target authorization:
+
+- DigitalOcean app: `stingray-app`;
+- service: `pet-marketplace-back`;
+- Backend dev URL: `https://stingray-app-vyfrt.ondigitalocean.app`;
+- Backend source commit published:
+  `bd73aea feat: publish admin user operations`;
+- DigitalOcean deployment:
+  `e00f5c9b-cc4d-4247-9c9d-e6655e582492`, phase `ACTIVE`, progress `6/6`;
+- safe remote smoke after deploy confirmed health `200` and admin routes
+  protected with `401` responses without token.
 
 Validation passed locally:
 
@@ -68,6 +80,12 @@ Residual risk:
 - status update and audit append are implemented without a new RPC/migration, so
   database-level transactional atomicity remains a follow-up if explicitly
   authorized.
+- authenticated admin remote smoke was not run in this cycle because it would
+  require an approved test admin session/fixture and must avoid PII exposure.
+- Admin UI remote deploy was not executed; this cycle targeted only the Backend
+  service on DigitalOcean.
+- no migration, EAS, Play Console action or post-deploy remote write was
+  executed in this cycle.
 
 Validation/sync pass:
 
@@ -86,7 +104,8 @@ Current north:
 
 - Phase: Integration/Hardening.
 - Stay on one explicit recorte at a time.
-- Recommended next recorte: controlled remote deploy/smoke for the already
-  validated Admin Operations P1 Backend/Admin work.
+- Recommended next recorte: authenticated read-only Admin Operations smoke on a
+  synthetic/approved admin fixture, then optional controlled status action only
+  on a synthetic test user with rollback plan.
 - Do not reopen Play Store submission until runtime config, exact artifact
   smoke and compliance/Data Safety blockers are handled in their own cycle.

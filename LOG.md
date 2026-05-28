@@ -52,3 +52,25 @@
 - Recorded the operating north: Integration/Hardening, one explicit recorte at
   a time, next recommended cycle is controlled remote deploy/smoke for Admin
   Operations P1.
+- Opened the controlled remote deploy cycle for Admin Operations P1 after
+  confirming target authorization:
+  `stingray-app / pet-marketplace-back / https://stingray-app-vyfrt.ondigitalocean.app`.
+- Confirmed safe credential context without printing secrets: GitHub active
+  account `thepetlobbyapp-coder`; DigitalOcean context `petmarketplace`, account
+  active.
+- Reconciled Backend source checkout with `origin/main`, preserving remote
+  hotfix commits `26ea1d2` and `2b4c03e`, then applied only the Admin
+  Operations P1 backend recorte.
+- Validated the publish checkout with `pnpm typecheck`, `pnpm lint`, focused
+  admin e2e, `pnpm build`, full e2e and `git diff --check`.
+- Published Backend commit `bd73aea feat: publish admin user operations` to
+  `thepetlobbyapp-coder/Pet_Marketplace_Back@main`.
+- DigitalOcean deployment
+  `e00f5c9b-cc4d-4247-9c9d-e6655e582492` reached `ACTIVE` with progress `6/6`.
+- Remote safe smoke confirmed health `200` and admin routes protected with
+  `401` responses without token; no authenticated smoke, migration, EAS, Play
+  Console or post-deploy remote write was executed.
+- Updated `PROJECT.md`, `STATUS.md`, `LOG.md` and `docs/PROGRESS.md`, then ran
+  `pnpm sync:win` to propagate progress docs to Back, Mobile and Admin.
+- Rechecked root runtime and Backend `pnpm test`; e2e suite passed with 17
+  suites and 174 tests.

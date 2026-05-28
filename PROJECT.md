@@ -9,7 +9,7 @@ Mobile and Admin surfaces.
 
 - Backend dev source repo: `thepetlobbyapp-coder/Pet_Marketplace_Back`
 - Backend branch published: `main`
-- Backend commit published: `2d73cd1 feat(back): persist audit logs and make admin report status audit atomic`
+- Backend commit published: `bd73aea feat: publish admin user operations`
 - Backend dev URL: `https://stingray-app-vyfrt.ondigitalocean.app`
 - Mobile app path: `Pet_Marketplace_Mobile`
 

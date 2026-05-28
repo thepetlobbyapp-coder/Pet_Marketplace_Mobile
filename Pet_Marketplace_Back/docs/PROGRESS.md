@@ -6210,3 +6210,146 @@ Rollback remoto exige nova autorizacao explicita do ambiente alvo.
   selecionar time com `@PICK`, validar credenciais com `@CRED`, planejar deploy
   com `@ENV/@O`, executar somente apos autorizacao explicita e fechar com smoke
   remoto + documentacao.
+
+---
+
+## Checkpoint 101 - Deploy remoto Admin Operations P1
+
+- **Data:** 2026-05-28.
+- **Tipo:** Deploy remoto controlado do Backend Admin Operations P1 no
+  DigitalOcean dev, sem migration, sem EAS, sem Play Console, sem leitura ou
+  impressao de secrets, sem smoke autenticado e sem escrita remota pos-deploy.
+- **Status:** **BACKEND DEPLOYADO / DEPLOY ACTIVE / SMOKE PUBLICO E ROTAS ADMIN
+  PROTEGIDAS OK**.
+
+### Autorizacao e alvo
+
+- Autorizacao recebida literalmente:
+  `AUTORIZO DEPLOY REMOTO ADMIN OPERATIONS P1 NO ALVO stingray-app / pet-marketplace-back / https://stingray-app-vyfrt.ondigitalocean.app`.
+- DigitalOcean app: `stingray-app`.
+- Service: `pet-marketplace-back`.
+- URL: `https://stingray-app-vyfrt.ondigitalocean.app`.
+- Source repo: `thepetlobbyapp-coder/Pet_Marketplace_Back`.
+- Branch publicada: `main`.
+- Deploy on push: `true`.
+
+### Protocolo aplicado
+
+- Lidos `PROJECT.md`, `STATUS.md`, ultimas linhas de `LOG.md` e tail de
+  `docs/PROGRESS.md`.
+- `@PICK` confirmou time de deploy controlado: `@CRED`, `@ENV/@O`, `@C`,
+  `@GSD`, `@Q` e `@V`.
+- `@CRED` confirmou contexto seguro sem imprimir segredos:
+  - GitHub active account `thepetlobbyapp-coder`;
+  - DigitalOcean context `petmarketplace`;
+  - DigitalOcean account ativo.
+- `@ENV/@O` confirmou alvo, branch, app remoto, rollback conceitual e smoke
+  plan.
+- Plano passou por `@C` antes do deploy.
+- `@GSD` definiu aceite: alvo confirmado sem secrets, deploy somente apos
+  autorizacao literal, smoke minimo sem PII, docs sincronizados e worktree
+  limpo.
+
+### Estado pre-deploy
+
+- Remote health antes do deploy: `GET /api/v1/health` retornou `200`.
+- Rotas Admin Operations P1 ainda nao publicadas antes do deploy:
+  - `GET /api/v1/admin/users` retornou `404`;
+  - `PATCH /api/v1/admin/users/[redacted]/status` retornou `404`.
+- `GET /api/v1/admin/reports` ja existia e retornou `401` sem token.
+
+### Recorte publicado
+
+- Checkout de publicacao:
+  `.codex-runtime/Pet_Marketplace_Back_source_main`.
+- O checkout foi fast-forwarded para `origin/main` antes do recorte, preservando
+  hotfixes remotos:
+  - `26ea1d2 fix(back): restore provider profile and conversation posts`;
+  - `2b4c03e fix: publish profile avatar endpoints`.
+- Aplicado somente o recorte Backend Admin Operations P1 sobre esse estado:
+  - novo `AdminModule` e controller admin;
+  - DTOs admin;
+  - cursor pagination compartilhado;
+  - metodos admin em `SupabaseAdminService`;
+  - e2e de Admin Operations P1.
+
+### Validacoes locais no checkout de publicacao
+
+Runtime usado no ciclo: Node `v22.21.1`/`v22.22.3` e pnpm `10.30.3`, conforme
+ambiente local disponivel.
+
+- `pnpm install --frozen-lockfile` - exit 0; instalou dependencias ja previstas
+  no lockfile, com aviso de build scripts ignorados para pacotes de terceiros.
+- `pnpm typecheck` - exit 0.
+- `pnpm lint` - exit 0.
+- `pnpm exec jest --config jest-e2e.json test/admin.e2e-spec.ts --runInBand` -
+  exit 0, 1 suite, 9 testes.
+- `pnpm build` - exit 0.
+- `pnpm test:e2e -- --runInBand` - exit 0, 14 suites, 156 testes.
+- `git diff --check` - exit 0, apenas avisos de CRLF/autocrlf.
+
+### Deploy
+
+- Commit publicado no repo Backend:
+  `bd73aea feat: publish admin user operations`.
+- Push executado para `origin/main`.
+- DigitalOcean iniciou deploy automatico por push.
+- Deployment id:
+  `e00f5c9b-cc4d-4247-9c9d-e6655e582492`.
+- Cause: commit `bd73aea` pushed to
+  `github.com/thepetlobbyapp-coder/Pet_Marketplace_Back/tree/main`.
+- Phase final: `ACTIVE`.
+- Progress final: `6/6`.
+- Created: `2026-05-28 17:01:32 +0000 UTC`.
+- Updated: `2026-05-28 17:03:33 +0000 UTC`.
+
+### Smoke remoto pos-deploy
+
+Smoke minimo, publico/sem token e sem PII:
+
+- `GET /api/v1/health` - `200`.
+- `GET /api/v1/admin/users` sem token - `401`.
+- `PATCH /api/v1/admin/users/[redacted]/status` sem token - `401`.
+- `GET /api/v1/admin/dashboard` sem token - `401`.
+- `GET /api/v1/admin/reports` sem token - `401`.
+
+Conclusao do smoke: as rotas Admin Operations P1 foram publicadas e estao
+protegidas por autenticacao/autorizacao; o health remoto continuou respondendo.
+
+### Riscos residuais
+
+- Smoke autenticado admin nao foi executado porque exigiria sessao/token ou
+  fixture admin aprovado e poderia expor lista/contagens sensiveis se feito sem
+  recorte sanitizado.
+- Nenhuma escrita remota pos-deploy foi executada; a mutacao de status foi
+  testada remotamente apenas sem token e retornou `401`.
+- Nenhuma migration foi aplicada neste ciclo; a migration 016 ja havia sido
+  aplicada e validada no Checkpoint 098.
+- Admin UI remoto nao foi implantado; o alvo autorizado neste ciclo foi o
+  service Backend `pet-marketplace-back`.
+
+### Documentacao e sincronizacao
+
+- `PROJECT.md` atualizado para refletir o Backend commit publicado `bd73aea`.
+- `STATUS.md`, `LOG.md` e `docs/PROGRESS.md` atualizados com alvo, deploy,
+  smoke, riscos residuais e norte.
+- Rodado `pnpm sync:win` para propagar `docs/` e `.codex/` para Back, Mobile e
+  Admin antes do commit final da raiz.
+- Raiz: `pnpm env:check` - exit 0, Node `v22.22.3`, pnpm `10.30.3`.
+- `Pet_Marketplace_Back`: `pnpm test` - exit 0, 17 suites, 174 testes,
+  confirmando o novo script e2e.
+- `git diff --check` na raiz - exit 0.
+- Ajustes locais ja presentes foram preservados e incluidos no fechamento:
+  `Pet_Marketplace_Back/package.json` passa `pnpm test` para e2e e
+  `Pet_Marketplace_Mobile/.env.example` registra a flag publica
+  `EXPO_PUBLIC_ENABLE_AVATAR_UPLOAD=false`.
+
+### Proximo passo recomendado
+
+- Proximo norte: ciclo de smoke autenticado read-only para Admin Operations em
+  fixture admin sintetico/aprovado, sem PII e sem escrita.
+- Opcionalmente, em ciclo separado e com autorizacao literal, executar uma acao
+  controlada de status somente em usuario sintetico de teste com rollback
+  preparado.
+- Admin UI remoto deve ser tratado como alvo proprio, somente apos confirmar
+  app/URL/branch e autorizacao literal.
