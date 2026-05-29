@@ -5,11 +5,13 @@ import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ApiClientError,
+  confirmBookingService,
   createBooking,
   getBookingsPage,
   getPets,
   getProvider,
   getProviderAvailability,
+  submitReview,
   updateBooking,
 } from "../../src/api/client";
 import type {
@@ -32,6 +34,7 @@ import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
 import { LoadingState } from "../../src/components/LoadingState";
 import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
+import { RatingInput } from "../../src/components/RatingInput";
 import { RatingStars } from "../../src/components/RatingStars";
 import { Screen } from "../../src/components/Screen";
 import { SectionHeader } from "../../src/components/SectionHeader";
@@ -152,7 +155,8 @@ function RealBookingsListScreen() {
   );
   const nextCursor = currentPage?.nextCursor ?? null;
   const canGoPrevious = currentPageIndex > 0;
-  const canGoNext = currentPageIndex + 1 < allPages.length || Boolean(nextCursor);
+  const canGoNext =
+    currentPageIndex + 1 < allPages.length || Boolean(nextCursor);
 
   const nextBookingsPageMutation = useMutation({
     mutationFn: (cursor: string) =>
@@ -1043,7 +1047,11 @@ function BookingGroupCard({
           pressed ? styles.pressed : null,
         ]}
       >
-        <Avatar name={group.title} size={48} uri={group.avatarUrl ?? undefined} />
+        <Avatar
+          name={group.title}
+          size={48}
+          uri={group.avatarUrl ?? undefined}
+        />
         <View style={styles.bookingClosedBody}>
           <Text numberOfLines={1} style={styles.bookingParticipant}>
             {group.title}
@@ -1090,6 +1098,17 @@ function BookingGroupCard({
                 onBookingUpdated={onBookingUpdated}
                 viewerIsProvider={viewerIsProvider}
               />
+              {!viewerIsProvider ? (
+                <TutorReviewActions
+                  booking={booking}
+                  onBookingUpdated={onBookingUpdated}
+                />
+              ) : booking.status === "completed" &&
+                !booking.tutorConfirmedAt ? (
+                <Text style={styles.noticeText}>
+                  {t("book.review.awaitingTutor")}
+                </Text>
+              ) : null}
             </View>
           ))}
         </View>
@@ -1178,6 +1197,92 @@ function BookingStatusActions({
         </View>
       ) : null}
     </>
+  );
+}
+
+function TutorReviewActions({
+  booking,
+  onBookingUpdated,
+}: {
+  booking: BookingResponse;
+  onBookingUpdated?: (booking: BookingResponse) => void;
+}) {
+  const { accessToken, session } = useAuth();
+  const queryClient = useQueryClient();
+  const [rating, setRating] = useState(booking.myReviewRating ?? 0);
+  const [message, setMessage] = useState<string | null>(null);
+  const bookingsQueryKey = useMemo(
+    () => ["bookings", session?.user.id],
+    [session?.user.id],
+  );
+
+  const confirmMutation = useMutation({
+    mutationFn: () => confirmBookingService(accessToken, booking.id),
+    onError: () => setMessage(t("book.review.confirmError")),
+    onSuccess: async (updated) => {
+      setMessage(null);
+      onBookingUpdated?.(updated);
+      await queryClient.invalidateQueries({ queryKey: bookingsQueryKey });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: (value: number) => submitReview(accessToken, booking.id, value),
+    onError: () => setMessage(t("book.review.error")),
+    onSuccess: async (review) => {
+      setMessage(t("book.review.success"));
+      onBookingUpdated?.({
+        ...booking,
+        canReview: true,
+        myReviewRating: review.rating,
+      });
+      await queryClient.invalidateQueries({ queryKey: bookingsQueryKey });
+    },
+  });
+
+  if (booking.status !== "completed") return null;
+
+  const alreadyRated = typeof booking.myReviewRating === "number";
+  const canReview = booking.canReview === true || alreadyRated;
+
+  if (!canReview) {
+    return (
+      <View style={styles.bookingActions}>
+        <Text style={styles.noticeText}>{t("book.review.confirmHint")}</Text>
+        {message ? <Text style={styles.noticeText}>{message}</Text> : null}
+        <Button
+          disabled={confirmMutation.isPending}
+          isLoading={confirmMutation.isPending}
+          label={t("book.review.confirmCta")}
+          onPress={() => confirmMutation.mutate()}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.bookingActions}>
+      <Text style={styles.summaryLabel}>
+        {alreadyRated ? t("book.review.rated") : t("book.review.rateCta")}
+      </Text>
+      <RatingInput
+        disabled={reviewMutation.isPending}
+        onChange={(value) => {
+          setRating(value);
+          setMessage(null);
+        }}
+        value={rating}
+      />
+      {message ? <Text style={styles.noticeText}>{message}</Text> : null}
+      <Button
+        disabled={rating < 1 || reviewMutation.isPending}
+        isLoading={reviewMutation.isPending}
+        label={
+          alreadyRated ? t("book.review.editCta") : t("book.review.submit")
+        }
+        onPress={() => reviewMutation.mutate(rating)}
+      />
+    </View>
   );
 }
 
@@ -1301,7 +1406,9 @@ function formatBookingStatusFilter(status: "all" | BookingStatus): string {
 
 function formatBookingPageSummary(pageIndex: number, count: number): string {
   return `${t("book.pagination.page")} ${pageIndex + 1} - ${count} ${t(
-    count === 1 ? "book.pagination.bookingSingular" : "book.pagination.bookingsPlural",
+    count === 1
+      ? "book.pagination.bookingSingular"
+      : "book.pagination.bookingsPlural",
   )}`;
 }
 

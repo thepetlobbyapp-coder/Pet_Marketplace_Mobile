@@ -237,3 +237,41 @@ Marketplace/address follow-up after runtime validation:
 - Next authorized actions: commit the recorte, apply pending migration 004 to
   any target that has not received it, publish backend, publish/update Mobile,
   then run post-deploy smoke.
+
+5-star rating recorte (no comment) with proof-of-service gate, implemented
+across Backend, DB and Mobile after both literal gates:
+
+- Cético verdict was `APROVADO COM RESSALVAS`; all 5 required adjustments were
+  incorporated (aggregate recompute lock, per-perspective `canReview`, descoped
+  user-facing review reports, contiguity in the RPC, explicit eligibility rule).
+- Lifecycle: provider marks `completed`; tutor confirms (`tutor_confirmed_at`)
+  or 2 days elapse since the service date; then the tutor rates 1-5
+  (editable, one per booking). Service hours must be a single contiguous block.
+- Backend: migrations `20260529_005_contiguous_booking_slots.sql` and
+  `20260529_006_reviews.sql`; new `POST /bookings/:id/review` and
+  `POST /bookings/:id/confirmation`; `submit_review` recomputes the provider
+  aggregate atomically with a per-provider row lock; `reviewer_user_id` is never
+  serialized.
+- DB: the user applied migrations 005 and 006 to the runtime
+  (`thepetlobbyapp-dev` / Supabase); both "Success. No rows returned".
+- Mobile: interactive `RatingInput`, confirm-then-rate flow in the Book tab,
+  `confirmBookingService`/`submitReview` clients, review fields on the booking
+  contract and `book.review.*` copy.
+- Validation passed locally: Backend typecheck/lint/e2e (19 suites, 207 tests)/
+  build; Mobile typecheck/lint/test and `prettier --check`; `git diff --check`.
+
+Validation and follow-ups for this recorte:
+
+- Read-only S/P/V validation done: Security and Performance `APROVADO`; Final
+  `APROVADO COM RESSALVAS` (R1 admin moderation endpoint, R2 manual smoke).
+- R1 closed end-to-end: `PATCH /admin/reviews/:id/status`
+  (`visible | hidden_by_admin`) recomputes the provider aggregate and appends a
+  PII-free audit log, plus `GET /admin/reviews` (list) and the Admin Next.js
+  `Reviews` page (Hide/Restore actions). Backend e2e now at 19 suites / 213
+  tests; Admin typecheck/lint/test/build green. No migration needed for the
+  Admin surface.
+- R2 still open: manual app smoke (provider `completed` -> tutor "Confirm
+  service" -> rate 5 stars -> the new average shows on the provider card).
+- Not executed: deploy, EAS, Play action or push.
+- User-facing review reporting remains descoped (would require extending
+  `report_target_type`); Phase 1 moderation is admin hide only.

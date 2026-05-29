@@ -83,6 +83,38 @@ export interface AdminReportListItem {
   readonly updatedAt: string;
 }
 
+export type AdminReviewStatus =
+  | "visible"
+  | "hidden_by_admin"
+  | "reported"
+  | "removed";
+
+export const ADMIN_REVIEW_STATUSES: readonly AdminReviewStatus[] = [
+  "visible",
+  "hidden_by_admin",
+  "reported",
+  "removed",
+] as const;
+
+/** Estados que o admin pode definir a partir da UI. */
+export const ADMIN_MUTABLE_REVIEW_STATUSES: readonly Extract<
+  AdminReviewStatus,
+  "visible" | "hidden_by_admin"
+>[] = ["visible", "hidden_by_admin"] as const;
+
+export interface AdminReviewListItem {
+  readonly id: string;
+  readonly bookingId: string;
+  readonly rating: number;
+  readonly status: AdminReviewStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface UpdateAdminReviewStatusRequest {
+  readonly status: Extract<AdminReviewStatus, "visible" | "hidden_by_admin">;
+}
+
 export interface AdminAuditLogListItem {
   readonly id: string;
   readonly actorUserId: string | null;
@@ -108,6 +140,7 @@ export const adminUserListItemHasNoForbiddenFields: AssertNoForbiddenFields<Admi
 export const adminProviderListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminProviderListItem> = true;
 export const adminBookingListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminBookingListItem> = true;
 export const adminReportListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminReportListItem> = true;
+export const adminReviewListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminReviewListItem> = true;
 export const adminAuditLogListItemHasNoForbiddenFields: AssertNoForbiddenFields<AdminAuditLogListItem> = true;
 
 export class AdminResourceContractError extends Error {
@@ -235,6 +268,35 @@ export function parseAdminReportsList(
   });
 }
 
+export function parseAdminReviewsList(
+  payload: unknown,
+): readonly AdminReviewListItem[] {
+  return readList(payload, "admin reviews").map((item, index) => {
+    const record = expectRecord(item, `admin reviews[${index}]`);
+
+    return {
+      bookingId: expectString(
+        record.bookingId,
+        `admin reviews[${index}].bookingId`,
+      ),
+      createdAt: expectString(
+        record.createdAt,
+        `admin reviews[${index}].createdAt`,
+      ),
+      id: expectString(record.id, `admin reviews[${index}].id`),
+      rating: expectNumber(record.rating, `admin reviews[${index}].rating`),
+      status: expectAdminReviewStatus(
+        record.status,
+        `admin reviews[${index}].status`,
+      ),
+      updatedAt: expectString(
+        record.updatedAt,
+        `admin reviews[${index}].updatedAt`,
+      ),
+    };
+  });
+}
+
 export function parseAdminAuditLogsList(
   payload: unknown,
 ): readonly AdminAuditLogListItem[] {
@@ -297,6 +359,16 @@ export function parseAdminReportsPage(
     payload,
     "admin reports",
     parseAdminReportsList,
+  );
+}
+
+export function parseAdminReviewsPage(
+  payload: unknown,
+): AdminResourcePage<AdminReviewListItem> {
+  return parseAdminResourcePage(
+    payload,
+    "admin reviews",
+    parseAdminReviewsList,
   );
 }
 
@@ -392,6 +464,18 @@ function expectAdminReportStatus(
   }
 
   return status as AdminReportStatus;
+}
+
+function expectAdminReviewStatus(
+  value: unknown,
+  label: string,
+): AdminReviewStatus {
+  const status = expectString(value, label);
+  if (!ADMIN_REVIEW_STATUSES.includes(status as AdminReviewStatus)) {
+    throw new AdminResourceContractError(`${label} is not supported.`);
+  }
+
+  return status as AdminReviewStatus;
 }
 
 function expectAdminUserStatus(value: unknown, label: string): AdminUserStatus {

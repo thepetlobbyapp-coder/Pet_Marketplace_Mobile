@@ -318,6 +318,18 @@ export const enGB = {
   "book.providerSchedule.subtitle":
     "Review requests, confirmed care and completion status.",
   "book.providerSchedule.title": "Care schedule",
+  "book.review.awaitingTutor":
+    "Waiting for the tutor to confirm the service was delivered.",
+  "book.review.confirmCta": "Confirm service",
+  "book.review.confirmError": "The service could not be confirmed right now.",
+  "book.review.confirmHint":
+    "Confirm the service happened, then rate your carer.",
+  "book.review.editCta": "Update rating",
+  "book.review.error": "Your rating could not be saved right now.",
+  "book.review.rateCta": "Rate your carer",
+  "book.review.rated": "Your rating",
+  "book.review.submit": "Submit rating",
+  "book.review.success": "Thanks for rating your carer.",
   "book.selectTime": "Select a time",
   "book.service": "Service",
   "book.slots.empty": "This provider has not opened any slots for this date.",

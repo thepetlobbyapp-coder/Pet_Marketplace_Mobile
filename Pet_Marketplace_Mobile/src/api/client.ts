@@ -26,6 +26,7 @@ import type {
   ProviderProfileResponse,
   ProviderResponse,
   ReportResponse,
+  ReviewResponse,
   TimeSlotResponse,
   TutorProfileResponse,
   UpdateAddressRequest,
@@ -445,6 +446,43 @@ export async function updateBooking(
       "Content-Type": "application/json",
     },
     method: "PATCH",
+  });
+}
+
+/** Tutor confirms the service was delivered (proof of completion). */
+export async function confirmBookingService(
+  accessToken: string | null,
+  bookingId: string,
+): Promise<BookingResponse> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<BookingResponse>(`${bookingPath(bookingId)}/confirmation`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    method: "POST",
+  });
+}
+
+/** Tutor rates the provider (1-5) for a completed service. */
+export async function submitReview(
+  accessToken: string | null,
+  bookingId: string,
+  rating: number,
+): Promise<ReviewResponse> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<ReviewResponse>(`${bookingPath(bookingId)}/review`, {
+    body: JSON.stringify({ rating }),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
   });
 }
 

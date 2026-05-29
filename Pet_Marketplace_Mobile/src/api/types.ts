@@ -227,6 +227,18 @@ export interface BookingResponse {
   pricePerHourSnapshot?: number | null;
   estimatedTotalAmount?: number | null;
   currency?: string;
+  tutorConfirmedAt?: string | null;
+  canReview?: boolean;
+  myReviewRating?: number | null;
+  updatedAt: string;
+}
+
+export interface ReviewResponse {
+  id: string;
+  bookingId: string;
+  rating: number;
+  status: string;
+  createdAt: string;
   updatedAt: string;
 }
 

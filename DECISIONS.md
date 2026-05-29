@@ -60,3 +60,33 @@
   returns `409 CONFLICT` and the app asks the user to pause the provider listing
   first, preserving the publish invariant and preventing radius-discovery
   regressions.
+- A service is the unit of account: one tutor "hire" (one booking) is one
+  service and one review, regardless of the number of hours, and is never
+  counted per slot or per day. The hours of a service must be a single
+  contiguous block (e.g. `09:00,10:00,11:00`); scattered slots are rejected in
+  both the Node DTO and the `create_booking_with_slots` RPC.
+- Ratings are 1-5 with no comment in this phase, tutor -> provider only, one per
+  booking and editable (upsert). Dropping free text keeps the UGC/moderation
+  surface minimal for Play Store and avoids reopening Data Safety scope beyond a
+  numeric rating.
+- Proof of service is a handshake: the provider marks the booking `completed`
+  (delivery) and the tutor confirms (`tutor_confirmed_at`), which is the future
+  escrow-release hook. Review unlocks when the booking is `completed` and either
+  the tutor confirmed or 2 days have elapsed since the service date (lazy
+  auto-release, no cron). The provider can never review and is never offered the
+  rating CTA.
+- The provider rating aggregate (`provider_profiles.rating_average`/
+  `rating_count`) is recomputed inside `submit_review` over `visible` reviews
+  only, serialized per provider with `select ... for update` to prevent lost
+  updates under concurrent reviews.
+- `reviews.reviewer_user_id` is never serialized to clients; review responses
+  expose only id, booking, rating, status and timestamps (UK GDPR
+  forbidden-fields contract).
+- User-facing reporting of a review is out of scope for this phase: it would
+  require extending `report_target_type` (currently `conversation`/`message`).
+  Phase 1 moderation is admin-only hide (`status = hidden_by_admin`), which
+  triggers an aggregate recompute.
+- Google Play: real-world pet-care services are exempt from Google Play Billing,
+  so the app can ship with no payment and add an external processor later
+  without Play Billing. The rating feature itself does not block submission; it
+  only adds a numeric user-generated rating to the Data Safety scope.

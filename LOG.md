@@ -189,3 +189,90 @@ address deletion:
 - Validation passed: Backend `pnpm typecheck`, `pnpm lint`, `pnpm test`;
   Mobile `pnpm typecheck`, `pnpm lint`; Backend `pnpm build`;
   `git diff --check`; local backend and Expo endpoints healthy.
+
+[2026-05-29] Implemented the 5-star rating recorte (no comment) with a
+proof-of-service gate across Backend, DB and Mobile, after
+`AUTORIZO ALTERAR BACKEND FORA DO RECORTE P2-B/P2-C` and
+`AUTORIZO IMPLEMENTAR AJUSTES MOBILE DO PLANO APROVADO`:
+- Routed the plan through the Cético: verdict `APROVADO COM RESSALVAS` with 5
+  required adjustments incorporated (aggregate recompute lock, per-perspective
+  `canReview`, descoped user-facing review reports, contiguity in the RPC source
+  of truth, explicit review-eligibility rule).
+- Backend: added migration `20260529_005_contiguous_booking_slots.sql`
+  (contiguity guard in `create_booking_with_slots`) and
+  `20260529_006_reviews.sql` (`reviews` table, `bookings.tutor_confirmed_at`,
+  `review_status` enum, `recompute_provider_rating` with `for update`,
+  `submit_review`). Added contiguity validation in `parseTimeSlotIdsField`,
+  `SubmitReviewRequestDto`, `ReviewResponseDto`,
+  `canReview`/`myReviewRating`/`tutorConfirmedAt` on the booking contract,
+  `POST /bookings/:id/review` and `POST /bookings/:id/confirmation`,
+  `submitReview`/`confirmBookingService`/`attachReviewState` (best-effort) in
+  the admin service, and the Database types.
+- DB: the user applied migrations 005 and 006 to the runtime
+  (`thepetlobbyapp-dev` / Supabase); both returned "Success. No rows returned".
+- Mobile: added interactive `RatingInput`, `TutorReviewActions` in the Book tab
+  (confirm service then rate/edit; awaiting-tutor note on the provider side),
+  `confirmBookingService`/`submitReview` API clients, review fields on the
+  booking type plus `ReviewResponse`, and `book.review.*` en-GB copy.
+- Domain rule: one review per booking (per service, never per slot or day);
+  service hours must be a single contiguous block.
+- Validation passed: Backend typecheck/lint/e2e (19 suites, 207 tests)/build;
+  Mobile typecheck/lint/test and `prettier --check` on changed files;
+  `git diff --check` clean.
+- Not executed: deploy, EAS, Play action, push, and final validators (S/P/V).
+  Manual app smoke still pending.
+
+[2026-05-29] Ran the read-only S/P/V validation over the rating diff: Security and
+Performance APROVADO; Final validator APROVADO COM RESSALVAS (R1: admin review
+moderation not exposed by API; R2: SQL/RPC logic only covered by inspection +
+manual smoke). Re-ran Backend typecheck/lint/e2e (207)/build, Mobile
+typecheck/lint/test + prettier --check, and git diff --check — all green.
+
+[2026-05-29] Closed ressalva R1 — admin review moderation endpoint (no migration):
+- Added `PATCH /api/v1/admin/reviews/:id/status` (`@Roles('admin')`) accepting
+  `visible | hidden_by_admin` via a strict allowlist DTO
+  (`update-admin-review-status-request.dto.ts`).
+- `setAdminReviewStatusWithAudit` updates the review status, calls
+  `recompute_provider_rating` only when the status changes, and appends an audit
+  log (`admin.review_hidden` / `admin.review_restored`, target_type `review`)
+  with no PII. The response reuses `ReviewResponseDto` and never exposes
+  `reviewer_user_id`. No new migration needed (audit target types are free-form).
+- Added admin e2e coverage: hide returns a safe body, role guard `403`,
+  unsafe/unsupported payload `400`, missing review `404`.
+- Validation passed: Backend typecheck/lint/e2e (19 suites, 211 tests)/build;
+  `git diff --check` clean.
+- Pending: Admin Next.js UI to call the endpoint (separate surface), and the
+  S/P/V re-pass over this addition; no deploy/EAS/Play/push executed.
+
+[2026-05-29] Built the Admin review moderation UI and its backing list endpoint:
+- Backend: added `GET /api/v1/admin/reviews` (`@Roles('admin')`, cursor
+  pagination mirroring admin bookings) with `listAdminReviews`,
+  `AdminReviewRecord`, `AdminReviewResponseDto`/`AdminReviewListResponseDto`.
+  The list never exposes `reviewer_user_id`.
+- Admin (Next.js): added the `reviews` resource (type, parser, forbidden-field
+  assertion), `listAdminReviews`/`updateAdminReviewStatus` on the resource
+  client, enabled the previously-disabled `reviews` route, and added
+  `app/admin/reviews/page.tsx` (rating/status/booking table with Hide/Restore
+  server actions and pagination).
+- Updated admin tests (shell route status, resource-client coverage, and the
+  two view-model client mocks) to include the new endpoints.
+- Validation passed: Backend typecheck/lint/e2e (19 suites, 213 tests)/build;
+  Admin typecheck/lint/test/build; `git diff --check` clean.
+- Not executed: deploy, EAS, Play action or push. No migration needed for this
+  addition (reads existing `reviews`; moderation audit uses free-form types).
+
+[2026-05-29] Ran a safe HTTP route smoke for the rating endpoints (no secrets):
+- Local backend `/api/v1/health` returned `200` on both `localhost` and
+  `192.168.1.69`.
+- First smoke found the new routes (`POST /bookings/:id/review`,
+  `POST /bookings/:id/confirmation`, `GET /admin/reviews`) returning `404`,
+  proving the running process on port `3000` was serving a stale `dist` from
+  before this recorte (controls: `GET /bookings` `401`, missing route `404`).
+- Rebuilt `dist` (`nest build`), stopped the stale node PID on `3000`, and
+  restarted via `pnpm start` (background); `/api/v1/health` returned `200`.
+- Re-smoke confirmed all three new routes now return `401` without a token
+  (mapped + auth-protected), controls still `401`/`404`. Authenticated
+  functional smoke (tutor confirm+rate, average update, Admin Hide/Restore)
+  remains a manual step needing a real signed-in session.
+- The DigitalOcean dev backend was not touched and does not carry this feature
+  (no deploy authorized).

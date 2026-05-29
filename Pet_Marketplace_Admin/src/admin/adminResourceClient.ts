@@ -13,6 +13,8 @@ import {
   parseAdminProvidersPage,
   parseAdminReportsList,
   parseAdminReportsPage,
+  parseAdminReviewsList,
+  parseAdminReviewsPage,
   parseAdminUsersPage,
   AdminResourceContractError,
   type AdminAuditLogListItem,
@@ -21,8 +23,10 @@ import {
   type AdminReportListItem,
   type AdminResourceListParams,
   type AdminResourcePage,
+  type AdminReviewListItem,
   type AdminUserListItem,
   type UpdateAdminReportRequest,
+  type UpdateAdminReviewStatusRequest,
   type UpdateAdminUserStatusRequest,
 } from "./adminResources";
 
@@ -44,6 +48,9 @@ export interface AdminResourceClient {
   readonly listAdminReports: (
     params?: AdminResourceListParams,
   ) => Promise<AdminResourcePage<AdminReportListItem>>;
+  readonly listAdminReviews: (
+    params?: AdminResourceListParams,
+  ) => Promise<AdminResourcePage<AdminReviewListItem>>;
   readonly listAdminUsers: (
     params?: AdminResourceListParams,
   ) => Promise<AdminResourcePage<AdminUserListItem>>;
@@ -51,6 +58,10 @@ export interface AdminResourceClient {
     reportId: string,
     body: UpdateAdminReportRequest,
   ) => Promise<AdminReportListItem>;
+  readonly updateAdminReviewStatus: (
+    reviewId: string,
+    body: UpdateAdminReviewStatusRequest,
+  ) => Promise<AdminReviewListItem>;
   readonly updateAdminUserStatus: (
     userId: string,
     body: UpdateAdminUserStatusRequest,
@@ -103,6 +114,14 @@ export function createAdminResourceClient(
           path: adminResourcePath("/admin/reports", params),
         }),
       ),
+    listAdminReviews: async (params = {}) =>
+      parseAdminReviewsPage(
+        await requestAdminApiJson({
+          ...options,
+          baseUrl,
+          path: adminResourcePath("/admin/reviews", params),
+        }),
+      ),
     listAdminUsers: async (params = {}) =>
       parseAdminUsersPage(
         await requestAdminApiJson({
@@ -125,6 +144,21 @@ export function createAdminResourceClient(
         throw new AdminResourceContractError("admin report response is empty.");
       }
       return report;
+    },
+    updateAdminReviewStatus: async (reviewId, body) => {
+      const review = parseAdminReviewsList([
+        await requestAdminApiJson({
+          ...options,
+          baseUrl,
+          body,
+          method: "PATCH",
+          path: `/admin/reviews/${encodeURIComponent(reviewId)}/status`,
+        }),
+      ])[0];
+      if (!review) {
+        throw new AdminResourceContractError("admin review response is empty.");
+      }
+      return review;
     },
     updateAdminUserStatus: async (userId, body) => {
       const user = parseAdminUsersPage([

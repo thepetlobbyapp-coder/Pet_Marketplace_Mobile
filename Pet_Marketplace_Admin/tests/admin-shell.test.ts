@@ -62,7 +62,7 @@ function testAdminSeesPlannedRoutesWithBackendStatus(): void {
   );
   assert(
     routeStatuses(shell.visibleRoutes).join(",") ===
-      "dashboard:enabled,users:enabled,providers:enabled,bookings:enabled,reports:enabled,reviews:disabled,auditLogs:enabled",
+      "dashboard:enabled,users:enabled,providers:enabled,bookings:enabled,reports:enabled,reviews:enabled,auditLogs:enabled",
     "backend-backed admin routes should be enabled",
   );
   assert(

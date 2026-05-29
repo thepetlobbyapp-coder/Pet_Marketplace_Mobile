@@ -18,6 +18,7 @@ async function main(): Promise<void> {
   await testListEndpointSendsCursorPaginationParams();
   await testUpdateReportSendsPatchAndReturnsSafeShape();
   await testUpdateUserStatusSendsPatchAndReturnsSafeShape();
+  await testReviewEndpointsSendBearerAndReturnSafeShapes();
   await testAdminApiErrorsArePreserved();
   await testBackendUnavailableErrorIsPreserved();
 
@@ -161,6 +162,64 @@ async function testUpdateUserStatusSendsPatchAndReturnsSafeShape(): Promise<void
   const firstBody = requestedBodies[0] as { status?: string } | undefined;
   assert(firstBody?.status === "blocked", "status should be sent");
   assertNoForbiddenFieldsOrValues([user]);
+}
+
+async function testReviewEndpointsSendBearerAndReturnSafeShapes(): Promise<void> {
+  const requestedPaths: string[] = [];
+  const requestedMethods: string[] = [];
+  const requestedBodies: unknown[] = [];
+  const fetchImpl: FetchLike = async (input, init) => {
+    const url = String(input);
+    const path = url.replace("/api/v1", "");
+    const headers = new Headers(init?.headers);
+
+    assert(
+      headers.get("Authorization") === `Bearer ${accessToken}`,
+      "Bearer auth should be sent",
+    );
+    requestedPaths.push(path);
+    requestedMethods.push(init?.method ?? "GET");
+    if (init?.body) requestedBodies.push(JSON.parse(String(init.body)));
+
+    const reviewPayload = withForbiddenFields({
+      bookingId: "booking-1",
+      createdAt: "2026-05-18T12:00:00.000Z",
+      id: "review-1",
+      rating: 5,
+      status: path.includes("/status") ? "hidden_by_admin" : "visible",
+      updatedAt: "2026-05-18T12:05:00.000Z",
+    });
+
+    return path.includes("/status")
+      ? jsonResponse(200, reviewPayload)
+      : jsonResponse(200, { items: [reviewPayload], nextCursor: null });
+  };
+  const client = createAdminResourceClient({
+    fetchImpl,
+    getAccessToken: () => accessToken,
+  });
+
+  const reviews = await client.listAdminReviews({ cursor: "cursor-2", limit: 20 });
+  const updated = await client.updateAdminReviewStatus("review-1", {
+    status: "hidden_by_admin",
+  });
+
+  assert(
+    requestedPaths[0] === "/admin/reviews?limit=20&cursor=cursor-2",
+    "reviews list should preserve cursor pagination query",
+  );
+  assert(requestedMethods[0] === "GET", "reviews list should be GET");
+  assert(
+    requestedPaths[1] === "/admin/reviews/review-1/status",
+    "review status path should be stable",
+  );
+  assert(requestedMethods[1] === "PATCH", "review status update should be PATCH");
+  assert(reviews.items[0]?.rating === 5, "reviews expose rating");
+  assert(reviews.items[0]?.status === "visible", "reviews expose status");
+  const updateBody = requestedBodies[0] as { status?: string } | undefined;
+  assert(updateBody?.status === "hidden_by_admin", "review status should be sent");
+  assert(updated.status === "hidden_by_admin", "review update parses status");
+  assertNoForbiddenFieldsOrValues([reviews, updated]);
 }
 
 async function testListEndpointsSendBearerAndReturnSafeShapes(): Promise<void> {

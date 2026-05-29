@@ -55,12 +55,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     status: "enabled",
   },
   {
-    disabledReason: "Admin reviews endpoint is not implemented in the backend.",
     id: "reviews",
     label: "Reviews",
     path: "/admin/reviews",
     requiresAdmin: true,
-    status: "disabled",
+    status: "enabled",
   },
   {
     id: "auditLogs",
