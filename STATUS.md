@@ -270,8 +270,14 @@ Validation and follow-ups for this recorte:
   `Reviews` page (Hide/Restore actions). Backend e2e now at 19 suites / 213
   tests; Admin typecheck/lint/test/build green. No migration needed for the
   Admin surface.
-- R2 still open: manual app smoke (provider `completed` -> tutor "Confirm
-  service" -> rate 5 stars -> the new average shows on the provider card).
-- Not executed: deploy, EAS, Play action or push.
+- Committed and deployed: monorepo `41bb504` pushed to the checkpoint branch;
+  backend `78b100c` published to `Pet_Marketplace_Back@main`; DigitalOcean
+  deployment `6ede1dc9` `ACTIVE` 6/6; post-deploy route smoke green on
+  `stingray-app-vyfrt.ondigitalocean.app` (health 200; new routes 401).
+- R2 still open: manual functional app smoke (provider `completed` -> tutor
+  "Confirm service" -> rate 5 stars -> the new average shows on the provider
+  card; Admin Reviews Hide/Restore).
+- Not executed: EAS build and Play submission (separate gates); Admin surface
+  deploy; no remote DB write (migrations 005/006 already applied to dev).
 - User-facing review reporting remains descoped (would require extending
   `report_target_type`); Phase 1 moderation is admin hide only.

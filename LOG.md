@@ -276,3 +276,23 @@ typecheck/lint/test + prettier --check, and git diff --check — all green.
   remains a manual step needing a real signed-in session.
 - The DigitalOcean dev backend was not touched and does not carry this feature
   (no deploy authorized).
+
+[2026-05-29] Committed and deployed the rating feature after the user authorized
+"commit e deploy" (Backend + checkpoint push):
+- Monorepo commit `41bb504` (30 files; excluded an unrelated `smoke-book-*.png`),
+  pushed to `origin/codex/consolidate-checkpoints-through-094` (Mobile repo).
+- Backend publish: confirmed `Pet_Marketplace_Back@main` (`b5a957d`) was content
+  identical to the monorepo pre-rating baseline (blob SHAs matched; an earlier
+  apply failure was a PowerShell `Out-File` CRLF/BOM artifact, not divergence).
+  Applied the backend-only delta as an LF patch onto a clean `origin/main`
+  checkout; harness green in the publish checkout (typecheck/lint/e2e 19 suites
+  213 tests/build). Committed `78b100c` and pushed to
+  `thepetlobbyapp-coder/Pet_Marketplace_Back@main` (fast-forward `b5a957d..78b100c`).
+- DigitalOcean auto-deploy `6ede1dc9-29e0-45e0-8774-7f6ab40dfd23` reached
+  `ACTIVE` 6/6. Post-deploy smoke on `stingray-app-vyfrt.ondigitalocean.app`:
+  health `200`; `GET /admin/reviews`, `POST /bookings/:id/review` and
+  `POST /bookings/:id/confirmation` all `401` (mapped + protected), up from
+  `404` before the deploy.
+- Not executed: EAS build and Play submission (separate gates not given); Admin
+  surface deploy; no remote DB write (migrations 005/006 were already applied to
+  the dev Supabase).
