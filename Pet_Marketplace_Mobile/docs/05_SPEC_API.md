@@ -84,6 +84,11 @@ Status HTTP:
 
 Retorna usuário autenticado e perfis vinculados.
 
+O perfil de tutor expõe `hasDefaultAddress` (booleano) indicando se há
+`tutor_profiles.default_address_id` definido. Por privacidade, o identificador do
+endereço (`default_address_id`) **nunca** é serializado — apenas a flag de presença.
+O mobile usa `hasDefaultAddress` como precondição de acesso ao marketplace.
+
 ### `PATCH /me`
 
 Atualiza dados básicos permitidos.
@@ -145,6 +150,11 @@ Retorna perfil do prestador autenticado.
 
 Atualiza perfil do próprio prestador.
 
+Publicar o anúncio (`status = active`, via `publish: true`) exige um endereço base
+(`base_address_id`). Sem endereço base, a publicação é recusada com
+`400 VALIDATION_ERROR` e o status permanece `paused`. A validação considera o
+endereço enviado na requisição ou, na ausência dele, o já armazenado no perfil.
+
 ### `POST /providers/me/services`
 
 Adiciona serviço oferecido.
@@ -155,7 +165,34 @@ Atualiza preço informativo, descrição e status do serviço.
 
 ### `POST /providers/me/availability`
 
-Define disponibilidade.
+Define a disponibilidade semanal do proprio prestador.
+
+Payload:
+
+```json
+{
+  "days": [
+    { "weekday": 1, "timeSlotIds": ["09:00", "10:00", "11:00"] },
+    { "weekday": 2, "timeSlotIds": [] }
+  ]
+}
+```
+
+Regras:
+
+- `weekday` usa `0` domingo ate `6` sabado;
+- `timeSlotIds` usa slots de 1 hora entre `08:00` e `19:00`;
+- substituir a agenda semanal nao cancela bookings existentes;
+- apenas o prestador autenticado altera a propria agenda.
+
+### `GET /providers/me/availability`
+
+Retorna a agenda semanal do prestador autenticado.
+
+### `GET /providers/:id/availability?date=YYYY-MM-DD`
+
+Retorna os slots configurados pelo prestador para a data informada, marcando
+como indisponiveis os slots ja ocupados por bookings `requested` ou `confirmed`.
 
 ---
 
@@ -227,6 +264,9 @@ Regras:
 - arredondar distância;
 - não retornar endereço completo;
 - limitar raio máximo;
+- filtrar pelo raio de atendimento de cada prestador (`service_radius_km`): só
+  aparecem prestadores cujo raio cobre o endereço padrão do tutor;
+- tutor sem endereço padrão recebe lista vazia (precondição de endereço);
 - aplicar rate limit.
 
 ---
@@ -244,11 +284,15 @@ Payload:
   "providerId": "uuid",
   "petId": "uuid",
   "serviceType": "dog_walking",
-  "startsAt": "2026-05-20T10:00:00Z",
-  "endsAt": "2026-05-20T11:00:00Z",
+  "date": "2026-05-20",
+  "timeSlotIds": ["10:00", "11:00"],
   "notes": "Please use the red leash."
 }
 ```
+
+Resposta inclui `timeSlotId` legado, `timeSlotIds`, `pricePerHourSnapshot`,
+`estimatedTotalAmount` e `currency`. Estes campos sao informativos: a Fase 1
+nao processa pagamento, checkout, custodia, protecao financeira ou reembolso.
 
 ### `GET /bookings`
 

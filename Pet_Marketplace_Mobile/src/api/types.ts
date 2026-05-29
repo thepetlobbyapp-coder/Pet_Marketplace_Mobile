@@ -57,6 +57,7 @@ export interface AvatarUploadAsset {
 export interface TutorProfileResponse {
   createdAt: string;
   displayName: string;
+  hasDefaultAddress?: boolean;
   id: string;
   updatedAt: string;
 }
@@ -171,6 +172,13 @@ export interface CursorPaginationParams {
   limit?: number;
 }
 
+export type BookingPerspective = "provider" | "tutor";
+
+export interface BookingListParams extends CursorPaginationParams {
+  perspective?: BookingPerspective;
+  status?: BookingStatus;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   nextCursor: string | null;
@@ -182,11 +190,21 @@ export interface TimeSlotResponse {
   label: string;
 }
 
+export interface ProviderAvailabilityDay {
+  timeSlotIds: string[];
+  weekday: number;
+}
+
+export interface ProviderWeeklyAvailability {
+  days: ProviderAvailabilityDay[];
+}
+
 export type BookingStatus =
   | "requested"
   | "confirmed"
   | "cancelled"
   | "completed";
+export type BookingViewerRole = "tutor" | "provider" | "both";
 
 export interface BookingResponse {
   createdAt: string;
@@ -197,6 +215,18 @@ export interface BookingResponse {
   service: string;
   status: BookingStatus;
   timeSlotId: string;
+  timeSlotIds?: string[];
+  viewerRole?: BookingViewerRole | null;
+  counterpartName?: string | null;
+  counterpartAvatarUrl?: string | null;
+  counterpartRole?: BookingPerspective | null;
+  bookingGroupKey?: string | null;
+  providerName?: string | null;
+  tutorName?: string | null;
+  petName?: string | null;
+  pricePerHourSnapshot?: number | null;
+  estimatedTotalAmount?: number | null;
+  currency?: string;
   updatedAt: string;
 }
 
@@ -205,7 +235,8 @@ export interface CreateBookingRequest {
   petId: string;
   providerId: string;
   service: string;
-  timeSlotId: string;
+  timeSlotId?: string;
+  timeSlotIds: string[];
 }
 
 export interface UpdateBookingRequest {

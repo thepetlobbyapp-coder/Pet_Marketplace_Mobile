@@ -3,16 +3,23 @@ import type {
   AuthUser,
   ProviderProfileSummary,
   Role,
-  TutorProfileSummary,
   UserStatus,
 } from '../../common/auth/auth-user';
 
-class TutorProfileSummaryDto implements TutorProfileSummary {
+class TutorProfileSummaryDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
   @ApiProperty()
   displayName!: string;
+
+  @ApiProperty({
+    description:
+      'Whether the tutor has a default address set. The address itself (and ' +
+      'its identifier) is never exposed; only presence, which the app uses to ' +
+      'gate marketplace discovery.',
+  })
+  hasDefaultAddress!: boolean;
 }
 
 class ProviderProfileSummaryDto implements ProviderProfileSummary {
@@ -127,6 +134,9 @@ export class MeResponseDto {
                     tutor: {
                       id: user.profiles.tutor.id,
                       displayName: user.profiles.tutor.displayName,
+                      hasDefaultAddress: Boolean(
+                        user.profiles.tutor.defaultAddressId,
+                      ),
                     },
                   }
                 : {}),

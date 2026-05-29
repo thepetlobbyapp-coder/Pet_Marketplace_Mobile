@@ -34,6 +34,17 @@ const PROVIDER_USER: AuthUser = {
   },
 };
 
+const TUTOR_AND_PROVIDER_USER: AuthUser = {
+  ...PROVIDER_USER,
+  profiles: {
+    ...PROVIDER_USER.profiles,
+    tutor: {
+      id: TUTOR_PROFILE_ID,
+      displayName: 'Tutor Provider Test',
+    },
+  },
+};
+
 describe('provider eligibility invariants (e2e)', () => {
   function buildService(client: unknown): SupabaseAdminService {
     const config = { get: () => undefined };
@@ -80,6 +91,7 @@ describe('provider eligibility invariants (e2e)', () => {
         providerId: PROVIDER_ID,
         service: 'Dog walking',
         timeSlotId: '09:00',
+        timeSlotIds: ['09:00'],
       }),
     ).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND,
@@ -97,8 +109,11 @@ describe('provider eligibility invariants (e2e)', () => {
       '2026-06-01',
     );
 
-    expect(result).toEqual(['09:00']);
-    expect(client.from).toHaveBeenCalledWith('bookings');
+    expect(result).toEqual({
+      configuredSlotIds: ['09:00', '10:00'],
+      occupiedSlotIds: ['09:00'],
+    });
+    expect(client.from).toHaveBeenCalledWith('booking_slots');
   });
 
   it('does not expose availability when the provider owner is blocked', async () => {
@@ -131,6 +146,7 @@ describe('provider eligibility invariants (e2e)', () => {
         providerId: PROVIDER_ID,
         service: 'Dog walking',
         timeSlotId: '09:00',
+        timeSlotIds: ['09:00'],
       }),
     ).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND,
@@ -151,6 +167,20 @@ describe('provider eligibility invariants (e2e)', () => {
 
     expect(result).toBeNull();
     expect(client.state.bookingUpdated).toBe(false);
+  });
+
+  it('uses the provider actor when a dual participant confirms a booking', async () => {
+    const client = buildClient({ providerRoles: ['provider'] });
+    const service = buildService(client);
+
+    const result = await service.updateBookingStatus(
+      TUTOR_AND_PROVIDER_USER,
+      BOOKING_ID,
+      'confirmed',
+    );
+
+    expect(result?.status).toBe('confirmed');
+    expect(client.state.bookingUpdated).toBe(true);
   });
 
   it('does not let an existing conversation accept messages after provider role is removed', async () => {
@@ -177,12 +207,14 @@ interface FakeOptions {
 
 interface FakeState {
   bookingUpdated: boolean;
+  bookingUpdatePayload: { status?: string } | null;
   messageInserted: boolean;
 }
 
 function buildClient(options: FakeOptions) {
   const state: FakeState = {
     bookingUpdated: false,
+    bookingUpdatePayload: null,
     messageInserted: false,
   };
   return {
@@ -259,6 +291,7 @@ async function execute(
       data: {
         provider_profile_id: PROVIDER_PROFILE_ID,
         deleted_at: null,
+        price_per_hour: 25,
       },
       error: null,
     });
@@ -305,6 +338,7 @@ async function execute(
   if (table === 'bookings') {
     if (query.operation === 'update') {
       state.bookingUpdated = true;
+      state.bookingUpdatePayload = query.payload as { status?: string };
     }
     if (query.operation === 'insert') {
       return Promise.resolve({
@@ -315,7 +349,7 @@ async function execute(
           service_label: 'Dog walking',
           booking_date: '2026-06-01',
           time_slot_id: '09:00',
-          status: 'requested',
+          status: state.bookingUpdatePayload?.status ?? 'requested',
           created_at: '2026-05-22T10:00:00.000Z',
           updated_at: '2026-05-22T10:00:00.000Z',
         },
@@ -333,7 +367,7 @@ async function execute(
           service_label: 'Dog walking',
           booking_date: '2026-06-01',
           time_slot_id: '09:00',
-          status: 'requested',
+          status: state.bookingUpdatePayload?.status ?? 'requested',
           created_at: '2026-05-22T10:00:00.000Z',
           updated_at: '2026-05-22T10:00:00.000Z',
         },
@@ -344,6 +378,23 @@ async function execute(
     const rows = [{ time_slot_id: '09:00' }];
     return Promise.resolve({
       data: mode === 'many' ? rows : rows[0],
+      error: null,
+    });
+  }
+
+  if (table === 'provider_availability_rules') {
+    return Promise.resolve({
+      data: [{ time_slot_id: '09:00' }, { time_slot_id: '10:00' }],
+      error: null,
+    });
+  }
+
+  if (table === 'booking_slots') {
+    if (query.operation === 'update') {
+      return Promise.resolve({ data: null, error: null });
+    }
+    return Promise.resolve({
+      data: [{ booking_id: BOOKING_ID, time_slot_id: '09:00' }],
       error: null,
     });
   }

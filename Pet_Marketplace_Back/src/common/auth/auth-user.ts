@@ -8,6 +8,7 @@ export type ProviderStatus = 'active' | 'paused' | 'blocked' | 'deleted';
 export interface TutorProfileSummary {
   id: string;
   displayName: string;
+  defaultAddressId?: string | null;
 }
 
 export interface ProviderProfileSummary {

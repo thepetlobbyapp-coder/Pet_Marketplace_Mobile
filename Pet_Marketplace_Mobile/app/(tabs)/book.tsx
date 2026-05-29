@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
   ApiClientError,
   createBooking,
-  getBookings,
+  getBookingsPage,
   getPets,
   getProvider,
   getProviderAvailability,
@@ -14,11 +14,13 @@ import {
 } from "../../src/api/client";
 import type {
   BookingResponse,
+  BookingStatus,
+  PaginatedResponse,
   PetResponse,
   ProviderResponse,
 } from "../../src/api/types";
 import {
-  hasProviderProfile,
+  hasActiveProviderProfile,
   hasTutorProfile,
   useMeQuery,
 } from "../../src/api/useMeQuery";
@@ -48,6 +50,14 @@ import { formatPriceBRL, formatPriceGBP } from "../../src/lib/format";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BOOKINGS_PAGE_LIMIT = 10;
+const BOOKING_STATUS_FILTERS: ("all" | BookingStatus)[] = [
+  "all",
+  "requested",
+  "confirmed",
+  "completed",
+  "cancelled",
+];
 
 export default function BookScreen() {
   const { providerId } = useLocalSearchParams<{ providerId?: string }>();
@@ -84,17 +94,118 @@ function UnsupportedDemoBookingRoute() {
 function RealBookingsListScreen() {
   const { accessToken, session } = useAuth();
   const meQuery = useMeQuery();
+  const [selectedPerspective, setSelectedPerspective] = useState<
+    "provider" | "tutor"
+  >("tutor");
+  const [statusFilter, setStatusFilter] = useState<"all" | BookingStatus>(
+    "all",
+  );
+  const [bookingPagesState, setBookingPagesState] = useState<{
+    pageIndex: number;
+    pages: PaginatedResponse<BookingResponse>[];
+    statusFilter: "all" | BookingStatus;
+    userId?: string;
+    viewerPerspective?: "provider" | "tutor";
+  }>({ pageIndex: 0, pages: [], statusFilter: "all" });
   const userId = session?.user.id;
-  const canUseBookings =
-    hasTutorProfile(meQuery.data) || hasProviderProfile(meQuery.data);
-  const viewerIsProvider = hasProviderProfile(meQuery.data);
+  const canUseTutorBookings = hasTutorProfile(meQuery.data);
+  const canUseProviderBookings = hasActiveProviderProfile(meQuery.data);
+  const canUseBookings = canUseTutorBookings || canUseProviderBookings;
+  const hasBothBookingProfiles = canUseTutorBookings && canUseProviderBookings;
+  const viewerPerspective =
+    canUseProviderBookings && !canUseTutorBookings
+      ? "provider"
+      : canUseTutorBookings
+        ? canUseProviderBookings
+          ? selectedPerspective
+          : "tutor"
+        : "provider";
+  const viewerIsProvider = viewerPerspective === "provider";
+  const queryStatus = statusFilter === "all" ? undefined : statusFilter;
+  const storedPagesMatch =
+    bookingPagesState.userId === userId &&
+    bookingPagesState.viewerPerspective === viewerPerspective &&
+    bookingPagesState.statusFilter === statusFilter;
+  const storedPages = storedPagesMatch ? bookingPagesState.pages : [];
+  const currentPageIndex = storedPagesMatch ? bookingPagesState.pageIndex : 0;
   const bookingsQuery = useQuery({
     enabled: Boolean(accessToken && canUseBookings),
-    queryKey: ["bookings", userId],
-    queryFn: () => getBookings(accessToken),
+    queryKey: ["bookings", userId, viewerPerspective, statusFilter],
+    queryFn: () =>
+      getBookingsPage(accessToken, {
+        limit: BOOKINGS_PAGE_LIMIT,
+        perspective: viewerPerspective,
+        status: queryStatus,
+      }),
     refetchInterval: 5000,
     retry: 1,
   });
+  const allPages = [
+    ...(bookingsQuery.data ? [bookingsQuery.data] : []),
+    ...storedPages,
+  ];
+  const currentPage = allPages[currentPageIndex] ?? bookingsQuery.data ?? null;
+  const currentBookings = currentPage?.items ?? [];
+  const bookingGroups = groupBookingsForCards(
+    currentBookings,
+    viewerPerspective,
+  );
+  const nextCursor = currentPage?.nextCursor ?? null;
+  const canGoPrevious = currentPageIndex > 0;
+  const canGoNext = currentPageIndex + 1 < allPages.length || Boolean(nextCursor);
+
+  const nextBookingsPageMutation = useMutation({
+    mutationFn: (cursor: string) =>
+      getBookingsPage(accessToken, {
+        cursor,
+        limit: BOOKINGS_PAGE_LIMIT,
+        perspective: viewerPerspective,
+        status: queryStatus,
+      }),
+    onSuccess: (page) => {
+      setBookingPagesState((current) => ({
+        pageIndex: current.userId === userId ? current.pageIndex + 1 : 1,
+        pages:
+          current.userId === userId &&
+          current.viewerPerspective === viewerPerspective &&
+          current.statusFilter === statusFilter
+            ? [...current.pages, page]
+            : [page],
+        statusFilter,
+        userId,
+        viewerPerspective,
+      }));
+    },
+  });
+  const handleBookingUpdated = useCallback((updated: BookingResponse) => {
+    setBookingPagesState((current) => ({
+      ...current,
+      pages: current.pages.map((page) => ({
+        ...page,
+        items: page.items.map((booking) =>
+          booking.id === updated.id ? updated : booking,
+        ),
+      })),
+    }));
+  }, []);
+  const resetPagedState = useCallback(
+    (
+      updates: Partial<{
+        statusFilter: "all" | BookingStatus;
+        viewerPerspective: "provider" | "tutor";
+      }>,
+    ) => {
+      setBookingPagesState({
+        pageIndex: 0,
+        pages: [],
+        statusFilter: updates.statusFilter ?? statusFilter,
+        userId,
+        viewerPerspective: updates.viewerPerspective ?? viewerPerspective,
+      });
+      nextBookingsPageMutation.reset();
+    },
+    [nextBookingsPageMutation, statusFilter, userId, viewerPerspective],
+  );
 
   if (!accessToken) {
     return (
@@ -159,14 +270,20 @@ function RealBookingsListScreen() {
     );
   }
 
-  const bookings = bookingsQuery.data ?? [];
-
   return (
     <Screen variant="top">
       <View style={styles.listHeader}>
         <View style={styles.listTitleBlock}>
-          <Text style={styles.title}>{t("book.list.title")}</Text>
-          <Text style={styles.listSubtitle}>{t("book.list.subtitle")}</Text>
+          <Text style={styles.title}>
+            {viewerIsProvider
+              ? t("book.providerSchedule.title")
+              : t("book.list.title")}
+          </Text>
+          <Text style={styles.listSubtitle}>
+            {viewerIsProvider
+              ? t("book.providerSchedule.subtitle")
+              : t("book.list.subtitle")}
+          </Text>
         </View>
         <Button
           label={t("book.findProvider")}
@@ -175,7 +292,42 @@ function RealBookingsListScreen() {
         />
       </View>
 
-      {bookings.length === 0 ? (
+      {hasBothBookingProfiles ? (
+        <View style={styles.perspectiveTabs}>
+          <PerspectiveButton
+            label={t("book.perspective.tutor")}
+            onPress={() => {
+              setSelectedPerspective("tutor");
+              resetPagedState({ viewerPerspective: "tutor" });
+            }}
+            selected={viewerPerspective === "tutor"}
+          />
+          <PerspectiveButton
+            label={t("book.perspective.provider")}
+            onPress={() => {
+              setSelectedPerspective("provider");
+              resetPagedState({ viewerPerspective: "provider" });
+            }}
+            selected={viewerPerspective === "provider"}
+          />
+        </View>
+      ) : null}
+
+      <View style={styles.filterRow}>
+        {BOOKING_STATUS_FILTERS.map((status) => (
+          <FilterButton
+            key={status}
+            label={formatBookingStatusFilter(status)}
+            onPress={() => {
+              setStatusFilter(status);
+              resetPagedState({ statusFilter: status });
+            }}
+            selected={statusFilter === status}
+          />
+        ))}
+      </View>
+
+      {bookingGroups.length === 0 ? (
         <EmptyState
           actionLabel={t("book.empty.action")}
           message={t("book.empty.body")}
@@ -184,15 +336,58 @@ function RealBookingsListScreen() {
         />
       ) : (
         <View style={styles.bookingList}>
-          {bookings.map((booking) => (
-            <BookingListCard
-              booking={booking}
-              key={booking.id}
+          {bookingGroups.map((group) => (
+            <BookingGroupCard
+              group={group}
+              key={group.key}
+              onBookingUpdated={handleBookingUpdated}
               viewerIsProvider={viewerIsProvider}
             />
           ))}
         </View>
       )}
+
+      {currentPage || nextCursor ? (
+        <View style={styles.paginationActions}>
+          <Text style={styles.paginationSummary}>
+            {formatBookingPageSummary(currentPageIndex, currentBookings.length)}
+          </Text>
+          {nextBookingsPageMutation.isError ? (
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {t("book.pagination.error")}
+            </Text>
+          ) : null}
+          <View style={styles.paginationButtonRow}>
+            <Button
+              disabled={!canGoPrevious || nextBookingsPageMutation.isPending}
+              label={t("book.pagination.previous")}
+              onPress={() =>
+                setBookingPagesState((current) => ({
+                  ...current,
+                  pageIndex: Math.max(0, current.pageIndex - 1),
+                }))
+              }
+              variant="secondary"
+            />
+            <Button
+              disabled={!canGoNext || nextBookingsPageMutation.isPending}
+              isLoading={nextBookingsPageMutation.isPending}
+              label={t("book.pagination.next")}
+              onPress={() => {
+                if (currentPageIndex + 1 < allPages.length) {
+                  setBookingPagesState((current) => ({
+                    ...current,
+                    pageIndex: current.pageIndex + 1,
+                  }));
+                  return;
+                }
+                if (nextCursor) nextBookingsPageMutation.mutate(nextCursor);
+              }}
+              variant="secondary"
+            />
+          </View>
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -202,7 +397,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
   const meQuery = useMeQuery();
   const dates = useMemo(() => buildUpcomingDates(10), []);
   const [selectedDate, setSelectedDate] = useState(dates[0]!.id);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedTimeIds, setSelectedTimeIds] = useState<string[]>([]);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] =
     useState<BookingResponse | null>(null);
@@ -233,17 +428,22 @@ function RealBookScreen({ providerId }: { providerId: string }) {
   const selectedPet =
     pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null;
   const dateLabel = useDateLabel(dates, selectedDate);
-  const selectedSlot = availabilityQuery.data?.find(
-    (slot) => slot.id === selectedTime,
+  const selectedSlots = (availabilityQuery.data ?? []).filter(
+    (slot) => slot.isAvailable && selectedTimeIds.includes(slot.id),
   );
-  const selectedTimeForBooking = selectedSlot?.isAvailable
-    ? selectedTime
-    : null;
-  const timeLabel = selectedSlot?.label ?? selectedTime;
+  const selectedTimeIdsForBooking = selectedSlots.map((slot) => slot.id);
+  const timeLabel = formatTimeSlotLabels(selectedSlots);
+  const estimatedTotal = providerQuery.data
+    ? selectedTimeIdsForBooking.length * providerQuery.data.pricePerHour
+    : 0;
 
   const bookingMutation = useMutation({
     mutationFn: () => {
-      if (!selectedTimeForBooking || !selectedPet || !providerQuery.data) {
+      if (
+        selectedTimeIdsForBooking.length === 0 ||
+        !selectedPet ||
+        !providerQuery.data
+      ) {
         throw new Error("BOOKING_INPUT_MISSING");
       }
       if (!providerQuery.data.isAvailable) {
@@ -255,7 +455,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         petId: selectedPet.id,
         providerId,
         service: providerQuery.data.service,
-        timeSlotId: selectedTimeForBooking,
+        timeSlotIds: selectedTimeIdsForBooking,
       });
     },
     onSuccess: (booking) => {
@@ -376,13 +576,13 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         dateLabel={dateLabel}
         onNewBooking={() => {
           setConfirmedBooking(null);
-          setSelectedTime(null);
+          setSelectedTimeIds([]);
           bookingMutation.reset();
           availabilityQuery.refetch();
         }}
         pet={selectedPet}
         provider={provider}
-        timeLabel={timeLabel ?? confirmedBooking.timeSlotId}
+        timeLabel={timeLabel || formatBookingTimeSlots(confirmedBooking)}
       />
     );
   }
@@ -410,7 +610,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         dates={dates}
         onSelect={(date) => {
           setSelectedDate(date);
-          setSelectedTime(null);
+          setSelectedTimeIds([]);
           bookingMutation.reset();
         }}
         selectedId={selectedDate}
@@ -427,20 +627,29 @@ function RealBookScreen({ providerId }: { providerId: string }) {
           title={t("book.error.availability.title")}
         />
       ) : (
-        <View style={styles.timeGrid}>
-          {(availabilityQuery.data ?? []).map((slot) => (
-            <TimeChip
-              disabled={!slot.isAvailable || bookingMutation.isPending}
-              key={slot.id}
-              label={slot.label}
-              onPress={() => {
-                setSelectedTime(slot.id);
-                bookingMutation.reset();
-              }}
-              selected={slot.isAvailable && selectedTime === slot.id}
-            />
-          ))}
-        </View>
+        <>
+          {(availabilityQuery.data ?? []).length === 0 ? (
+            <Text style={styles.noticeText}>{t("book.slots.empty")}</Text>
+          ) : null}
+          <View style={styles.timeGrid}>
+            {(availabilityQuery.data ?? []).map((slot) => (
+              <TimeChip
+                disabled={!slot.isAvailable || bookingMutation.isPending}
+                key={slot.id}
+                label={slot.label}
+                onPress={() => {
+                  setSelectedTimeIds((current) =>
+                    current.includes(slot.id)
+                      ? current.filter((id) => id !== slot.id)
+                      : [...current, slot.id],
+                  );
+                  bookingMutation.reset();
+                }}
+                selected={slot.isAvailable && selectedTimeIds.includes(slot.id)}
+              />
+            ))}
+          </View>
+        </>
       )}
 
       <View style={styles.summary}>
@@ -451,15 +660,19 @@ function RealBookScreen({ providerId }: { providerId: string }) {
         <SummaryRow label={t("book.bookingDate")} value={dateLabel} />
         <SummaryRow
           label={t("book.bookingTime")}
-          value={timeLabel ?? t("book.selectTime")}
+          value={timeLabel || t("book.selectTime")}
+        />
+        <SummaryRow
+          label={t("book.summary.hours")}
+          value={`${selectedTimeIdsForBooking.length}`}
         />
         <View style={styles.divider} />
         <SummaryRow
           label={t("book.summary.estimatedPrice")}
           strong
-          value={`${formatPriceGBP(provider.pricePerHour)} / ${t(
-            "book.summary.perHour",
-          )}`}
+          value={`${formatPriceGBP(estimatedTotal)} (${formatPriceGBP(
+            provider.pricePerHour,
+          )} / ${t("book.summary.perHour")})`}
         />
       </View>
 
@@ -474,7 +687,7 @@ function RealBookScreen({ providerId }: { providerId: string }) {
       <Button
         disabled={
           !provider.isAvailable ||
-          !selectedTimeForBooking ||
+          selectedTimeIdsForBooking.length === 0 ||
           availabilityQuery.isLoading
         }
         isLoading={bookingMutation.isPending}
@@ -733,11 +946,165 @@ function RealBookingSuccess({
   );
 }
 
-function BookingListCard({
+function PerspectiveButton({
+  label,
+  onPress,
+  selected,
+}: {
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.perspectiveButton,
+        selected ? styles.perspectiveButtonSelected : null,
+        pressed ? styles.pressed : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.perspectiveButtonText,
+          selected ? styles.perspectiveButtonTextSelected : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function FilterButton({
+  label,
+  onPress,
+  selected,
+}: {
+  label: string;
+  onPress: () => void;
+  selected: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterButton,
+        selected ? styles.filterButtonSelected : null,
+        pressed ? styles.pressed : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.filterButtonText,
+          selected ? styles.filterButtonTextSelected : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+interface BookingCardGroup {
+  bookings: BookingResponse[];
+  date: string;
+  key: string;
+  petName: string;
+  statusLabel: string;
+  timeLabel: string;
+  title: string;
+  avatarUrl?: string | null;
+}
+
+function BookingGroupCard({
+  group,
+  onBookingUpdated,
+  viewerIsProvider,
+}: {
+  group: BookingCardGroup;
+  onBookingUpdated?: (booking: BookingResponse) => void;
+  viewerIsProvider: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <View style={styles.bookingCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((current) => !current)}
+        style={({ pressed }) => [
+          styles.bookingClosedRow,
+          pressed ? styles.pressed : null,
+        ]}
+      >
+        <Avatar name={group.title} size={48} uri={group.avatarUrl ?? undefined} />
+        <View style={styles.bookingClosedBody}>
+          <Text numberOfLines={1} style={styles.bookingParticipant}>
+            {group.title}
+          </Text>
+          <Text numberOfLines={1} style={styles.bookingWhen}>
+            {formatBookingDate(group.date)} at {group.timeLabel}
+          </Text>
+        </View>
+        <View style={styles.bookingClosedMeta}>
+          <View style={styles.bookingStatusPill}>
+            <Text style={styles.bookingStatusText}>{group.statusLabel}</Text>
+          </View>
+          <Ionicons
+            color={colors.muted}
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={18}
+          />
+        </View>
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.bookingDetails}>
+          <SummaryRow label={t("book.summary.pet")} value={group.petName} />
+          {group.bookings.map((booking) => (
+            <View key={booking.id} style={styles.bookingExpandedItem}>
+              <SummaryRow label={t("book.service")} value={booking.service} />
+              <SummaryRow
+                label={t("book.bookingTime")}
+                value={formatBookingTimeSlots(booking)}
+              />
+              {booking.estimatedTotalAmount !== null &&
+              booking.estimatedTotalAmount !== undefined ? (
+                <SummaryRow
+                  label={t("book.summary.estimatedPrice")}
+                  value={formatPriceGBP(booking.estimatedTotalAmount)}
+                />
+              ) : null}
+              <SummaryRow
+                label={t("book.status.label")}
+                value={formatBookingStatus(booking.status)}
+              />
+              <BookingStatusActions
+                booking={booking}
+                onBookingUpdated={onBookingUpdated}
+                viewerIsProvider={viewerIsProvider}
+              />
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function BookingStatusActions({
   booking,
+  onBookingUpdated,
   viewerIsProvider,
 }: {
   booking: BookingResponse;
+  onBookingUpdated?: (booking: BookingResponse) => void;
   viewerIsProvider: boolean;
 }) {
   const { accessToken, session } = useAuth();
@@ -751,10 +1118,11 @@ function BookingListCard({
     mutationFn: (status: BookingResponse["status"]) =>
       updateBooking(accessToken, booking.id, { status }),
     onError: () => {
-      setStatusMessage("The booking status could not be updated.");
+      setStatusMessage(t("book.statusUpdate.error"));
     },
-    onSuccess: async () => {
-      setStatusMessage("Booking updated.");
+    onSuccess: async (updatedBooking) => {
+      setStatusMessage(t("book.statusUpdate.success"));
+      onBookingUpdated?.(updatedBooking);
       await queryClient.invalidateQueries({ queryKey: bookingsQueryKey });
     },
   });
@@ -763,47 +1131,10 @@ function BookingListCard({
   const canCancel =
     booking.status === "requested" || booking.status === "confirmed";
 
+  if (!canConfirm && !canComplete && !canCancel && !statusMessage) return null;
+
   return (
-    <View style={styles.bookingCard}>
-      <View style={styles.bookingTopRow}>
-        <View style={styles.bookingTitleBlock}>
-          <Text numberOfLines={2} style={styles.bookingService}>
-            {booking.service}
-          </Text>
-          <Text style={styles.bookingWhen}>
-            {formatBookingDate(booking.date)} at {booking.timeSlotId}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.bookingStatusPill,
-            booking.status === "cancelled" ? styles.bookingStatusMuted : null,
-          ]}
-        >
-          <Text
-            style={[
-              styles.bookingStatusText,
-              booking.status === "cancelled"
-                ? styles.bookingStatusTextMuted
-                : null,
-            ]}
-          >
-            {formatBookingStatus(booking.status)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.bookingDetails}>
-        <SummaryRow
-          label="Provider ID"
-          value={formatIdPrefix(booking.providerId)}
-        />
-        <SummaryRow label="Pet ID" value={formatIdPrefix(booking.petId)} />
-        <SummaryRow label={t("book.bookingDate")} value={booking.date} />
-        <SummaryRow label={t("book.bookingTime")} value={booking.timeSlotId} />
-        <SummaryRow label="Status" value={booking.status} />
-      </View>
-
+    <>
       {statusMessage ? (
         <Text style={styles.noticeText}>{statusMessage}</Text>
       ) : null}
@@ -817,7 +1148,7 @@ function BookingListCard({
                 statusMutation.isPending &&
                 statusMutation.variables === "confirmed"
               }
-              label="Confirm care"
+              label={t("book.action.confirm")}
               onPress={() => statusMutation.mutate("confirmed")}
             />
           ) : null}
@@ -828,7 +1159,7 @@ function BookingListCard({
                 statusMutation.isPending &&
                 statusMutation.variables === "completed"
               }
-              label="Complete care"
+              label={t("book.action.complete")}
               onPress={() => statusMutation.mutate("completed")}
             />
           ) : null}
@@ -839,14 +1170,14 @@ function BookingListCard({
                 statusMutation.isPending &&
                 statusMutation.variables === "cancelled"
               }
-              label="Cancel request"
+              label={t("book.action.cancel")}
               onPress={() => statusMutation.mutate("cancelled")}
               variant="secondary"
             />
           ) : null}
         </View>
       ) : null}
-    </View>
+    </>
   );
 }
 
@@ -904,6 +1235,76 @@ function getBookingErrorMessage(error: unknown): string {
   return t("book.error.create");
 }
 
+function groupBookingsForCards(
+  bookings: BookingResponse[],
+  perspective: "provider" | "tutor",
+): BookingCardGroup[] {
+  const groups = new Map<string, BookingCardGroup>();
+
+  for (const booking of bookings) {
+    const title = getBookingCounterpartName(booking, perspective);
+    const key =
+      booking.bookingGroupKey ??
+      `${perspective}:${booking.date}:${booking.petId}:${booking.providerId}:${title}`;
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, {
+        avatarUrl: booking.counterpartAvatarUrl,
+        bookings: [booking],
+        date: booking.date,
+        key,
+        petName: booking.petName ?? t("book.participant.petFallback"),
+        statusLabel: formatBookingStatus(booking.status),
+        timeLabel: formatBookingTimeSlots(booking),
+        title,
+      });
+      continue;
+    }
+
+    existing.bookings.push(booking);
+    existing.timeLabel = formatGroupedBookingTimes(existing.bookings);
+    existing.statusLabel = formatGroupedBookingStatus(existing.bookings);
+  }
+
+  return [...groups.values()];
+}
+
+function getBookingCounterpartName(
+  booking: BookingResponse,
+  perspective: "provider" | "tutor",
+): string {
+  if (booking.counterpartName) return booking.counterpartName;
+  if (perspective === "provider") {
+    return booking.tutorName ?? t("book.participant.tutorFallback");
+  }
+  return booking.providerName ?? t("book.participant.providerFallback");
+}
+
+function formatGroupedBookingTimes(bookings: BookingResponse[]): string {
+  return [
+    ...new Set(bookings.flatMap((booking) => getBookingTimeSlots(booking))),
+  ].join(", ");
+}
+
+function formatGroupedBookingStatus(bookings: BookingResponse[]): string {
+  const statuses = [...new Set(bookings.map((booking) => booking.status))];
+  return statuses.length === 1
+    ? formatBookingStatus(statuses[0]!)
+    : t("book.status.mixed");
+}
+
+function formatBookingStatusFilter(status: "all" | BookingStatus): string {
+  if (status === "all") return t("book.filter.all");
+  return formatBookingStatus(status);
+}
+
+function formatBookingPageSummary(pageIndex: number, count: number): string {
+  return `${t("book.pagination.page")} ${pageIndex + 1} - ${count} ${t(
+    count === 1 ? "book.pagination.bookingSingular" : "book.pagination.bookingsPlural",
+  )}`;
+}
+
 function formatPetSpecies(species: PetResponse["species"]): string {
   if (species === "dog") return t("book.petSpecies.dog");
   if (species === "cat") return t("book.petSpecies.cat");
@@ -923,8 +1324,20 @@ function formatBookingDate(date: string): string {
   return `${day}/${month}/${year}`;
 }
 
-function formatIdPrefix(value: string): string {
-  return `${value.slice(0, 8)}...`;
+function formatTimeSlotLabels(slots: { label: string }[]): string {
+  return slots.map((slot) => slot.label).join(", ");
+}
+
+function formatBookingTimeSlots(booking: BookingResponse): string {
+  return getBookingTimeSlots(booking).join(", ");
+}
+
+function getBookingTimeSlots(booking: BookingResponse): string[] {
+  const slots =
+    booking.timeSlotIds && booking.timeSlotIds.length > 0
+      ? booking.timeSlotIds
+      : [booking.timeSlotId];
+  return slots;
 }
 
 const styles = StyleSheet.create({
@@ -947,6 +1360,86 @@ const styles = StyleSheet.create({
   bookingList: {
     gap: spacing[3],
   },
+  paginationActions: {
+    alignItems: "stretch",
+    gap: spacing[2],
+  },
+  paginationSummary: {
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  paginationButtonRow: {
+    flexDirection: "row",
+    gap: spacing[2],
+  },
+  perspectiveTabs: {
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: spacing[1],
+    padding: spacing[1],
+  },
+  perspectiveButton: {
+    alignItems: "center",
+    borderRadius: radius.sm,
+    flex: 1,
+    minHeight: 40,
+    justifyContent: "center",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  perspectiveButtonSelected: {
+    backgroundColor: colors.surface,
+    ...shadow.sm,
+  },
+  perspectiveButtonText: {
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "800",
+  },
+  perspectiveButtonTextSelected: {
+    color: colors.accent,
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2],
+  },
+  filterButton: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  filterButtonSelected: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
+  filterButtonText: {
+    color: colors.muted,
+    fontSize: typography.caption,
+    fontWeight: "800",
+  },
+  filterButtonTextSelected: {
+    color: colors.accent,
+  },
+  bookingSection: {
+    gap: spacing[3],
+  },
+  bookingSectionTitle: {
+    color: colors.text,
+    fontSize: typography.section,
+    fontWeight: "800",
+  },
   bookingCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -955,6 +1448,30 @@ const styles = StyleSheet.create({
     gap: spacing[4],
     padding: spacing[4],
     ...shadow.sm,
+  },
+  bookingClosedRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing[3],
+  },
+  bookingClosedBody: {
+    flex: 1,
+    gap: spacing[1],
+  },
+  bookingClosedMeta: {
+    alignItems: "flex-end",
+    gap: spacing[2],
+  },
+  bookingParticipant: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: "800",
+  },
+  bookingExpandedItem: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    gap: spacing[3],
+    paddingTop: spacing[3],
   },
   bookingTopRow: {
     alignItems: "flex-start",

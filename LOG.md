@@ -74,3 +74,75 @@
   `pnpm sync:win` to propagate progress docs to Back, Mobile and Admin.
 - Rechecked root runtime and Backend `pnpm test`; e2e suite passed with 17
   suites and 174 tests.
+
+[2026-05-28] Implemented the authorized weekly provider availability and
+multi-slot booking recorte locally:
+- Added backend weekly availability endpoints and multi-slot booking contract.
+- Added Supabase migration for `provider_availability_rules`, `booking_slots`,
+  estimated GBP snapshots and atomic booking-slot creation.
+- Updated Mobile booking to select multiple slots and show estimated totals.
+- Added provider profile weekly availability editing and grouped provider care
+  schedule.
+- Updated and synchronized shared docs; recorded the booking/availability
+  decision in DECISIONS.md.
+- Validation passed: root env check; Backend typecheck/lint/e2e/build; Mobile
+  typecheck/lint/test; Admin typecheck/test; git diff whitespace check.
+- No remote migration, deploy, EAS build, Play Store action or authenticated
+  remote smoke was executed.
+
+[2026-05-28] Diagnosed runtime failure for weekly availability and multi-slot
+booking:
+- Confirmed Mobile public API base URL is `http://192.168.1.69:3000`.
+- Confirmed the local target backend responds to `/api/v1/health` with `200`.
+- Confirmed port `3000` is running `node dist/src/main.js` and local `dist`
+  contains the new availability endpoints and multi-slot booking contract.
+- Ran a read-only schema check via the backend database connection; the runtime
+  database does not have `provider_availability_rules`, `booking_slots`, the
+  booking estimate columns or `create_booking_with_slots`.
+- Stopped before applying migration/deploy because the runtime blocker is
+  schema deployment and no explicit additional authorization was provided for
+  migration or deploy actions.
+
+[2026-05-28] Applied the authorized runtime migration for weekly availability:
+- Ran `20260528_002_weekly_availability_multi_slot_bookings.sql` through the
+  guarded backend SQL runner after explicit authorization.
+- Verified the runtime schema now has `provider_availability_rules`,
+  `booking_slots`, booking estimate columns, `create_booking_with_slots`, and
+  the expected slot uniqueness index.
+- Rechecked local backend health: `/api/v1/health` returned `200`.
+- Backend validation passed: typecheck, lint, e2e with 18 suites / 178 tests,
+  and build.
+- Authenticated smoke with the configured test token returned
+  `401 UNAUTHENTICATED`; a fresh app session is needed for final provider/tutor
+  manual smoke.
+
+[2026-05-28] Restarted the local backend runtime after the user still saw
+runtime `400` responses:
+- Stopped the stale process on port `3000` and started `node dist/src/main.js`
+  from the current Backend build.
+- Confirmed `/api/v1/health` returns `200` after restart.
+- Confirmed startup route map includes `/api/v1/providers/me/availability`
+  before `/api/v1/providers/:id/availability`.
+
+[2026-05-28] Implemented the location-flow hardening recorte (plan A+B):
+- A1 (Backend): `upsertOwnProviderListing` now blocks publish (`status = active`)
+  when no base address is resolvable (request value or stored), throwing
+  `VALIDATION_ERROR` and keeping the profile `paused`.
+- A2 (Backend): tutor profile now carries an internal `defaultAddressId`; `/me`
+  exposes only the boolean `hasDefaultAddress` (the raw address id stays in the
+  forbidden-fields contract and is never serialized).
+- A2 (Mobile): home and search gate the marketplace on `hasTutorDefaultAddress`;
+  added `TutorAddressRequiredState`, the address-required count label and the
+  `access.addressRequired.*` / `search.count.addressRequired` en-GB copy.
+- B (DB): added migration
+  `20260528_003_providers_radius_filter.sql`, recreating only
+  `providers_list_near` to filter by each provider's `service_radius_km` via
+  `st_dwithin` centered on the tutor default address; `providers_get_one`
+  untouched. The user applied this migration to the runtime DB (Supabase),
+  confirmed "Success. No rows returned".
+- Docs: updated canonical `docs/04`, `docs/05`, `docs/06` and synced to the 3
+  apps via `npm run sync:win`.
+- Validation: Backend typecheck/lint and full e2e (185 tests) green; Mobile
+  typecheck/lint green.
+- Not executed: manual app smoke is blocked — the app is not available in Expo
+  Go nor locally for the user; no deploy/EAS/Play action; no push.

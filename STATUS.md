@@ -109,3 +109,87 @@ Current north:
   on a synthetic test user with rollback plan.
 - Do not reopen Play Store submission until runtime config, exact artifact
   smoke and compliance/Data Safety blockers are handled in their own cycle.
+
+Agenda weekly availability / multi-slot booking recorte implemented locally
+after explicit Mobile and Backend authorization:
+
+- Backend adds weekly provider availability endpoints under
+  `/providers/me/availability`.
+- Provider availability for booking now combines configured weekly slots with
+  active booking-slot occupancy.
+- Booking creation accepts multi-slot `timeSlotIds` while keeping legacy
+  `timeSlotId` for existing consumers.
+- New migration adds `provider_availability_rules`, `booking_slots`, estimated
+  GBP booking snapshots and atomic booking-slot creation.
+- Mobile tutor booking supports selecting multiple slots and seeing the
+  estimated total.
+- Mobile provider profile exposes weekly availability editing, and the Book tab
+  shows a provider care schedule grouped by requests, confirmed care and
+  history.
+- Shared docs were updated and synchronized across Back, Mobile and Admin.
+
+Validation passed locally:
+
+- root `pnpm env:check`;
+- Backend `typecheck`, `lint`, `test:e2e -- --runInBand`, `build`;
+- Mobile `typecheck`, `lint`, `test`;
+- Admin `typecheck`, `test`;
+- `git diff --check`.
+
+Not executed:
+
+- no database migration was applied remotely;
+- no deploy, EAS build or Play Store action was executed;
+- no authenticated remote smoke was executed.
+
+Runtime diagnostic for the weekly availability / multi-slot booking recorte:
+
+- Mobile local public API target is `http://192.168.1.69:3000`.
+- The target backend responds to `/api/v1/health` with `200`.
+- The backend process on port `3000` is running `dist/src/main.js`, and the
+  local `dist` build contains `/providers/me/availability`, `timeSlotIds` and
+  the `create_booking_with_slots` call.
+- A safe read-only schema check against the backend database connection found
+  no `provider_availability_rules`, no `booking_slots`, no booking estimate
+  columns and no `create_booking_with_slots` function.
+- Current blocker: the runtime database has not received migration
+  `20260528_002_weekly_availability_multi_slot_bookings.sql`; provider weekly
+  availability and tutor multi-slot booking cannot work until that schema is
+  applied to the intended environment.
+- Stopped before applying migration or deploying because no additional
+  migration/deploy authorization was provided for the runtime environment.
+
+Runtime migration update after explicit authorization:
+
+- Applied `20260528_002_weekly_availability_multi_slot_bookings.sql` to the
+  database used by the local runtime backend.
+- Read-only schema verification confirmed `provider_availability_rules`,
+  `booking_slots`, booking estimate columns, `create_booking_with_slots`, and
+  the active booking-slot uniqueness index now exist.
+- Local backend `/api/v1/health` still returns `200`.
+- Backend validation passed: `pnpm typecheck`, `pnpm lint`,
+  `pnpm test:e2e -- --runInBand`, `pnpm build`.
+- Authenticated smoke with the configured test token could not be completed
+  because the token returned `401 UNAUTHENTICATED`; manual app smoke with a
+  fresh signed-in provider/tutor session is still required.
+- Local backend runtime was restarted after the migration/build so port `3000`
+  now serves the current `dist`; startup logs confirm
+  `/api/v1/providers/me/availability` is mapped before the dynamic provider
+  availability route.
+
+Location-flow hardening recorte (plan A+B) implemented locally:
+
+- A1: provider publish now requires a resolvable base address, otherwise
+  `VALIDATION_ERROR` and the profile stays `paused`.
+- A2: tutor default address is a marketplace precondition; `/me` exposes the
+  boolean `hasDefaultAddress` only (no address id leaked); Mobile home/search
+  gate on it with a dedicated address-required state and en-GB copy.
+- B: marketplace discovery filters by each provider's `service_radius_km` via
+  `st_dwithin` centered on the tutor default address, in `providers_list_near`
+  only (`providers_get_one` stays unfiltered for the booking flow).
+- Migration `20260528_003_providers_radius_filter.sql` was applied to the
+  runtime database by the user (Supabase) — "Success. No rows returned".
+- Validation: Backend typecheck/lint and e2e (185 tests) green; Mobile
+  typecheck/lint green. Canonical docs updated and synced to the 3 apps.
+- Blocker: manual app smoke is pending — the app is not available in Expo Go nor
+  locally for the user. No deploy/EAS/Play action and no push were performed.

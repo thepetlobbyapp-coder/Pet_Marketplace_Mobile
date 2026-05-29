@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   ApiClientError,
   createAddress,
@@ -11,9 +11,11 @@ import {
   createTutorProfile,
   deletePet,
   getAddresses,
+  getOwnProviderAvailability,
   getPets,
   getMe,
   updateAddress,
+  updateOwnProviderAvailability,
   updatePet,
   updateProviderProfile,
   updateTutorProfile,
@@ -26,6 +28,7 @@ import type {
   MeResponse,
   PetResponse,
   PetSpecies,
+  ProviderWeeklyAvailability,
   ProviderCategory,
   ProviderProfileStatus,
   Role,
@@ -33,6 +36,7 @@ import type {
   UpdatePetRequest,
 } from "../../src/api/types";
 import {
+  hasActiveProviderProfile,
   hasProviderProfile,
   hasTutorProfile,
   meQueryKey as buildMeQueryKey,
@@ -56,6 +60,7 @@ import { RatingStars } from "../../src/components/RatingStars";
 import { Screen } from "../../src/components/Screen";
 import { SectionHeader } from "../../src/components/SectionHeader";
 import { TextField } from "../../src/components/TextField";
+import { TimeChip } from "../../src/components/TimeChip";
 import { colors, spacing, typography } from "../../src/design/tokens";
 import { t } from "../../src/i18n";
 
@@ -64,6 +69,11 @@ type AddressSheetState =
   | { mode: "edit"; address: AddressResponse };
 
 type PetSheetState = { mode: "create" } | { mode: "edit"; pet: PetResponse };
+type CollapsibleSectionId =
+  | "availability"
+  | "pets"
+  | "providerProfile"
+  | "tutorProfile";
 
 const PROVIDER_CATEGORY_OPTIONS: readonly ProviderCategory[] = [
   "walk",
@@ -87,6 +97,10 @@ export default function ProfileScreen() {
     () => ["addresses", session?.user.id],
     [session?.user.id],
   );
+  const providerAvailabilityQueryKey = useMemo(
+    () => ["providerAvailability", session?.user.id],
+    [session?.user.id],
+  );
   const [tutorDisplayNameDraft, setTutorDisplayNameDraft] = useState<
     string | null
   >(null);
@@ -105,9 +119,16 @@ export default function ProfileScreen() {
   const [providerServiceDraft, setProviderServiceDraft] = useState<
     string | null
   >(null);
+  const [providerActiveDraft, setProviderActiveDraft] = useState<
+    boolean | null
+  >(null);
   const [providerProfileMessage, setProviderProfileMessage] = useState<
     string | null
   >(null);
+  const [providerAvailabilityDraft, setProviderAvailabilityDraft] =
+    useState<ProviderWeeklyAvailability | null>(null);
+  const [providerAvailabilityMessage, setProviderAvailabilityMessage] =
+    useState<string | null>(null);
   const [petSheet, setPetSheet] = useState<PetSheetState | null>(null);
   const [pendingDeletePetId, setPendingDeletePetId] = useState<string | null>(
     null,
@@ -117,6 +138,14 @@ export default function ProfileScreen() {
     null,
   );
   const [addressMessage, setAddressMessage] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<
+    Record<CollapsibleSectionId, boolean>
+  >({
+    availability: false,
+    pets: false,
+    providerProfile: false,
+    tutorProfile: false,
+  });
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const meQuery = useQuery({
@@ -126,7 +155,8 @@ export default function ProfileScreen() {
     retry: 1,
   });
   const canUseTutorTools = hasTutorProfile(meQuery.data);
-  const canUseProviderTools = hasProviderProfile(meQuery.data);
+  const hasProviderTools = hasProviderProfile(meQuery.data);
+  const canUseProviderTools = hasActiveProviderProfile(meQuery.data);
 
   const petsQuery = useQuery({
     enabled: Boolean(accessToken && canUseTutorTools),
@@ -139,6 +169,13 @@ export default function ProfileScreen() {
     enabled: Boolean(accessToken && canUseTutorTools),
     queryKey: addressesQueryKey,
     queryFn: () => getAddresses(accessToken),
+    retry: 1,
+  });
+
+  const providerAvailabilityQuery = useQuery({
+    enabled: Boolean(accessToken && canUseProviderTools),
+    queryKey: providerAvailabilityQueryKey,
+    queryFn: () => getOwnProviderAvailability(accessToken),
     retry: 1,
   });
 
@@ -159,6 +196,19 @@ export default function ProfileScreen() {
       : "");
   const providerService =
     providerServiceDraft ?? providerProfile?.service ?? "";
+  const providerProfileIsActive = providerProfile?.status === "active";
+  const providerActive = providerActiveDraft ?? providerProfileIsActive;
+  const canEditProviderAvailability = canUseProviderTools && providerActive;
+  const providerAvailability =
+    providerAvailabilityDraft ??
+    providerAvailabilityQuery.data ??
+    buildEmptyWeeklyAvailability();
+  const hasProviderAvailabilityChanges =
+    providerAvailabilityDraft !== null &&
+    availabilitySignature(providerAvailabilityDraft) !==
+      availabilitySignature(
+        providerAvailabilityQuery.data ?? buildEmptyWeeklyAvailability(),
+      );
 
   const upsertTutorProfile = useMutation({
     mutationFn: () => {
@@ -185,17 +235,27 @@ export default function ProfileScreen() {
       const saveProviderProfile = providerProfile
         ? updateProviderProfile
         : createProviderProfile;
-
-      return saveProviderProfile(accessToken, {
+      const body = {
         bio: providerBio.trim() || null,
         categoryId: providerCategory,
         displayName: providerDisplayName.trim(),
-        isAvailable: providerProfile?.isAvailable ?? true,
+        isAvailable: providerActive,
         pricePerHour: Number(providerPrice.trim()),
-        publish: true,
+        publish: providerActive,
         service: providerService.trim(),
         serviceRadiusKm: providerProfile?.serviceRadiusKm ?? 5,
-      });
+      };
+
+      if (!providerActive) {
+        return saveProviderProfile(accessToken, {
+          bio: body.bio,
+          displayName: body.displayName,
+          publish: false,
+          serviceRadiusKm: body.serviceRadiusKm,
+        });
+      }
+
+      return saveProviderProfile(accessToken, body);
     },
     onError: () => {
       setProviderProfileMessage(t("profile.providerProfileSaveError"));
@@ -207,11 +267,27 @@ export default function ProfileScreen() {
       setProviderCategoryDraft(null);
       setProviderPriceDraft(null);
       setProviderServiceDraft(null);
+      setProviderActiveDraft(null);
       setProviderProfileMessage(
         profile.status === "paused"
           ? t("profile.providerProfilePausedSuccess")
           : t("profile.providerProfileSaveSuccess"),
       );
+    },
+  });
+
+  const saveProviderAvailability = useMutation({
+    mutationFn: () =>
+      updateOwnProviderAvailability(accessToken, providerAvailability),
+    onError: () => {
+      setProviderAvailabilityMessage(t("profile.availabilitySaveError"));
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: providerAvailabilityQueryKey,
+      });
+      setProviderAvailabilityDraft(null);
+      setProviderAvailabilityMessage(t("profile.availabilitySaveSuccess"));
     },
   });
 
@@ -298,22 +374,24 @@ export default function ProfileScreen() {
       ? String(providerProfile.pricePerHour)
       : "";
   const savedProviderService = providerProfile?.service ?? "";
+  const hasProviderActiveChanges = providerActive !== providerProfileIsActive;
   const hasProviderProfileChanges =
     trimmedProviderDisplayName !== savedProviderDisplayName ||
     trimmedProviderBio !== savedProviderBio ||
     providerCategory !== savedProviderCategory ||
     trimmedProviderPrice !== savedProviderPrice ||
     trimmedProviderService !== savedProviderService ||
-    providerProfile?.status !== "active";
+    hasProviderActiveChanges;
   const isProviderDisplayNameValid =
     trimmedProviderDisplayName.length > 0 &&
     trimmedProviderDisplayName.length <= 80;
   const isProviderListingValid =
-    trimmedProviderService.length > 0 &&
-    trimmedProviderService.length <= 160 &&
-    trimmedProviderPrice.length > 0 &&
-    Number.isFinite(providerPriceNumber) &&
-    providerPriceNumber >= 0;
+    !providerActive ||
+    (trimmedProviderService.length > 0 &&
+      trimmedProviderService.length <= 160 &&
+      trimmedProviderPrice.length > 0 &&
+      Number.isFinite(providerPriceNumber) &&
+      providerPriceNumber >= 0);
   const shouldShowTutorDisplayNameError =
     tutorDisplayNameDraft !== null && !isTutorDisplayNameValid;
   const shouldShowProviderDisplayNameError =
@@ -489,6 +567,13 @@ export default function ProfileScreen() {
     }
   }
 
+  function toggleSection(section: CollapsibleSectionId) {
+    setExpandedSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  }
+
   return (
     <Screen variant="top">
       <View style={styles.hero}>
@@ -552,7 +637,7 @@ export default function ProfileScreen() {
         </Card>
       ) : meQuery.data ? (
         <>
-          {!canUseTutorTools && !canUseProviderTools ? (
+          {!canUseTutorTools && !hasProviderTools ? (
             <Card>
               <View style={styles.details}>
                 <Text style={styles.sectionTitle}>
@@ -603,254 +688,357 @@ export default function ProfileScreen() {
             </View>
           </Card>
 
-          <Card>
-            <View style={styles.details}>
-              <SectionHeader
-                icon="id-card"
-                title={t("profile.section.profiles")}
+          <CollapsibleCard
+            expanded={expandedSections.tutorProfile}
+            icon="id-card"
+            onToggle={() => toggleSection("tutorProfile")}
+            summary={formatTutorProfile(tutorProfile)}
+            title={t("profile.section.profiles")}
+          >
+            <View style={styles.profileSection}>
+              <ProfileRow
+                label={t("profile.tutorProfile")}
+                value={formatTutorProfile(tutorProfile)}
               />
-
-              <View style={styles.profileSection}>
-                <ProfileRow
-                  label={t("profile.tutorProfile")}
-                  value={formatTutorProfile(tutorProfile)}
-                />
-                <TextField
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  label={t("profile.tutorDisplayName")}
-                  maxLength={80}
-                  onChangeText={(value) => {
-                    setTutorDisplayNameDraft(value);
+              <TextField
+                autoCapitalize="words"
+                autoCorrect={false}
+                label={t("profile.tutorDisplayName")}
+                maxLength={80}
+                onChangeText={(value) => {
+                  setTutorDisplayNameDraft(value);
+                  setTutorProfileMessage(null);
+                }}
+                placeholder={t("profile.tutorDisplayNamePlaceholder")}
+                value={tutorDisplayName}
+              />
+              <Text style={styles.help}>
+                {t("profile.tutorDisplayNameHelp")}
+              </Text>
+              {shouldShowTutorDisplayNameError ? (
+                <Text style={styles.errorMessage}>
+                  {t("profile.tutorDisplayNameInvalid")}
+                </Text>
+              ) : null}
+              {hasTutorProfileChanges ? (
+                <Text style={styles.notice}>{t("profile.unsavedChanges")}</Text>
+              ) : null}
+              {tutorProfileMessage ? (
+                <Text
+                  style={[
+                    styles.message,
+                    upsertTutorProfile.isError ? styles.errorMessage : null,
+                  ]}
+                >
+                  {tutorProfileMessage}
+                </Text>
+              ) : null}
+              <View style={styles.actions}>
+                <Button
+                  disabled={
+                    !hasTutorProfileChanges || upsertTutorProfile.isPending
+                  }
+                  label={t("common.cancel")}
+                  onPress={() => {
+                    setTutorDisplayNameDraft(null);
                     setTutorProfileMessage(null);
                   }}
-                  placeholder={t("profile.tutorDisplayNamePlaceholder")}
-                  value={tutorDisplayName}
+                  variant="secondary"
                 />
-                <Text style={styles.help}>
-                  {t("profile.tutorDisplayNameHelp")}
-                </Text>
-                {shouldShowTutorDisplayNameError ? (
-                  <Text style={styles.errorMessage}>
-                    {t("profile.tutorDisplayNameInvalid")}
-                  </Text>
-                ) : null}
-                {hasTutorProfileChanges ? (
-                  <Text style={styles.notice}>
-                    {t("profile.unsavedChanges")}
-                  </Text>
-                ) : null}
-                {tutorProfileMessage ? (
-                  <Text
-                    style={[
-                      styles.message,
-                      upsertTutorProfile.isError ? styles.errorMessage : null,
-                    ]}
-                  >
-                    {tutorProfileMessage}
-                  </Text>
-                ) : null}
-                <View style={styles.actions}>
-                  <Button
-                    disabled={
-                      !hasTutorProfileChanges || upsertTutorProfile.isPending
-                    }
-                    label={t("common.cancel")}
-                    onPress={() => {
-                      setTutorDisplayNameDraft(null);
-                      setTutorProfileMessage(null);
-                    }}
-                    variant="secondary"
-                  />
-                  <Button
-                    disabled={!canSaveTutorProfile}
-                    isLoading={upsertTutorProfile.isPending}
-                    label={getProfileActionLabel(
-                      Boolean(tutorProfile),
-                      hasTutorProfileChanges,
-                      "tutor",
-                    )}
-                    onPress={() => upsertTutorProfile.mutate()}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.dividerLine} />
-
-              <View style={styles.profileSection}>
-                <ProfileRow
-                  label={t("profile.providerProfile")}
-                  value={formatProviderProfile(providerProfile)}
+                <Button
+                  disabled={!canSaveTutorProfile}
+                  isLoading={upsertTutorProfile.isPending}
+                  label={getProfileActionLabel(
+                    Boolean(tutorProfile),
+                    hasTutorProfileChanges,
+                    "tutor",
+                  )}
+                  onPress={() => upsertTutorProfile.mutate()}
                 />
-                {providerProfile ? (
-                  <View style={styles.providerStats}>
-                    {providerProfile.ratingAverage !== null ? (
-                      <RatingStars
-                        rating={providerProfile.ratingAverage}
-                        reviewCount={providerProfile.ratingCount}
-                      />
-                    ) : (
-                      <Badge
-                        icon="star-outline"
-                        label={t("profile.provider.stats.noRating")}
-                        tone="neutral"
-                      />
-                    )}
-                    <Badge
-                      icon="navigate"
-                      label={`${providerProfile.serviceRadiusKm} ${t(
-                        "profile.provider.stats.km",
-                      )}`}
-                      tone="neutral"
-                    />
-                    <Badge
-                      label={formatProviderStatus(providerProfile.status)}
-                      tone={getProviderRoleTone(providerProfile.status)}
-                    />
-                  </View>
-                ) : null}
-                {providerProfile?.status === "paused" ? (
-                  <Text style={styles.notice}>
-                    {t("profile.providerPausedHelp")}
-                  </Text>
-                ) : null}
-                <TextField
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  label={t("profile.providerDisplayName")}
-                  maxLength={80}
-                  onChangeText={(value) => {
-                    setProviderDisplayNameDraft(value);
-                    setProviderProfileMessage(null);
-                  }}
-                  placeholder={t("profile.providerDisplayNamePlaceholder")}
-                  value={providerDisplayName}
-                />
-                <Text style={styles.help}>
-                  {t("profile.providerDisplayNameHelp")}
-                </Text>
-                <TextField
-                  autoCapitalize="sentences"
-                  autoCorrect
-                  label="Speciality"
-                  maxLength={160}
-                  onChangeText={(value) => {
-                    setProviderServiceDraft(value);
-                    setProviderProfileMessage(null);
-                  }}
-                  placeholder="Dog walking, home visits, boarding..."
-                  value={providerService}
-                />
-                <View style={styles.segmentGroup}>
-                  {PROVIDER_CATEGORY_OPTIONS.map((category) => {
-                    const selected = providerCategory === category;
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        key={category}
-                        onPress={() => {
-                          setProviderCategoryDraft(category);
-                          setProviderProfileMessage(null);
-                        }}
-                        style={[
-                          styles.segment,
-                          selected ? styles.segmentSelected : null,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.segmentLabel,
-                            selected ? styles.segmentSelectedLabel : null,
-                          ]}
-                        >
-                          {formatProviderCategory(category)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-                <TextField
-                  keyboardType="decimal-pad"
-                  label="Price per hour"
-                  maxLength={8}
-                  onChangeText={(value) => {
-                    setProviderPriceDraft(value.replace(",", "."));
-                    setProviderProfileMessage(null);
-                  }}
-                  placeholder="18"
-                  value={providerPrice}
-                />
-                <TextField
-                  autoCapitalize="sentences"
-                  autoCorrect
-                  label="Provider bio"
-                  maxLength={600}
-                  multiline
-                  onChangeText={(value) => {
-                    setProviderBioDraft(value);
-                    setProviderProfileMessage(null);
-                  }}
-                  placeholder="Tell tutors about your experience with pets."
-                  value={providerBio}
-                />
-                {shouldShowProviderDisplayNameError ? (
-                  <Text style={styles.errorMessage}>
-                    {t("profile.providerDisplayNameInvalid")}
-                  </Text>
-                ) : null}
-                {!isProviderListingValid ? (
-                  <Text style={styles.errorMessage}>
-                    Add a speciality and a valid hourly price to publish.
-                  </Text>
-                ) : null}
-                {hasProviderProfileChanges ? (
-                  <Text style={styles.notice}>
-                    {t("profile.unsavedChanges")}
-                  </Text>
-                ) : null}
-                {providerProfileMessage ? (
-                  <Text
-                    style={[
-                      styles.message,
-                      upsertProviderProfile.isError
-                        ? styles.errorMessage
-                        : null,
-                    ]}
-                  >
-                    {providerProfileMessage}
-                  </Text>
-                ) : null}
-                <View style={styles.actions}>
-                  <Button
-                    disabled={
-                      !hasProviderProfileChanges ||
-                      upsertProviderProfile.isPending
-                    }
-                    label={t("common.cancel")}
-                    onPress={() => {
-                      setProviderDisplayNameDraft(null);
-                      setProviderBioDraft(null);
-                      setProviderCategoryDraft(null);
-                      setProviderPriceDraft(null);
-                      setProviderServiceDraft(null);
-                      setProviderProfileMessage(null);
-                    }}
-                    variant="secondary"
-                  />
-                  <Button
-                    disabled={!canSaveProviderProfile}
-                    isLoading={upsertProviderProfile.isPending}
-                    label={getProfileActionLabel(
-                      Boolean(providerProfile),
-                      hasProviderProfileChanges,
-                      "provider",
-                    )}
-                    onPress={() => upsertProviderProfile.mutate()}
-                  />
-                </View>
               </View>
             </View>
-          </Card>
+          </CollapsibleCard>
+
+          <CollapsibleCard
+            expanded={expandedSections.providerProfile}
+            icon="briefcase"
+            onToggle={() => toggleSection("providerProfile")}
+            summary={formatProviderProfile(providerProfile)}
+            title={t("profile.section.providerProfile")}
+          >
+            <View style={styles.profileSection}>
+              <ProfileRow
+                label={t("profile.providerProfile")}
+                value={formatProviderProfile(providerProfile)}
+              />
+              {providerProfile ? (
+                <View style={styles.providerStats}>
+                  {providerProfile.ratingAverage !== null ? (
+                    <RatingStars
+                      rating={providerProfile.ratingAverage}
+                      reviewCount={providerProfile.ratingCount}
+                    />
+                  ) : (
+                    <Badge
+                      icon="star-outline"
+                      label={t("profile.provider.stats.noRating")}
+                      tone="neutral"
+                    />
+                  )}
+                  <Badge
+                    icon="navigate"
+                    label={`${providerProfile.serviceRadiusKm} ${t(
+                      "profile.provider.stats.km",
+                    )}`}
+                    tone="neutral"
+                  />
+                  <Badge
+                    label={formatProviderStatus(providerProfile.status)}
+                    tone={getProviderRoleTone(providerProfile.status)}
+                  />
+                </View>
+              ) : null}
+              <View style={styles.switchRow}>
+                <View style={styles.switchCopy}>
+                  <Text style={styles.switchTitle}>
+                    {t("profile.providerActive.label")}
+                  </Text>
+                  <Text style={styles.help}>
+                    {t("profile.providerActive.help")}
+                  </Text>
+                </View>
+                <Switch
+                  disabled={upsertProviderProfile.isPending}
+                  onValueChange={(value) => {
+                    setProviderActiveDraft(value);
+                    setProviderProfileMessage(null);
+                  }}
+                  value={providerActive}
+                />
+              </View>
+              {providerProfile?.status === "paused" ? (
+                <Text style={styles.notice}>
+                  {t("profile.providerPausedHelp")}
+                </Text>
+              ) : null}
+              <TextField
+                autoCapitalize="words"
+                autoCorrect={false}
+                label={t("profile.providerDisplayName")}
+                maxLength={80}
+                onChangeText={(value) => {
+                  setProviderDisplayNameDraft(value);
+                  setProviderProfileMessage(null);
+                }}
+                placeholder={t("profile.providerDisplayNamePlaceholder")}
+                value={providerDisplayName}
+              />
+              <Text style={styles.help}>
+                {t("profile.providerDisplayNameHelp")}
+              </Text>
+              <TextField
+                autoCapitalize="sentences"
+                autoCorrect
+                label={t("profile.providerService")}
+                maxLength={160}
+                onChangeText={(value) => {
+                  setProviderServiceDraft(value);
+                  setProviderProfileMessage(null);
+                }}
+                placeholder={t("profile.providerServicePlaceholder")}
+                value={providerService}
+              />
+              <View style={styles.segmentGroup}>
+                {PROVIDER_CATEGORY_OPTIONS.map((category) => {
+                  const selected = providerCategory === category;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={category}
+                      onPress={() => {
+                        setProviderCategoryDraft(category);
+                        setProviderProfileMessage(null);
+                      }}
+                      style={[
+                        styles.segment,
+                        selected ? styles.segmentSelected : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.segmentLabel,
+                          selected ? styles.segmentSelectedLabel : null,
+                        ]}
+                      >
+                        {formatProviderCategory(category)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextField
+                keyboardType="decimal-pad"
+                label={t("profile.providerPricePerHour")}
+                maxLength={8}
+                onChangeText={(value) => {
+                  setProviderPriceDraft(value.replace(",", "."));
+                  setProviderProfileMessage(null);
+                }}
+                placeholder="18"
+                value={providerPrice}
+              />
+              <TextField
+                autoCapitalize="sentences"
+                autoCorrect
+                label={t("profile.providerBio")}
+                maxLength={600}
+                multiline
+                onChangeText={(value) => {
+                  setProviderBioDraft(value);
+                  setProviderProfileMessage(null);
+                }}
+                placeholder={t("profile.providerBioPlaceholder")}
+                value={providerBio}
+              />
+              {shouldShowProviderDisplayNameError ? (
+                <Text style={styles.errorMessage}>
+                  {t("profile.providerDisplayNameInvalid")}
+                </Text>
+              ) : null}
+              {!isProviderListingValid ? (
+                <Text style={styles.errorMessage}>
+                  {t("profile.providerPublishInvalid")}
+                </Text>
+              ) : null}
+              {hasProviderProfileChanges ? (
+                <Text style={styles.notice}>{t("profile.unsavedChanges")}</Text>
+              ) : null}
+              {providerProfileMessage ? (
+                <Text
+                  style={[
+                    styles.message,
+                    upsertProviderProfile.isError ? styles.errorMessage : null,
+                  ]}
+                >
+                  {providerProfileMessage}
+                </Text>
+              ) : null}
+              <View style={styles.actions}>
+                <Button
+                  disabled={
+                    !hasProviderProfileChanges ||
+                    upsertProviderProfile.isPending
+                  }
+                  label={t("common.cancel")}
+                  onPress={() => {
+                    setProviderDisplayNameDraft(null);
+                    setProviderBioDraft(null);
+                    setProviderCategoryDraft(null);
+                    setProviderPriceDraft(null);
+                    setProviderServiceDraft(null);
+                    setProviderActiveDraft(null);
+                    setProviderProfileMessage(null);
+                  }}
+                  variant="secondary"
+                />
+                <Button
+                  disabled={!canSaveProviderProfile}
+                  isLoading={upsertProviderProfile.isPending}
+                  label={getProfileActionLabel(
+                    Boolean(providerProfile),
+                    hasProviderProfileChanges,
+                    "provider",
+                  )}
+                  onPress={() => upsertProviderProfile.mutate()}
+                />
+              </View>
+            </View>
+          </CollapsibleCard>
+
+          <CollapsibleCard
+            disabled={!canEditProviderAvailability}
+            expanded={expandedSections.availability}
+            icon="calendar"
+            onToggle={() => toggleSection("availability")}
+            summary={
+              canEditProviderAvailability
+                ? t("profile.availability.summary")
+                : t("profile.availability.inactive")
+            }
+            title={t("profile.availability.title")}
+          >
+            <View style={styles.availabilityBlock}>
+              <Text style={styles.help}>{t("profile.availability.help")}</Text>
+              {!canEditProviderAvailability ? (
+                <Text style={styles.notice}>
+                  {t("profile.availability.inactive")}
+                </Text>
+              ) : providerAvailabilityQuery.isLoading ? (
+                <LoadingState label={t("profile.availability.loading")} />
+              ) : providerAvailabilityQuery.isError ? (
+                <ErrorState
+                  actionLabel={t("common.retry")}
+                  message={t("profile.availability.error")}
+                  onRetry={() => providerAvailabilityQuery.refetch()}
+                  title={t("common.error")}
+                />
+              ) : (
+                <>
+                  <WeeklyAvailabilityEditor
+                    availability={providerAvailability}
+                    disabled={saveProviderAvailability.isPending}
+                    onToggle={(weekday, timeSlotId) => {
+                      setProviderAvailabilityDraft((current) =>
+                        toggleAvailabilitySlot(
+                          current ??
+                            providerAvailabilityQuery.data ??
+                            buildEmptyWeeklyAvailability(),
+                          weekday,
+                          timeSlotId,
+                        ),
+                      );
+                      setProviderAvailabilityMessage(null);
+                    }}
+                  />
+                  {providerAvailabilityMessage ? (
+                    <Text
+                      style={[
+                        styles.message,
+                        saveProviderAvailability.isError
+                          ? styles.errorMessage
+                          : null,
+                      ]}
+                    >
+                      {providerAvailabilityMessage}
+                    </Text>
+                  ) : null}
+                  <View style={styles.actions}>
+                    <Button
+                      disabled={
+                        !hasProviderAvailabilityChanges ||
+                        saveProviderAvailability.isPending
+                      }
+                      label={t("common.cancel")}
+                      onPress={() => {
+                        setProviderAvailabilityDraft(null);
+                        setProviderAvailabilityMessage(null);
+                      }}
+                      variant="secondary"
+                    />
+                    <Button
+                      disabled={
+                        !hasProviderAvailabilityChanges ||
+                        saveProviderAvailability.isPending
+                      }
+                      isLoading={saveProviderAvailability.isPending}
+                      label={t("profile.availability.save")}
+                      onPress={() => saveProviderAvailability.mutate()}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+          </CollapsibleCard>
 
           <Card>
             <View style={styles.details}>
@@ -927,9 +1115,14 @@ export default function ProfileScreen() {
             </View>
           </Card>
 
-          <Card>
+          <CollapsibleCard
+            expanded={expandedSections.pets}
+            icon="paw"
+            onToggle={() => toggleSection("pets")}
+            summary={formatPetsSummary(petsQuery.data)}
+            title={t("profile.section.pets")}
+          >
             <View style={styles.details}>
-              <SectionHeader icon="paw" title={t("profile.section.pets")} />
               {!canUseTutorTools ? (
                 <Text style={styles.body}>{t("profile.tutorToolsLocked")}</Text>
               ) : (
@@ -1054,7 +1247,7 @@ export default function ProfileScreen() {
                 </>
               )}
             </View>
-          </Card>
+          </CollapsibleCard>
 
           <Card>
             <View style={styles.details}>
@@ -1183,6 +1376,60 @@ function ProfileRow({
   );
 }
 
+function CollapsibleCard({
+  children,
+  disabled = false,
+  expanded,
+  icon,
+  onToggle,
+  summary,
+  title,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  expanded: boolean;
+  icon: ComponentProps<typeof Ionicons>["name"];
+  onToggle: () => void;
+  summary?: string;
+  title: string;
+}) {
+  return (
+    <Card>
+      <View style={styles.details}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled, expanded }}
+          disabled={disabled}
+          onPress={onToggle}
+          style={({ pressed }) => [
+            styles.collapsibleHeader,
+            pressed && !disabled ? styles.legalRowPressed : null,
+            disabled ? styles.disabledHeader : null,
+          ]}
+        >
+          <View style={styles.collapsibleTitleGroup}>
+            <Ionicons color={colors.accent} name={icon} size={20} />
+            <View style={styles.collapsibleTitleText}>
+              <Text style={styles.title}>{title}</Text>
+              {summary ? (
+                <Text numberOfLines={1} style={styles.collapsibleSummary}>
+                  {summary}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <Ionicons
+            color={colors.muted}
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={20}
+          />
+        </Pressable>
+        {expanded && !disabled ? children : null}
+      </View>
+    </Card>
+  );
+}
+
 function LegalLinkRow({
   icon,
   label,
@@ -1209,6 +1456,103 @@ function LegalLinkRow({
       <Ionicons color={colors.muted} name="chevron-forward" size={18} />
     </Pressable>
   );
+}
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKLY_TIME_SLOTS = [
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+] as const;
+
+function WeeklyAvailabilityEditor({
+  availability,
+  disabled,
+  onToggle,
+}: {
+  availability: ProviderWeeklyAvailability;
+  disabled: boolean;
+  onToggle: (weekday: number, timeSlotId: string) => void;
+}) {
+  return (
+    <View style={styles.availabilityDays}>
+      {normaliseWeeklyAvailability(availability).days.map((day) => (
+        <View key={day.weekday} style={styles.availabilityDay}>
+          <Text style={styles.availabilityDayLabel}>
+            {WEEKDAY_LABELS[day.weekday]}
+          </Text>
+          <View style={styles.availabilitySlots}>
+            {WEEKLY_TIME_SLOTS.map((slot) => (
+              <TimeChip
+                disabled={disabled}
+                key={`${day.weekday}:${slot}`}
+                label={slot}
+                onPress={() => onToggle(day.weekday, slot)}
+                selected={day.timeSlotIds.includes(slot)}
+              />
+            ))}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function buildEmptyWeeklyAvailability(): ProviderWeeklyAvailability {
+  return {
+    days: WEEKDAY_LABELS.map((_, weekday) => ({ timeSlotIds: [], weekday })),
+  };
+}
+
+function normaliseWeeklyAvailability(
+  availability: ProviderWeeklyAvailability,
+): ProviderWeeklyAvailability {
+  const byWeekday = new Map<number, string[]>();
+  for (let weekday = 0; weekday <= 6; weekday += 1) {
+    byWeekday.set(weekday, []);
+  }
+  for (const day of availability.days) {
+    byWeekday.set(day.weekday, [...day.timeSlotIds].sort());
+  }
+  return {
+    days: [...byWeekday.entries()].map(([weekday, timeSlotIds]) => ({
+      timeSlotIds,
+      weekday,
+    })),
+  };
+}
+
+function toggleAvailabilitySlot(
+  availability: ProviderWeeklyAvailability,
+  weekday: number,
+  timeSlotId: string,
+): ProviderWeeklyAvailability {
+  const next = normaliseWeeklyAvailability(availability);
+  return {
+    days: next.days.map((day) => {
+      if (day.weekday !== weekday) return day;
+      const selected = day.timeSlotIds.includes(timeSlotId);
+      const timeSlotIds = selected
+        ? day.timeSlotIds.filter((slot) => slot !== timeSlotId)
+        : [...day.timeSlotIds, timeSlotId].sort();
+      return { ...day, timeSlotIds };
+    }),
+  };
+}
+
+function availabilitySignature(
+  availability: ProviderWeeklyAvailability,
+): string {
+  return JSON.stringify(normaliseWeeklyAvailability(availability));
 }
 
 function getProviderRoleLabel(status: ProviderProfileStatus): string {
@@ -1366,6 +1710,13 @@ function formatProviderStatus(status: ProviderProfileStatus): string {
   return t("profile.providerStatus.deleted");
 }
 
+function formatPetsSummary(pets?: PetResponse[]): string {
+  if (!pets) return t("profile.petsSummary.loading");
+  if (pets.length === 0) return t("profile.petsSummary.empty");
+  if (pets.length === 1) return t("profile.petsSummary.one");
+  return t("profile.petsSummary.many").replace("{count}", String(pets.length));
+}
+
 function formatProviderCategory(category: ProviderCategory): string {
   if (category === "walk") return t("search.categories.walk");
   if (category === "sitting") return t("search.categories.sitting");
@@ -1420,6 +1771,65 @@ const styles = StyleSheet.create({
   },
   providerStats: {
     alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing[2],
+  },
+  switchRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing[3],
+    justifyContent: "space-between",
+  },
+  switchCopy: {
+    flex: 1,
+    gap: spacing[1],
+  },
+  switchTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: "800",
+  },
+  collapsibleHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: spacing[3],
+    justifyContent: "space-between",
+  },
+  collapsibleTitleGroup: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: spacing[2],
+  },
+  collapsibleTitleText: {
+    flex: 1,
+    gap: spacing[1],
+  },
+  collapsibleSummary: {
+    color: colors.muted,
+    fontSize: typography.small,
+    fontWeight: "600",
+  },
+  disabledHeader: {
+    opacity: 0.58,
+  },
+  availabilityBlock: {
+    gap: spacing[3],
+    marginTop: spacing[2],
+  },
+  availabilityDays: {
+    gap: spacing[3],
+  },
+  availabilityDay: {
+    gap: spacing[2],
+  },
+  availabilityDayLabel: {
+    color: colors.text,
+    fontSize: typography.small,
+    fontWeight: "800",
+  },
+  availabilitySlots: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing[2],

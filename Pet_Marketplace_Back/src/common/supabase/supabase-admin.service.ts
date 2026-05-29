@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import {
   createClient,
   type SupabaseClient,
@@ -55,10 +56,19 @@ import {
   BOOKING_STATUSES,
   assertBookingTransition,
   bookingSlotTaken,
+  bookingValidationError,
   type BookingRecord,
+  type BookingListQuery,
+  type BookingPerspective,
+  type BookingViewerRole,
   type BookingStatus,
 } from '../../bookings/dto/booking-fields';
 import type { CreateBookingInput } from '../../bookings/dto/create-booking-request.dto';
+import type {
+  ProviderAvailabilityDayInput,
+  ProviderAvailabilitySlotState,
+  ProviderWeeklyAvailabilityInput,
+} from '../../bookings/dto/availability.dto';
 import {
   CONVERSATION_COLD_START_HOURLY_LIMIT,
   CONVERSATION_COLD_START_WINDOW_MS,
@@ -109,7 +119,8 @@ const ADDRESS_COLUMNS =
 const ACCOUNT_DELETION_REQUEST_COLUMNS =
   'id,status,requested_at,estimated_completion_at,processing_started_at,completed_at,updated_at' as const;
 const BOOKING_COLUMNS =
-  'id,provider_id,pet_id,service_label,booking_date,time_slot_id,status,created_at,updated_at' as const;
+  'id,provider_id,pet_id,service_label,booking_date,time_slot_id,status,price_per_hour_snapshot,estimated_total_amount,currency,created_at,updated_at' as const;
+const BOOKING_INTERNAL_COLUMNS = `${BOOKING_COLUMNS},tutor_profile_id` as const;
 /** Status de booking que ainda ocupam o slot (não cancelado/concluído). */
 const ACTIVE_BOOKING_STATUSES: readonly BookingStatus[] = [
   'requested',
@@ -907,101 +918,247 @@ export class SupabaseAdminService implements OnModuleInit {
   async getProviderAvailability(
     providerId: string,
     date: string,
-  ): Promise<string[] | null> {
+  ): Promise<ProviderAvailabilitySlotState | null> {
     const client = this.getClient();
 
     const providerUserId = await this.loadActiveProviderUserId(providerId);
     if (!providerUserId) return null;
 
-    const { data, error } = await client
-      .from('bookings')
+    const provider = await client
+      .from('providers')
+      .select('provider_profile_id')
+      .eq('id', providerId)
+      .is('deleted_at', null)
+      .maybeSingle();
+
+    if (provider.error) {
+      this.logger.error(
+        { code: provider.error.code },
+        'Failed to load provider profile for availability.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!provider.data) return null;
+
+    const weekday = weekdayForDate(date);
+    const rules = await client
+      .from('provider_availability_rules')
+      .select('time_slot_id')
+      .eq('provider_profile_id', provider.data.provider_profile_id)
+      .eq('weekday', weekday)
+      .eq('is_active', true);
+
+    if (rules.error) {
+      this.logger.error(
+        { code: rules.error.code },
+        'Failed to load provider weekly availability.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const slots = await client
+      .from('booking_slots')
       .select('time_slot_id')
       .eq('provider_id', providerId)
       .eq('booking_date', date)
       .in('status', [...ACTIVE_BOOKING_STATUSES]);
 
-    if (error) {
-      this.logger.error({ code: error.code }, 'Failed to load availability.');
+    if (slots.error) {
+      this.logger.error(
+        { code: slots.error.code },
+        'Failed to load availability.',
+      );
       throw new AuthBackendUnavailableException();
     }
 
-    return (data ?? []).map((row) => row.time_slot_id);
+    return {
+      configuredSlotIds: (rules.data ?? []).map((row) => row.time_slot_id),
+      occupiedSlotIds: (slots.data ?? []).map((row) => row.time_slot_id),
+    };
+  }
+
+  async getOwnProviderWeeklyAvailability(
+    user: AuthUser,
+  ): Promise<ProviderAvailabilityDayInput[]> {
+    const providerProfileId = requireProviderProfileId(user);
+    return this.loadProviderWeeklyAvailability(providerProfileId);
+  }
+
+  async updateOwnProviderWeeklyAvailability(
+    user: AuthUser,
+    input: ProviderWeeklyAvailabilityInput,
+  ): Promise<ProviderAvailabilityDayInput[]> {
+    const providerProfileId = requireProviderProfileId(user);
+    const client = this.getClient();
+
+    const deleted = await client
+      .from('provider_availability_rules')
+      .delete()
+      .eq('provider_profile_id', providerProfileId);
+
+    if (deleted.error) {
+      this.logger.error(
+        { code: deleted.error.code },
+        'Failed to clear provider weekly availability.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const rows = input.days.flatMap((day) =>
+      day.timeSlotIds.map((timeSlotId) => ({
+        provider_profile_id: providerProfileId,
+        time_slot_id: timeSlotId,
+        weekday: day.weekday,
+      })),
+    );
+
+    if (rows.length > 0) {
+      const inserted = await client
+        .from('provider_availability_rules')
+        .insert(rows);
+
+      if (inserted.error) {
+        this.logger.error(
+          { code: inserted.error.code },
+          'Failed to save provider weekly availability.',
+        );
+        throw new AuthBackendUnavailableException();
+      }
+    }
+
+    return this.loadProviderWeeklyAvailability(providerProfileId);
+  }
+
+  private async loadProviderWeeklyAvailability(
+    providerProfileId: string,
+  ): Promise<ProviderAvailabilityDayInput[]> {
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('provider_availability_rules')
+      .select('weekday,time_slot_id')
+      .eq('provider_profile_id', providerProfileId)
+      .eq('is_active', true)
+      .order('weekday', { ascending: true })
+      .order('time_slot_id', { ascending: true });
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load provider weekly availability.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const byWeekday = new Map<number, string[]>();
+    for (let weekday = 0; weekday <= 6; weekday += 1) {
+      byWeekday.set(weekday, []);
+    }
+    for (const row of data ?? []) {
+      byWeekday.get(row.weekday)?.push(row.time_slot_id);
+    }
+
+    return [...byWeekday.entries()].map(([weekday, timeSlotIds]) => ({
+      weekday,
+      timeSlotIds: timeSlotIds as ProviderAvailabilityDayInput['timeSlotIds'],
+    }));
   }
 
   /** Reservas do usuario autenticado, como tutor ou cuidador. */
   async listBookingsForUser(
     user: AuthUser,
-    pagination: CursorPaginationQuery,
+    query: BookingListQuery,
   ): Promise<PaginatedResult<BookingRecord>> {
     const pages: BookingRecord[][] = [];
+    const includeTutor =
+      query.perspective === null || query.perspective === 'tutor';
+    const includeProvider =
+      query.perspective === null || query.perspective === 'provider';
 
-    if (user.profiles?.tutor?.id) {
-      const tutorPage = await this.listBookings(
-        user.profiles.tutor.id,
-        pagination,
+    if (includeTutor && user.profiles?.tutor?.id) {
+      const tutorPage = await this.listBookings(user.profiles.tutor.id, query);
+      pages.push(
+        tutorPage.items.map((record) => ({
+          ...record,
+          viewer_role: combineBookingViewerRole(record.viewer_role, 'tutor'),
+        })),
       );
-      pages.push(tutorPage.items);
     }
 
-    if (user.profiles?.provider?.id) {
+    if (
+      includeProvider &&
+      user.profiles?.provider?.id &&
+      user.profiles.provider.status === 'active'
+    ) {
       const providerPage = await this.listProviderBookings(
         user.profiles.provider.id,
-        pagination,
+        query,
       );
-      pages.push(providerPage.items);
+      pages.push(
+        providerPage.items.map((record) => ({
+          ...record,
+          viewer_role: combineBookingViewerRole(record.viewer_role, 'provider'),
+        })),
+      );
     }
 
-    const merged = pages
-      .flat()
+    const merged = mergeBookingParticipantViews(pages.flat())
       .sort(compareBookingRecords)
-      .slice(0, pagination.limit + 1);
+      .slice(0, query.limit + 1);
 
-    return buildPaginatedResult(merged, pagination.limit, encodeBookingCursor);
+    const decorated = await this.attachBookingParticipantSummaries(
+      merged,
+      query.perspective,
+    );
+
+    return buildPaginatedResult(decorated, query.limit, encodeBookingCursor);
   }
 
   /** Reservas do tutor autenticado, escopadas pelo `tutor_profile_id`. */
   async listBookings(
     tutorProfileId: string,
-    pagination: CursorPaginationQuery,
+    input: BookingListQuery | CursorPaginationQuery,
   ): Promise<PaginatedResult<BookingRecord>> {
+    const listQuery = normaliseBookingListQuery(input);
     const client = this.getClient();
-    let query = client
+    let dbQuery = client
       .from('bookings')
-      .select(BOOKING_COLUMNS)
+      .select(BOOKING_INTERNAL_COLUMNS)
       .eq('tutor_profile_id', tutorProfileId);
 
-    if (pagination.cursor) {
-      const cursor = decodeBookingCursor(pagination.cursor);
-      query = query.or(
+    if (listQuery.status) {
+      dbQuery = dbQuery.eq('status', listQuery.status);
+    }
+
+    if (listQuery.cursor) {
+      const cursor = decodeBookingCursor(listQuery.cursor);
+      dbQuery = dbQuery.or(
         [
-          `booking_date.gt.${cursor.bookingDate}`,
-          `and(booking_date.eq.${cursor.bookingDate},created_at.gt.${cursor.createdAt})`,
-          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+          `booking_date.lt.${cursor.bookingDate}`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.lt.${cursor.createdAt})`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
         ].join(','),
       );
     }
 
-    const { data, error } = await query
-      .order('booking_date', { ascending: true })
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(0, pagination.limit);
+    const { data, error } = await dbQuery
+      .order('booking_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, listQuery.limit);
 
     if (error) {
       this.logger.error({ code: error.code }, 'Failed to list bookings.');
       throw new AuthBackendUnavailableException();
     }
 
-    return buildPaginatedResult(
-      data ?? [],
-      pagination.limit,
-      encodeBookingCursor,
-    );
+    const records = await this.attachBookingSlotIds(data ?? []);
+
+    return buildPaginatedResult(records, listQuery.limit, encodeBookingCursor);
   }
 
   private async listProviderBookings(
     providerProfileId: string,
-    pagination: CursorPaginationQuery,
+    listQuery: BookingListQuery,
   ): Promise<PaginatedResult<BookingRecord>> {
     const client = this.getClient();
     const providerIds = await this.loadProviderIdsForProfile(providerProfileId);
@@ -1009,27 +1166,31 @@ export class SupabaseAdminService implements OnModuleInit {
       return { items: [], nextCursor: null };
     }
 
-    let query = client
+    let dbQuery = client
       .from('bookings')
-      .select(BOOKING_COLUMNS)
+      .select(BOOKING_INTERNAL_COLUMNS)
       .in('provider_id', providerIds);
 
-    if (pagination.cursor) {
-      const cursor = decodeBookingCursor(pagination.cursor);
-      query = query.or(
+    if (listQuery.status) {
+      dbQuery = dbQuery.eq('status', listQuery.status);
+    }
+
+    if (listQuery.cursor) {
+      const cursor = decodeBookingCursor(listQuery.cursor);
+      dbQuery = dbQuery.or(
         [
-          `booking_date.gt.${cursor.bookingDate}`,
-          `and(booking_date.eq.${cursor.bookingDate},created_at.gt.${cursor.createdAt})`,
-          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+          `booking_date.lt.${cursor.bookingDate}`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.lt.${cursor.createdAt})`,
+          `and(booking_date.eq.${cursor.bookingDate},created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
         ].join(','),
       );
     }
 
-    const { data, error } = await query
-      .order('booking_date', { ascending: true })
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .range(0, pagination.limit);
+    const { data, error } = await dbQuery
+      .order('booking_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(0, listQuery.limit);
 
     if (error) {
       this.logger.error(
@@ -1039,11 +1200,216 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
-    return buildPaginatedResult(
-      data ?? [],
-      pagination.limit,
-      encodeBookingCursor,
+    const records = await this.attachBookingSlotIds(data ?? []);
+
+    return buildPaginatedResult(records, listQuery.limit, encodeBookingCursor);
+  }
+
+  private async attachBookingSlotIds(
+    records: BookingRecord[],
+  ): Promise<BookingRecord[]> {
+    if (records.length === 0) return records;
+    const client = this.getClient();
+    const bookingIds = records.map((record) => record.id);
+    const { data, error } = await client
+      .from('booking_slots')
+      .select('booking_id,time_slot_id')
+      .in('booking_id', bookingIds)
+      .order('time_slot_id', { ascending: true });
+
+    if (error) {
+      this.logger.error({ code: error.code }, 'Failed to load booking slots.');
+      throw new AuthBackendUnavailableException();
+    }
+
+    const slotsByBooking = new Map<string, string[]>();
+    for (const row of data ?? []) {
+      const slots = slotsByBooking.get(row.booking_id) ?? [];
+      slots.push(row.time_slot_id);
+      slotsByBooking.set(row.booking_id, slots);
+    }
+
+    return records.map((record) => ({
+      ...record,
+      time_slot_ids: slotsByBooking.get(record.id) ?? [record.time_slot_id],
+    }));
+  }
+
+  private async attachBookingParticipantSummaries(
+    records: BookingRecord[],
+    perspective: BookingPerspective | null = null,
+  ): Promise<BookingRecord[]> {
+    if (records.length === 0) return records;
+
+    const [providerCounterparts, tutorCounterparts, petNames] =
+      await Promise.all([
+        this.loadBookingProviderCounterparts(
+          records.map((record) => record.provider_id),
+        ),
+        this.loadBookingTutorCounterparts(
+          records
+            .map((record) => record.tutor_profile_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+        this.loadBookingPetNames(records.map((record) => record.pet_id)),
+      ]);
+
+    return records.map((record) => {
+      const provider = providerCounterparts.get(record.provider_id);
+      const tutor = record.tutor_profile_id
+        ? tutorCounterparts.get(record.tutor_profile_id)
+        : null;
+      const counterpartRole = resolveBookingCounterpartRole(
+        record,
+        perspective,
+      );
+      const counterpart =
+        counterpartRole === 'provider'
+          ? provider
+          : counterpartRole === 'tutor'
+            ? tutor
+            : null;
+
+      return {
+        ...record,
+        pet_name: petNames.get(record.pet_id) ?? null,
+        provider_name: provider?.displayName ?? null,
+        tutor_name: tutor?.displayName ?? null,
+        counterpart_name: counterpart?.displayName ?? null,
+        counterpart_avatar_url: counterpart?.avatarUrl ?? null,
+        counterpart_role: counterpartRole,
+        booking_group_key: buildBookingGroupKey(record),
+      };
+    });
+  }
+
+  private async loadBookingProviderCounterparts(
+    providerIds: readonly string[],
+  ): Promise<Map<string, { avatarUrl: string | null; displayName: string }>> {
+    const uniqueIds = [...new Set(providerIds)].filter(Boolean);
+    const counterparts = new Map<
+      string,
+      { avatarUrl: string | null; displayName: string }
+    >();
+    if (uniqueIds.length === 0) return counterparts;
+
+    const client = this.getClient();
+    const providers = await client
+      .from('providers')
+      .select('id,provider_profile_id,service_label,avatar_url')
+      .in('id', uniqueIds);
+
+    if (providers.error) {
+      this.logger.error(
+        { code: providers.error.code },
+        'Failed to load booking provider counterparts.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profileIds = [
+      ...new Set((providers.data ?? []).map((row) => row.provider_profile_id)),
+    ].filter(Boolean);
+    const profiles = profileIds.length
+      ? await client
+          .from('provider_profiles')
+          .select('id,display_name,user_id')
+          .in('id', profileIds)
+      : null;
+
+    if (profiles?.error) {
+      this.logger.error(
+        { code: profiles.error.code },
+        'Failed to load booking provider profile counterparts.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const profilesById = new Map(
+      (profiles?.data ?? []).map((row) => [row.id, row] as const),
     );
+    const userAvatarUrls = await this.loadSignedUserAvatarUrls(
+      (profiles?.data ?? []).map((row) => row.user_id),
+      'Failed to load booking provider avatar users.',
+    );
+
+    for (const provider of providers.data ?? []) {
+      const profile = profilesById.get(provider.provider_profile_id);
+      counterparts.set(provider.id, {
+        avatarUrl:
+          sanitisePublicAvatarUrl(provider.avatar_url) ??
+          (profile ? (userAvatarUrls.get(profile.user_id) ?? null) : null),
+        displayName:
+          profile?.display_name ?? provider.service_label ?? 'Provider',
+      });
+    }
+
+    return counterparts;
+  }
+
+  private async loadBookingTutorCounterparts(
+    tutorProfileIds: readonly string[],
+  ): Promise<Map<string, { avatarUrl: string | null; displayName: string }>> {
+    const uniqueIds = [...new Set(tutorProfileIds)].filter(Boolean);
+    const counterparts = new Map<
+      string,
+      { avatarUrl: string | null; displayName: string }
+    >();
+    if (uniqueIds.length === 0) return counterparts;
+
+    const { data, error } = await this.getClient()
+      .from('tutor_profiles')
+      .select('id,display_name,user_id')
+      .in('id', uniqueIds);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load booking tutor counterparts.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const userAvatarUrls = await this.loadSignedUserAvatarUrls(
+      (data ?? []).map((row) => row.user_id),
+      'Failed to load booking tutor avatar users.',
+    );
+
+    for (const tutor of data ?? []) {
+      counterparts.set(tutor.id, {
+        avatarUrl: userAvatarUrls.get(tutor.user_id) ?? null,
+        displayName: tutor.display_name,
+      });
+    }
+
+    return counterparts;
+  }
+
+  private async loadBookingPetNames(
+    petIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(petIds)].filter(Boolean);
+    const names = new Map<string, string>();
+    if (uniqueIds.length === 0) return names;
+
+    const { data, error } = await this.getClient()
+      .from('pets')
+      .select('id,name')
+      .in('id', uniqueIds);
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load booking pet names.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    for (const pet of data ?? []) {
+      names.set(pet.id, pet.name);
+    }
+
+    return names;
   }
 
   /**
@@ -1084,20 +1450,56 @@ export class SupabaseAdminService implements OnModuleInit {
       throw providerNotFound();
     }
 
-    const { data, error } = await client
-      .from('bookings')
-      .insert({
-        tutor_profile_id: tutorProfileId,
-        provider_id: input.providerId,
-        pet_id: input.petId,
-        service_label: input.service,
-        booking_date: input.date,
-        time_slot_id: input.timeSlotId,
-      })
-      .select(BOOKING_COLUMNS)
-      .single();
+    const provider = await client
+      .from('providers')
+      .select('price_per_hour')
+      .eq('id', input.providerId)
+      .is('deleted_at', null)
+      .maybeSingle();
 
-    if (error || !data) {
+    if (provider.error) {
+      this.logger.error(
+        { code: provider.error.code },
+        'Failed to load provider price for booking.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+    if (!provider.data) throw providerNotFound();
+
+    const availability = await this.getProviderAvailability(
+      input.providerId,
+      input.date,
+    );
+    if (!availability) throw providerNotFound();
+    const configured = new Set(availability.configuredSlotIds);
+    const occupied = new Set(availability.occupiedSlotIds);
+    const hasUnconfiguredSlot = input.timeSlotIds.some(
+      (slot) => !configured.has(slot),
+    );
+    if (hasUnconfiguredSlot) {
+      throw bookingValidationError(
+        'Selected time slots are not in this provider availability.',
+      );
+    }
+    const hasOccupiedSlot = input.timeSlotIds.some((slot) =>
+      occupied.has(slot),
+    );
+    if (hasOccupiedSlot) throw bookingSlotTaken();
+
+    const { data, error } = await client.rpc('create_booking_with_slots', {
+      p_booking_date: input.date,
+      p_currency: 'GBP',
+      p_pet_id: input.petId,
+      p_price_per_hour: provider.data.price_per_hour,
+      p_provider_id: input.providerId,
+      p_service_label: input.service,
+      p_time_slot_ids: input.timeSlotIds,
+      p_tutor_profile_id: tutorProfileId,
+    });
+
+    const row = data?.[0];
+
+    if (error || !row) {
       if (error?.code === '23505') throw bookingSlotTaken();
       this.logger.error({ code: error?.code }, 'Failed to create booking.');
       throw new AuthBackendUnavailableException();
@@ -1111,10 +1513,10 @@ export class SupabaseAdminService implements OnModuleInit {
     await this.attachConversationToBooking(
       tutorProfileId,
       input.providerId,
-      data.id,
+      row.id,
     );
 
-    return data;
+    return row;
   }
 
   /**
@@ -1213,10 +1615,12 @@ export class SupabaseAdminService implements OnModuleInit {
 
     const tutorProfileId = user.profiles?.tutor?.id;
     const providerProfileId = user.profiles?.provider?.id;
-    let actor: 'tutor' | 'provider' | null = null;
+    const actorCandidates: ('tutor' | 'provider')[] = [];
     if (tutorProfileId && booking.data.tutor_profile_id === tutorProfileId) {
-      actor = 'tutor';
-    } else if (providerProfileId) {
+      actorCandidates.push('tutor');
+    }
+
+    if (providerProfileId) {
       const provider = await client
         .from('providers')
         .select('provider_profile_id')
@@ -1236,12 +1640,24 @@ export class SupabaseAdminService implements OnModuleInit {
           booking.data.provider_id,
         );
         if (providerUserId !== user.id) return null;
-        actor = 'provider';
+        actorCandidates.push('provider');
       }
     }
-    if (!actor) return null;
 
-    assertBookingTransition(booking.data.status, nextStatus, actor);
+    if (actorCandidates.length === 0) return null;
+
+    let actor: 'tutor' | 'provider' | null = null;
+    let forbiddenTransition: unknown = null;
+    for (const candidate of actorCandidates) {
+      try {
+        assertBookingTransition(booking.data.status, nextStatus, candidate);
+        actor = candidate;
+        break;
+      } catch (error) {
+        forbiddenTransition ??= error;
+      }
+    }
+    if (!actor) throw forbiddenTransition;
 
     const { data, error } = await client
       .from('bookings')
@@ -1258,7 +1674,21 @@ export class SupabaseAdminService implements OnModuleInit {
       throw new AuthBackendUnavailableException();
     }
 
-    return data;
+    const slots = await client
+      .from('booking_slots')
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq('booking_id', bookingId);
+
+    if (slots.error) {
+      this.logger.error(
+        { code: slots.error.code },
+        'Failed to update booking slot statuses.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    const [record] = await this.attachBookingSlotIds([data]);
+    return record ?? data;
   }
 
   /**
@@ -3044,6 +3474,7 @@ export class SupabaseAdminService implements OnModuleInit {
     return {
       id: data.id,
       displayName: data.display_name,
+      defaultAddressId: null,
     };
   }
 
@@ -3084,7 +3515,7 @@ export class SupabaseAdminService implements OnModuleInit {
     const client = this.getClient();
     const { data, error } = await client
       .from('tutor_profiles')
-      .select('id,display_name')
+      .select('id,display_name,default_address_id')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -3097,6 +3528,7 @@ export class SupabaseAdminService implements OnModuleInit {
     return {
       id: data.id,
       displayName: data.display_name,
+      defaultAddressId: data.default_address_id ?? null,
     };
   }
 
@@ -3238,6 +3670,21 @@ export class SupabaseAdminService implements OnModuleInit {
       }
     }
 
+    if (input.publish) {
+      const effectiveBaseAddressId =
+        input.baseAddressId !== undefined
+          ? input.baseAddressId
+          : await this.loadProviderBaseAddressId(providerProfileId);
+      if (!effectiveBaseAddressId) {
+        throw new DomainException(
+          ErrorCode.VALIDATION_ERROR,
+          'A base address is required before publishing your provider listing.',
+          {},
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
     const hasListingInput =
       input.categoryId !== undefined ||
       input.service !== undefined ||
@@ -3251,7 +3698,6 @@ export class SupabaseAdminService implements OnModuleInit {
       .from('providers')
       .select('id,category,service_label,price_per_hour,is_available')
       .eq('provider_profile_id', providerProfileId)
-      .is('deleted_at', null)
       .maybeSingle();
 
     if (existing.error) {
@@ -3295,7 +3741,7 @@ export class SupabaseAdminService implements OnModuleInit {
     const result = existing.data
       ? await client
           .from('providers')
-          .update(payload)
+          .update({ ...payload, deleted_at: null })
           .eq('id', existing.data.id)
           .select('id')
           .maybeSingle()
@@ -3312,6 +3758,27 @@ export class SupabaseAdminService implements OnModuleInit {
       );
       throw new AuthBackendUnavailableException();
     }
+  }
+
+  private async loadProviderBaseAddressId(
+    providerProfileId: string,
+  ): Promise<string | null> {
+    const client = this.getClient();
+    const { data, error } = await client
+      .from('provider_profiles')
+      .select('base_address_id')
+      .eq('id', providerProfileId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(
+        { code: error.code },
+        'Failed to load provider base address.',
+      );
+      throw new AuthBackendUnavailableException();
+    }
+
+    return data?.base_address_id ?? null;
   }
 
   private async loadProviderProfile(
@@ -3499,14 +3966,119 @@ function compareBookingRecords(
   left: BookingRecord,
   right: BookingRecord,
 ): number {
-  const dateCompare = left.booking_date.localeCompare(right.booking_date);
+  const dateCompare = right.booking_date.localeCompare(left.booking_date);
   if (dateCompare !== 0) return dateCompare;
 
   const leftCreated = Date.parse(left.created_at);
   const rightCreated = Date.parse(right.created_at);
-  if (leftCreated !== rightCreated) return leftCreated - rightCreated;
+  if (leftCreated !== rightCreated) return rightCreated - leftCreated;
 
-  return left.id.localeCompare(right.id);
+  return right.id.localeCompare(left.id);
+}
+
+function mergeBookingParticipantViews(
+  records: BookingRecord[],
+): BookingRecord[] {
+  const byId = new Map<string, BookingRecord>();
+
+  for (const record of records) {
+    const existing = byId.get(record.id);
+    if (!existing) {
+      byId.set(record.id, record);
+      continue;
+    }
+
+    byId.set(record.id, {
+      ...existing,
+      ...record,
+      viewer_role: combineBookingViewerRole(
+        existing.viewer_role,
+        record.viewer_role,
+      ),
+      time_slot_ids: [
+        ...new Set([
+          ...(existing.time_slot_ids ?? [existing.time_slot_id]),
+          ...(record.time_slot_ids ?? [record.time_slot_id]),
+        ]),
+      ],
+    });
+  }
+
+  return [...byId.values()];
+}
+
+function combineBookingViewerRole(
+  current: BookingViewerRole | null | undefined,
+  next: BookingViewerRole | null | undefined,
+): BookingViewerRole | null {
+  if (!current) return next ?? null;
+  if (!next || current === next) return current;
+  return 'both';
+}
+
+function normaliseBookingListQuery(
+  query: BookingListQuery | CursorPaginationQuery,
+): BookingListQuery {
+  return {
+    ...query,
+    perspective: 'perspective' in query ? query.perspective : null,
+    status: 'status' in query ? query.status : null,
+  };
+}
+
+function resolveBookingCounterpartRole(
+  record: BookingRecord,
+  perspective: BookingPerspective | null,
+): BookingPerspective | null {
+  if (perspective === 'tutor') return 'provider';
+  if (perspective === 'provider') return 'tutor';
+  if (record.viewer_role === 'provider') return 'tutor';
+  if (record.viewer_role === 'tutor') return 'provider';
+  if (record.viewer_role === 'both') return 'provider';
+  return null;
+}
+
+function buildBookingGroupKey(record: BookingRecord): string | null {
+  if (!record.tutor_profile_id) return null;
+  return createHash('sha256')
+    .update(
+      [
+        'booking-group-v1',
+        record.tutor_profile_id,
+        record.provider_id,
+        record.pet_id,
+        record.booking_date,
+      ].join(':'),
+    )
+    .digest('base64url')
+    .slice(0, 32);
+}
+
+function sanitisePublicAvatarUrl(value: string | null): string | null {
+  if (!value) return null;
+  return /^https?:\/\//i.test(value) ? value : null;
+}
+
+function requireProviderProfileId(user: AuthUser): string {
+  const providerProfileId = user.profiles?.provider?.id;
+  if (!user.roles.includes('provider') || !providerProfileId) {
+    throw new DomainException(
+      ErrorCode.NOT_FOUND,
+      'Authenticated user has no provider profile.',
+      {},
+      HttpStatus.NOT_FOUND,
+    );
+  }
+  return providerProfileId;
+}
+
+function weekdayForDate(date: string): number {
+  const [year, month, day] = date.split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
 
 function toEwktPoint(longitude: number, latitude: number): string {

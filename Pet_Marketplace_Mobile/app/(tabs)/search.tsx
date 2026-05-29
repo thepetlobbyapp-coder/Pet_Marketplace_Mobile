@@ -6,13 +6,20 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { getProviders } from "../../src/api/client";
 import type { ProviderCategory } from "../../src/api/types";
-import { hasTutorProfile, useMeQuery } from "../../src/api/useMeQuery";
+import {
+  hasTutorDefaultAddress,
+  hasTutorProfile,
+  useMeQuery,
+} from "../../src/api/useMeQuery";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { CategoryChip } from "../../src/components/CategoryChip";
 import { EmptyState } from "../../src/components/EmptyState";
 import { ErrorState } from "../../src/components/ErrorState";
 import { LoadingState } from "../../src/components/LoadingState";
-import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
+import {
+  TutorAddressRequiredState,
+  TutorProfileRequiredState,
+} from "../../src/components/ProfileRequiredState";
 import { ProviderCard } from "../../src/components/ProviderCard";
 import { Screen } from "../../src/components/Screen";
 import { SearchInput } from "../../src/components/SearchInput";
@@ -61,6 +68,7 @@ export default function SearchScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [categoryId, setCategoryId] = useState<SearchCategory>("all");
   const canUseMarketplace = hasTutorProfile(meQuery.data);
+  const hasAddress = hasTutorDefaultAddress(meQuery.data);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -83,7 +91,7 @@ export default function SearchScreen() {
     [categoryParam, debouncedQuery, session?.user.id],
   );
   const providersQuery = useQuery({
-    enabled: Boolean(accessToken && canUseMarketplace),
+    enabled: Boolean(accessToken && canUseMarketplace && hasAddress),
     queryKey: providersQueryKey,
     queryFn: () =>
       getProviders(accessToken, {
@@ -101,6 +109,7 @@ export default function SearchScreen() {
   const countLabel = getCountLabel({
     count: results.length,
     hasTutorProfile: canUseMarketplace,
+    hasTutorAddress: hasAddress,
     hasAccessToken: Boolean(accessToken),
     isError: providersQuery.isError,
     isLoading: providersQuery.isLoading,
@@ -163,6 +172,8 @@ export default function SearchScreen() {
         />
       ) : !canUseMarketplace ? (
         <TutorProfileRequiredState message={t("search.profileRequired.body")} />
+      ) : !hasAddress ? (
+        <TutorAddressRequiredState />
       ) : providersQuery.isLoading ? (
         <LoadingState label={t("search.loading")} />
       ) : providersQuery.isError ? (
@@ -197,6 +208,7 @@ export default function SearchScreen() {
 function getCountLabel({
   count,
   hasTutorProfile,
+  hasTutorAddress,
   hasAccessToken,
   isError,
   isLoading,
@@ -204,6 +216,7 @@ function getCountLabel({
 }: {
   count: number;
   hasTutorProfile: boolean;
+  hasTutorAddress: boolean;
   hasAccessToken: boolean;
   isError: boolean;
   isLoading: boolean;
@@ -211,6 +224,7 @@ function getCountLabel({
 }): string {
   if (!hasAccessToken) return t("search.count.noSession");
   if (!hasTutorProfile) return t("search.count.profileRequired");
+  if (!hasTutorAddress) return t("search.count.addressRequired");
   if (isLoading) return t("search.count.loading");
   if (isError) return t("search.count.error");
   if (isRefreshing) return t("search.count.refreshing");

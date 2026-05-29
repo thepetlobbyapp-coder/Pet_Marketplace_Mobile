@@ -31,6 +31,12 @@ const ACTIVE_USER: AuthUser = {
   },
 };
 
+const EXPECTED_ME_TUTOR_SUMMARY = {
+  id: ACTIVE_USER.profiles?.tutor?.id,
+  displayName: 'Admin Test',
+  hasDefaultAddress: false,
+};
+
 const TUTOR_PROFILE_ROW: TutorProfileRecord = {
   id: '1b6fe9f3-514f-475c-9286-38c19e576116',
   display_name: 'Tutor Test',
@@ -145,7 +151,9 @@ describe('Me (e2e)', () => {
             input.serviceRadiusKm ?? PROVIDER_PROFILE_ROW.service_radius_km,
           status: (input.publish === true
             ? 'active'
-            : PROVIDER_PROFILE_ROW.status) as ProviderProfileRecord['status'],
+            : input.publish === false
+              ? 'paused'
+              : PROVIDER_PROFILE_ROW.status) as ProviderProfileRecord['status'],
         };
         resolvedUser = withProviderProfile(displayName, resolvedUser, row);
         return row;
@@ -168,7 +176,9 @@ describe('Me (e2e)', () => {
             input.serviceRadiusKm ?? PROVIDER_PROFILE_ROW.service_radius_km,
           status: (input.publish === true
             ? 'active'
-            : PROVIDER_PROFILE_ROW.status) as ProviderProfileRecord['status'],
+            : input.publish === false
+              ? 'paused'
+              : PROVIDER_PROFILE_ROW.status) as ProviderProfileRecord['status'],
           updated_at: '2026-05-18T23:30:00.000Z',
         };
         resolvedUser = withProviderProfile(displayName, resolvedUser, row);
@@ -225,9 +235,34 @@ describe('Me (e2e)', () => {
       createdAt: ACTIVE_USER.createdAt,
       updatedAt: ACTIVE_USER.updatedAt,
       avatarUrl: null,
-      profiles: ACTIVE_USER.profiles,
+      profiles: { tutor: EXPECTED_ME_TUTOR_SUMMARY },
     });
     expect(supabaseMock.resolveUser).toHaveBeenCalledWith('test-token');
+    expectForbiddenFieldsAbsent(res.body);
+  });
+
+  it('GET /api/v1/me signals a default address without leaking its identifier', async () => {
+    resolvedUser = {
+      ...ACTIVE_USER,
+      profiles: {
+        tutor: {
+          id: TUTOR_PROFILE_ROW.id,
+          displayName: 'Admin Test',
+          defaultAddressId: '7c3e4f5a-6b7c-4d8e-9f10-2a3b4c5d6e7f',
+        },
+      },
+    };
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/me')
+      .set('Authorization', 'Bearer test-token')
+      .expect(200);
+
+    expect(res.body.profiles.tutor).toEqual({
+      id: TUTOR_PROFILE_ROW.id,
+      displayName: 'Admin Test',
+      hasDefaultAddress: true,
+    });
     expectForbiddenFieldsAbsent(res.body);
   });
 
@@ -276,7 +311,7 @@ describe('Me (e2e)', () => {
       createdAt: ACTIVE_USER.createdAt,
       updatedAt: '2026-05-18T21:00:00.000Z',
       avatarUrl: null,
-      profiles: ACTIVE_USER.profiles,
+      profiles: { tutor: EXPECTED_ME_TUTOR_SUMMARY },
     });
     expect(supabaseAdminMock.updateOwnUser).toHaveBeenCalledWith(
       ACTIVE_USER.id,
@@ -385,6 +420,7 @@ describe('Me (e2e)', () => {
     expect(me.body.profiles.tutor).toEqual({
       id: TUTOR_PROFILE_ROW.id,
       displayName: 'Tutor Test',
+      hasDefaultAddress: false,
     });
   });
 
@@ -411,6 +447,7 @@ describe('Me (e2e)', () => {
     expect(me.body.profiles.tutor).toEqual({
       id: TUTOR_PROFILE_ROW.id,
       displayName: 'Tutor Added',
+      hasDefaultAddress: false,
     });
     expect(me.body.profiles.provider).toEqual(expectedProviderSummary());
   });
@@ -441,6 +478,7 @@ describe('Me (e2e)', () => {
     expect(me.body.profiles.tutor).toEqual({
       id: TUTOR_PROFILE_ROW.id,
       displayName: 'Tutor Updated',
+      hasDefaultAddress: false,
     });
   });
 
@@ -543,6 +581,23 @@ describe('Me (e2e)', () => {
     expect(supabaseAdminMock.updateOwnProviderProfile).toHaveBeenCalledWith(
       ACTIVE_USER.id,
       { displayName: 'Provider Updated' },
+    );
+    expectProviderProfileSafePayload(res.body);
+  });
+
+  it('PATCH /api/v1/me/provider-profile can pause the provider profile', async () => {
+    resolvedUser = providerOnlyUser();
+
+    const res = await request(app.getHttpServer())
+      .patch('/api/v1/me/provider-profile')
+      .set('Authorization', 'Bearer test-token')
+      .send({ displayName: 'Provider Test', publish: false })
+      .expect(200);
+
+    expect(res.body.status).toBe('paused');
+    expect(supabaseAdminMock.updateOwnProviderProfile).toHaveBeenCalledWith(
+      ACTIVE_USER.id,
+      { displayName: 'Provider Test', publish: false },
     );
     expectProviderProfileSafePayload(res.body);
   });

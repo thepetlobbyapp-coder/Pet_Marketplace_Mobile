@@ -23,6 +23,17 @@ export function hasTutorProfile(me?: MeResponse | null): boolean {
   return Boolean(me?.roles.includes("tutor") && me.profiles?.tutor);
 }
 
+export function hasTutorDefaultAddress(me?: MeResponse | null): boolean {
+  return Boolean(hasTutorProfile(me) && me?.profiles?.tutor?.hasDefaultAddress);
+}
+
 export function hasProviderProfile(me?: MeResponse | null): boolean {
   return Boolean(me?.roles.includes("provider") && me.profiles?.provider);
+}
+
+export function hasActiveProviderProfile(me?: MeResponse | null): boolean {
+  return Boolean(
+    me?.roles.includes("provider") &&
+    me.profiles?.provider?.status === "active",
+  );
 }

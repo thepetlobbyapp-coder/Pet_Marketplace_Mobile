@@ -6,6 +6,7 @@ import type {
   AddressResponse,
   AvatarResponse,
   AvatarUploadAsset,
+  BookingListParams,
   BookingResponse,
   ConversationResponse,
   CreateAddressRequest,
@@ -21,6 +22,7 @@ import type {
   MessageResponse,
   PaginatedResponse,
   PetResponse,
+  ProviderWeeklyAvailability,
   ProviderProfileResponse,
   ProviderResponse,
   ReportResponse,
@@ -334,6 +336,38 @@ export async function getProviderAvailability(
   );
 }
 
+export async function getOwnProviderAvailability(
+  accessToken: string | null,
+): Promise<ProviderWeeklyAvailability> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<ProviderWeeklyAvailability>("/providers/me/availability", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+}
+
+export async function updateOwnProviderAvailability(
+  accessToken: string | null,
+  body: ProviderWeeklyAvailability,
+): Promise<ProviderWeeklyAvailability> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<ProviderWeeklyAvailability>("/providers/me/availability", {
+    body: JSON.stringify(body),
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    method: "PATCH",
+  });
+}
+
 export async function createBooking(
   accessToken: string | null,
   body: CreateBookingRequest,
@@ -354,8 +388,16 @@ export async function createBooking(
 
 export async function getBookings(
   accessToken: string | null,
-  params: CursorPaginationParams = {},
+  params: BookingListParams = {},
 ): Promise<BookingResponse[]> {
+  const page = await getBookingsPage(accessToken, params);
+  return page.items;
+}
+
+export async function getBookingsPage(
+  accessToken: string | null,
+  params: BookingListParams = {},
+): Promise<PaginatedResponse<BookingResponse>> {
   if (!accessToken) {
     throw new ApiClientError("AUTH_SESSION_MISSING", 401);
   }
@@ -368,7 +410,7 @@ export async function getBookings(
     },
   });
 
-  return readPaginatedItems(payload);
+  return readPaginatedResponse(payload);
 }
 
 export async function updateBooking(
@@ -586,6 +628,7 @@ async function request<T>(
     | "/addresses"
     | `/addresses/${string}`
     | "/providers"
+    | "/providers/me/availability"
     | `/providers?${string}`
     | `/providers/${string}`
     | `/providers/${string}/availability?${string}`
@@ -691,12 +734,16 @@ function providersPath(
 
 function cursorPaginatedPath<TBase extends string>(
   basePath: TBase,
-  params: CursorPaginationParams,
+  params: BookingListParams | CursorPaginationParams,
 ): TBase | `${TBase}?${string}` {
   const search = new URLSearchParams();
 
   if (params.limit !== undefined) search.set("limit", String(params.limit));
   if (params.cursor) search.set("cursor", params.cursor);
+  if ("perspective" in params && params.perspective) {
+    search.set("perspective", params.perspective);
+  }
+  if ("status" in params && params.status) search.set("status", params.status);
 
   const queryString = search.toString();
   return queryString ? `${basePath}?${queryString}` : basePath;
@@ -705,6 +752,15 @@ function cursorPaginatedPath<TBase extends string>(
 function readPaginatedItems<T>(payload: PaginatedResponse<T> | T[]): T[] {
   if (Array.isArray(payload)) return payload;
   return payload.items;
+}
+
+function readPaginatedResponse<T>(
+  payload: PaginatedResponse<T> | T[],
+): PaginatedResponse<T> {
+  if (Array.isArray(payload)) {
+    return { items: payload, nextCursor: null };
+  }
+  return payload;
 }
 
 async function readJson(response: Response): Promise<ApiErrorBody | unknown> {

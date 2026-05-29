@@ -68,6 +68,22 @@ export interface ProviderProfileOnboardingRow {
   updated_at: string;
 }
 
+export interface CreateBookingWithSlotsRow {
+  id: string;
+  provider_id: string;
+  pet_id: string;
+  service_label: string;
+  booking_date: string;
+  time_slot_id: string;
+  time_slot_ids: string[];
+  status: 'requested' | 'confirmed' | 'cancelled' | 'completed';
+  price_per_hour_snapshot: number;
+  estimated_total_amount: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -336,6 +352,9 @@ export interface Database {
           booking_date: string;
           time_slot_id: string;
           status: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot: number;
+          estimated_total_amount: number;
+          currency: string;
           created_at: string;
           updated_at: string;
         };
@@ -348,9 +367,71 @@ export interface Database {
           booking_date: string;
           time_slot_id: string;
           status?: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot?: number;
+          estimated_total_amount?: number;
+          currency?: string;
         };
         Update: {
           service_label?: string;
+          booking_date?: string;
+          time_slot_id?: string;
+          status?: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot?: number;
+          estimated_total_amount?: number;
+          currency?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      provider_availability_rules: {
+        Row: {
+          id: string;
+          provider_profile_id: string;
+          weekday: number;
+          time_slot_id: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider_profile_id: string;
+          weekday: number;
+          time_slot_id: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          weekday?: number;
+          time_slot_id?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      booking_slots: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          booking_date: string;
+          time_slot_id: string;
+          status: Database['public']['Enums']['booking_status'];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          booking_date: string;
+          time_slot_id: string;
+          status?: Database['public']['Enums']['booking_status'];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
           booking_date?: string;
           time_slot_id?: string;
           status?: Database['public']['Enums']['booking_status'];
@@ -514,6 +595,19 @@ export interface Database {
           p_internal_note: string | null;
         };
         Returns: AdminUpdateReportStatusWithAuditRow[];
+      };
+      create_booking_with_slots: {
+        Args: {
+          p_tutor_profile_id: string;
+          p_provider_id: string;
+          p_pet_id: string;
+          p_service_label: string;
+          p_booking_date: string;
+          p_time_slot_ids: string[];
+          p_price_per_hour: number;
+          p_currency?: string;
+        };
+        Returns: CreateBookingWithSlotsRow[];
       };
       providers_list_near: {
         Args: {

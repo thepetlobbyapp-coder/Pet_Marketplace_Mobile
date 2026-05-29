@@ -43,6 +43,7 @@ describe('SupabaseAdminService auth bootstrap (e2e)', () => {
     expect(user.profiles?.tutor).toEqual({
       id: TUTOR_PROFILE_ID,
       displayName: 'Pet tutor',
+      defaultAddressId: null,
     });
     expect(state.user?.locale).toBe('en-GB');
     expect(state.tutorProfile).toMatchObject({

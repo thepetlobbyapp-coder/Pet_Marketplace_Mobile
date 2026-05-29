@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { getProviders } from "../../src/api/client";
-import { hasTutorProfile, useMeQuery } from "../../src/api/useMeQuery";
+import {
+  hasTutorDefaultAddress,
+  hasTutorProfile,
+  useMeQuery,
+} from "../../src/api/useMeQuery";
 import { useAuth } from "../../src/auth/AuthProvider";
 import { CategoryChip } from "../../src/components/CategoryChip";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -10,7 +14,10 @@ import { ErrorState } from "../../src/components/ErrorState";
 import { HeroBanner } from "../../src/components/HeroBanner";
 import { IconButton } from "../../src/components/IconButton";
 import { LoadingState } from "../../src/components/LoadingState";
-import { TutorProfileRequiredState } from "../../src/components/ProfileRequiredState";
+import {
+  TutorAddressRequiredState,
+  TutorProfileRequiredState,
+} from "../../src/components/ProfileRequiredState";
 import { ProviderCard } from "../../src/components/ProviderCard";
 import { Screen } from "../../src/components/Screen";
 import { SearchInput } from "../../src/components/SearchInput";
@@ -29,8 +36,9 @@ export default function HomeScreen() {
   const userId = session?.user.id;
   const meQuery = useMeQuery();
   const canUseMarketplace = hasTutorProfile(meQuery.data);
+  const hasAddress = hasTutorDefaultAddress(meQuery.data);
   const providersQuery = useQuery({
-    enabled: Boolean(accessToken && canUseMarketplace),
+    enabled: Boolean(accessToken && canUseMarketplace && hasAddress),
     queryKey: [
       "providers",
       "home-preview",
@@ -48,7 +56,7 @@ export default function HomeScreen() {
   const providers = providersQuery.data ?? [];
 
   function openSearch() {
-    router.push(canUseMarketplace ? "/search" : "/profile");
+    router.push(canUseMarketplace && hasAddress ? "/search" : "/profile");
   }
 
   function openProvider(providerId: string) {
@@ -138,6 +146,8 @@ export default function HomeScreen() {
           <TutorProfileRequiredState
             message={t("home.providers.profileRequiredBody")}
           />
+        ) : !hasAddress ? (
+          <TutorAddressRequiredState />
         ) : providersQuery.isLoading ? (
           <LoadingState label={t("home.providers.loading")} />
         ) : providersQuery.isError ? (

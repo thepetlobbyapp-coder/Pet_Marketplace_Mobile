@@ -18,3 +18,20 @@ export function TutorProfileRequiredState({
     />
   );
 }
+
+export function TutorAddressRequiredState({
+  message = t("access.addressRequired.body"),
+  title = t("access.addressRequired.title"),
+}: {
+  message?: string;
+  title?: string;
+}) {
+  return (
+    <EmptyState
+      actionLabel={t("access.addressRequired.action")}
+      message={message}
+      onAction={() => router.push("/profile")}
+      title={title}
+    />
+  );
+}

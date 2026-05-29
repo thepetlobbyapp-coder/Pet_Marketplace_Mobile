@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -264,6 +264,7 @@ function ChatThread({
   const [isReportPanelOpen, setReportPanelOpen] = useState(false);
   const [isBlockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [isConversationBlocked, setConversationBlocked] = useState(false);
+  const messagesScrollRef = useRef<ScrollView | null>(null);
   const messagesQueryKey = useMemo(
     () => ["conversationMessages", userId, conversation.id],
     [conversation.id, userId],
@@ -285,6 +286,18 @@ function ChatThread({
     refetchInterval: 2000,
     retry: 1,
   });
+  const latestMessageId = messagesQuery.data?.at(-1)?.id ?? null;
+  const scrollToLatestMessage = useCallback((animated = true) => {
+    requestAnimationFrame(() => {
+      messagesScrollRef.current?.scrollToEnd({ animated });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!latestMessageId) return;
+    scrollToLatestMessage();
+  }, [latestMessageId, scrollToLatestMessage]);
+
   const sendMutation = useMutation({
     mutationFn: (text: string) =>
       createConversationMessage(accessToken, conversation.id, { text }),
@@ -473,6 +486,10 @@ function ChatThread({
       >
         <ScrollView
           contentContainerStyle={styles.thread}
+          onContentSizeChange={() => {
+            if (latestMessageId) scrollToLatestMessage(false);
+          }}
+          ref={messagesScrollRef}
           showsVerticalScrollIndicator={false}
         >
           {messagesQuery.isLoading ? (
