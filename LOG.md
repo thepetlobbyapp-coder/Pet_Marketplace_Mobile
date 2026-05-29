@@ -296,3 +296,25 @@ typecheck/lint/test + prettier --check, and git diff --check — all green.
 - Not executed: EAS build and Play submission (separate gates not given); Admin
   surface deploy; no remote DB write (migrations 005/006 were already applied to
   the dev Supabase).
+
+[2026-05-29] Cleared the brand blocker and ran the EAS production build after
+the user gave `AUTORIZO EAS BUILD MOBILE` and `AUTORIZO PLAY STORE SUBMISSION`:
+- Brand fix: unified the public account-deletion page + API messages from
+  "Pet Marketplace" to "The Pet Lobby" (monorepo `52d6593`; backend `0fa2985`
+  published to `Pet_Marketplace_Back@main`). DigitalOcean deployment
+  `9b1069d1` `ACTIVE`; live `/account-deletion` now shows "The Pet Lobby" x3 and
+  "Pet Marketplace" x0.
+- EAS preflight caught the real blocker: all three EAS environments had no
+  Supabase config, so a build would have shipped broken Auth. Validated the
+  user-provided public values (JWT role `anon`, project `oumrtrcqsyugdvildfmr`,
+  `/auth/v1/settings` 200) and set `EXPO_PUBLIC_SUPABASE_URL` and
+  `EXPO_PUBLIC_SUPABASE_ANON_KEY` (plaintext) in the EAS production environment.
+- EAS production Android build succeeded: build `69a8c181-...`, versionCode
+  bumped 5 -> 6, app bundle
+  `https://expo.dev/artifacts/eas/e3JWNPzn5tN5MYHdSPxnPp.aab`. Build log confirms
+  the Supabase vars were loaded from the production environment.
+- Artifact smoke: downloaded the AAB (69.7 MB) and confirmed the embedded bundle
+  contains the Supabase project ref and the API host -> Auth config is present
+  (closes the historical "artifact lacks Supabase URL" blocker).
+- Not executed: `eas submit` (pending Data Safety declaration in the Play
+  Console and a track/credential decision); no production rollout.

@@ -9,7 +9,7 @@ Mobile and Admin surfaces.
 
 - Backend dev source repo: `thepetlobbyapp-coder/Pet_Marketplace_Back`
 - Backend branch published: `main`
-- Backend commit published: `78b100c feat: 5-star service rating with proof-of-service gate`
+- Backend commit published: `0fa2985 fix: align account deletion page brand to The Pet Lobby`
 - Backend dev URL: `https://stingray-app-vyfrt.ondigitalocean.app`
 - Mobile app path: `Pet_Marketplace_Mobile`
 

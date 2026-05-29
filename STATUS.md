@@ -277,7 +277,19 @@ Validation and follow-ups for this recorte:
 - R2 still open: manual functional app smoke (provider `completed` -> tutor
   "Confirm service" -> rate 5 stars -> the new average shows on the provider
   card; Admin Reviews Hide/Restore).
-- Not executed: EAS build and Play submission (separate gates); Admin surface
-  deploy; no remote DB write (migrations 005/006 already applied to dev).
 - User-facing review reporting remains descoped (would require extending
   `report_target_type`); Phase 1 moderation is admin hide only.
+
+Mobile release progress (rating feature):
+
+- Brand blocker cleared and deployed: account-deletion page now reads "The Pet
+  Lobby" (backend `0fa2985`, DO deployment `9b1069d1` ACTIVE, verified live).
+- EAS production Android build done: versionCode 6, AAB
+  `https://expo.dev/artifacts/eas/e3JWNPzn5tN5MYHdSPxnPp.aab`. Supabase public
+  config was set in the EAS production environment first; artifact smoke
+  confirmed the embedded Supabase ref and API host (Auth config present).
+- Remaining before Play submission: (c) Data Safety / legal declaration in the
+  Play Console (manual, owner-only); confirm `eas submit` Google Play service
+  account credentials and target track. The two DECISIONS hard blockers
+  (production Auth config, brand consistency) are now resolved.
+- Not executed: `eas submit`, production rollout, Admin surface deploy.
