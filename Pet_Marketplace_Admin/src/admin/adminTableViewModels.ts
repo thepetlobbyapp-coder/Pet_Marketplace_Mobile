@@ -3,7 +3,6 @@ import type {
   AdminBookingListItem,
   AdminProviderListItem,
   AdminReportListItem,
-  AdminReviewListItem,
   AdminUserListItem,
 } from "./adminResources";
 
@@ -13,8 +12,14 @@ export interface AdminTableColumn {
 }
 
 export interface AdminTableRow {
+  readonly actionValues?: readonly AdminTableRowActionValue[];
   readonly cells: Readonly<Record<string, string>>;
   readonly id: string;
+}
+
+export interface AdminTableRowActionValue {
+  readonly label: string;
+  readonly value: string;
 }
 
 export interface AdminTableViewModel {
@@ -42,7 +47,7 @@ export function createAdminUsersTable(
       cells: {
         createdAt: formatCellValue(item.createdAt),
         email: formatCellValue(item.email),
-        roles: formatCellValue(item.roles),
+        roles: formatCellValue(item.roles.join(", ")),
         status: formatCellValue(item.status),
       },
       id: item.id,
@@ -64,6 +69,7 @@ export function createAdminProvidersTable(
     columns,
     emptyStateMessage: "No providers found.",
     rows: items.map((item) => ({
+      actionValues: [{ label: "Copy ID", value: item.id }],
       cells: {
         createdAt: formatCellValue(item.createdAt),
         displayName: formatCellValue(item.displayName),
@@ -79,21 +85,24 @@ export function createAdminBookingsTable(
   items: readonly AdminBookingListItem[],
 ): AdminTableViewModel {
   const columns = createColumns([
-    ["serviceType", "Service"],
+    ["service", "Service"],
     ["status", "Status"],
-    ["startsAt", "Starts"],
-    ["participantCount", "Participants"],
+    ["date", "Date"],
+    ["timeSlotId", "Time"],
+    ["createdAt", "Created"],
   ]);
 
   return {
     columns,
     emptyStateMessage: "No bookings found.",
     rows: items.map((item) => ({
+      actionValues: [{ label: "Copy ID", value: item.id }],
       cells: {
-        participantCount: formatCellValue(item.participantCount),
-        serviceType: formatCellValue(item.serviceType),
-        startsAt: formatCellValue(item.startsAt),
+        createdAt: formatCellValue(item.createdAt),
+        date: formatCellValue(item.date),
+        service: formatCellValue(item.service),
         status: formatCellValue(item.status),
+        timeSlotId: formatCellValue(item.timeSlotId),
       },
       id: item.id,
     })),
@@ -125,37 +134,12 @@ export function createAdminReportsTable(
   };
 }
 
-export function createAdminReviewsTable(
-  items: readonly AdminReviewListItem[],
-): AdminTableViewModel {
-  const columns = createColumns([
-    ["rating", "Rating"],
-    ["status", "Status"],
-    ["reportCount", "Reports"],
-    ["createdAt", "Created"],
-  ]);
-
-  return {
-    columns,
-    emptyStateMessage: "No reviews found.",
-    rows: items.map((item) => ({
-      cells: {
-        createdAt: formatCellValue(item.createdAt),
-        rating: formatCellValue(item.rating),
-        reportCount: formatCellValue(item.reportCount),
-        status: formatCellValue(item.status),
-      },
-      id: item.id,
-    })),
-  };
-}
-
 export function createAdminAuditLogsTable(
   items: readonly AdminAuditLogListItem[],
 ): AdminTableViewModel {
   const columns = createColumns([
     ["action", "Action"],
-    ["actorEmail", "Actor"],
+    ["actorUserId", "Actor user"],
     ["targetType", "Target"],
     ["createdAt", "Created"],
   ]);
@@ -164,9 +148,15 @@ export function createAdminAuditLogsTable(
     columns,
     emptyStateMessage: "No audit logs found.",
     rows: items.map((item) => ({
+      actionValues: [
+        { label: "Copy ID", value: item.id },
+        ...(item.targetId
+          ? [{ label: "Copy target ID", value: item.targetId }]
+          : []),
+      ],
       cells: {
         action: formatCellValue(item.action),
-        actorEmail: formatCellValue(item.actorEmail),
+        actorUserId: formatCellValue(item.actorUserId),
         createdAt: formatCellValue(item.createdAt),
         targetType: formatCellValue(item.targetType),
       },
@@ -181,15 +171,9 @@ function createColumns(
   return entries.map(([key, label]) => ({ key, label }));
 }
 
-function formatCellValue(
-  value: readonly string[] | string | number | undefined,
-): string {
-  if (Array.isArray(value)) {
-    return value.length > 0 ? value.join(", ") : EMPTY_TABLE_VALUE;
-  }
-
+function formatCellValue(value: number | string | null | undefined): string {
   if (typeof value === "number") {
-    return String(value);
+    return Number.isFinite(value) ? String(value) : EMPTY_TABLE_VALUE;
   }
 
   if (typeof value === "string") {

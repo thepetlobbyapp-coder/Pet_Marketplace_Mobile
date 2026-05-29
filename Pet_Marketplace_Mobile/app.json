@@ -7,11 +7,6 @@
     "scheme": "petmarketplace",
     "userInterfaceStyle": "light",
     "icon": "./docs/assets/pet-lobby-paw-marker-logo.png",
-    "splash": {
-      "image": "./docs/assets/pet-lobby-paw-marker-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "bundleIdentifier": "app.thepetlobby.mobile",
@@ -19,7 +14,7 @@
     },
     "android": {
       "package": "app.thepetlobby.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "permissions": [],
       "adaptiveIcon": {
         "foregroundImage": "./docs/assets/pet-lobby-paw-marker-logo.png",
@@ -29,9 +24,37 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The Pet Lobby needs access to your photo library so you can set a profile picture.",
+          "cameraPermission": "The Pet Lobby needs camera access so you can take a profile picture.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./docs/assets/pet-lobby-paw-marker-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "aeb757ce-c8d1-4db9-9fa1-49ff18a8f180"
+      }
+    },
+    "owner": "israel_souza"
   }
 }

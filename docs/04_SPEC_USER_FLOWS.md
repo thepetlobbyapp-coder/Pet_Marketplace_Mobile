@@ -52,14 +52,18 @@ Na Fase 1:
 
 - não solicitar documentos obrigatórios;
 - não chamar o prestador de verificado;
-- não permitir serviços fora do escopo.
+- não permitir serviços fora do escopo;
+- publicar o anúncio (status `active`) exige endereço base definido; sem ele a
+  publicação é recusada e o perfil permanece `paused`.
 
 ---
 
 ## 3. Fluxo: busca de prestador por proximidade
 
 1. Tutor entra na tela de busca.
-2. App usa endereço/região do tutor como base.
+2. App usa endereço/região do tutor como base. Endereço padrão do tutor é
+   precondição: sem ele, busca e tela inicial exibem estado de "endereço
+   obrigatório" (CTA para o perfil) em vez de resultados.
 3. Tutor escolhe filtros:
    - serviço;
    - distância;
@@ -127,6 +131,25 @@ Regras:
 - não permitir aceitar booking cancelado;
 - não permitir aceitar booking de outro prestador;
 - registrar transição em histórico.
+
+---
+
+## 5.1 Fluxo: agenda semanal do prestador
+
+1. Prestador abre Perfil.
+2. Entra na secao de disponibilidade semanal.
+3. Marca os slots de 1 hora em que aceita solicitacoes por dia da semana.
+4. Salva a agenda.
+5. Tutor passa a ver apenas slots configurados para a data escolhida, com slots
+   ativos ocupados removidos ou desabilitados.
+6. Ao selecionar um ou mais horarios, o tutor ve o valor estimado antes de
+   confirmar.
+
+Regras:
+
+- alterar a agenda semanal nao cancela bookings existentes;
+- slots `requested` e `confirmed` bloqueiam novas solicitacoes;
+- o valor exibido ao tutor e estimado e nao representa pagamento processado.
 
 ---
 

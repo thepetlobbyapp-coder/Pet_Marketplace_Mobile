@@ -147,9 +147,14 @@ create index addresses_location_gix on addresses using gist (location);
 - `id uuid primary key`
 - `provider_profile_id uuid references provider_profiles(id)`
 - `weekday smallint not null`
-- `start_time time not null`
-- `end_time time not null`
+- `time_slot_id text not null`
 - `is_active boolean not null default true`
+
+Regras:
+
+- `weekday` usa `0` domingo ate `6` sabado;
+- `time_slot_id` usa slots de 1 hora entre `08:00` e `19:00`;
+- chave unica por `provider_profile_id, weekday, time_slot_id`.
 
 ### 4.9 `bookings`
 
@@ -159,17 +164,42 @@ create index addresses_location_gix on addresses using gist (location);
 - `pet_id uuid references pets(id)`
 - `service_type service_type not null`
 - `status booking_status not null default 'requested'`
-- `starts_at timestamptz not null`
-- `ends_at timestamptz not null`
+- `booking_date date not null`
+- `time_slot_id text not null` legado/primeiro slot
+- `price_per_hour_snapshot numeric(10,2) not null`
+- `estimated_total_amount numeric(10,2) not null`
+- `currency text not null default 'GBP'`
 - `notes text null`
 - `created_at timestamptz`
 - `updated_at timestamptz`
 
 Índices:
 
-- `provider_profile_id, starts_at`
-- `tutor_profile_id, starts_at`
+- `provider_id, booking_date`
+- `tutor_profile_id, booking_date`
 - `status`
+
+### 4.9.1 `booking_slots`
+
+- `id uuid primary key`
+- `booking_id uuid references bookings(id)`
+- `provider_id uuid references providers(id)`
+- `booking_date date not null`
+- `time_slot_id text not null`
+- `status booking_status not null default 'requested'`
+- `created_at timestamptz`
+- `updated_at timestamptz`
+
+Indices:
+
+- `booking_id`
+- `provider_id, booking_date`
+- unico parcial `provider_id, booking_date, time_slot_id` para status
+  `requested` e `confirmed`.
+
+Regra: bookings multi-horario sao uma solicitacao agrupada; `booking_slots`
+e a fronteira de concorrencia que impede dois tutores de segurar o mesmo slot
+ativo.
 
 ### 4.10 `booking_status_history`
 
@@ -265,6 +295,30 @@ and pp.service_radius_km >= (st_distance(a.location, st_makepoint(:lng, :lat)::g
 order by distance_km asc
 limit :limit offset :offset;
 ```
+
+### 5.1 RPC `providers_list_near` (descoberta no marketplace)
+
+A listagem do marketplace é servida pela função `security definer`
+`providers_list_near(p_user_id, p_category, p_search, p_limit, p_offset)`.
+O centro do cálculo é o **endereço padrão do tutor autenticado**
+(`tutor_profiles.default_address_id`), e o raio aplicado é o **raio de
+atendimento de cada prestador** (`provider_profiles.service_radius_km`):
+
+```sql
+st_dwithin(tutor.location, provider.base_address.location, service_radius_km * 1000)
+```
+
+Regras e efeitos colaterais intencionais:
+
+- `st_dwithin(geography, geography, metros)` usa o índice GiST de
+  `addresses.location` (ao contrário de `st_distance` no `ORDER BY`);
+- `distance_meters` é **aproximado** (arredondado para a dezena de metros);
+- o próprio anúncio do usuário é excluído (`pp.user_id <> p_user_id`);
+- tutor sem endereço padrão recebe lista vazia (precondição de endereço sem erro
+  duro durante o onboarding);
+- prestador sem `base_address` nunca aparece (regra "publicar exige endereço base");
+- `providers_get_one` **não** aplica o filtro de raio: o detalhe alimenta o fluxo
+  de agendamento e precisa continuar acessível mesmo fora do raio do tutor.
 
 ---
 

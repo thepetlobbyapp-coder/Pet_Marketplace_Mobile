@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from '../auth/AuthProvider';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider } from "../auth/AuthProvider";
 
 interface AppProvidersProps {
   children: ReactNode;

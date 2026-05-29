@@ -3,11 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "description": "Marketplace hiperlocal de cuidadores de pets no Reino Unido (Fase 1, sem pagamento).",
-  "packageManager": "pnpm@9.12.0",
+  "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": ">=20"
+    "node": "22.x",
+    "pnpm": "10.30.3"
   },
   "scripts": {
+    "env:check": "node scripts/check-runtime.mjs",
     "sync": "bash scripts/sync-shared.sh",
     "sync:win": "powershell -ExecutionPolicy Bypass -File scripts/sync-shared.ps1"
   },

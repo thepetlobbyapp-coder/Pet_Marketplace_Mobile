@@ -13,6 +13,14 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MESSAGE_MAX_LENGTH = 2000;
 
+/**
+ * Janela e teto do rate-limit de DM cold-start (Checkpoint chat-cold-start).
+ * Cold-start = conversa criada via `POST /conversations` antes de qualquer
+ * booking (`booking_id IS NULL`). O limite vale por `tutor_profile_id`.
+ */
+export const CONVERSATION_COLD_START_WINDOW_MS = 60 * 60 * 1000;
+export const CONVERSATION_COLD_START_HOURLY_LIMIT = 5;
+
 /** Linha segura de `public.conversations` — sem `tutor_profile_id`. */
 export interface ConversationRecord {
   id: string;
@@ -20,6 +28,11 @@ export interface ConversationRecord {
   last_message_text: string | null;
   last_message_at: string | null;
   last_message_from_provider: boolean;
+  counterpart_avatar_url?: string | null;
+  counterpart_name?: string | null;
+  counterpart_service_label?: string | null;
+  created_at?: string;
+  viewer_is_provider?: boolean;
 }
 
 /** Linha segura de `public.messages`. */
@@ -55,11 +68,32 @@ export function conversationNotFound(): DomainException {
   );
 }
 
+/**
+ * 429 do rate-limit de DM cold-start. Mensagem genérica de propósito — o
+ * teto e a janela são pública e estável, mas o uso atual do tutor não vaza.
+ */
+export function conversationColdStartRateLimited(): DomainException {
+  return new DomainException(
+    ErrorCode.RATE_LIMITED,
+    'Too many new conversations started recently. Please try again later.',
+    {
+      limit: CONVERSATION_COLD_START_HOURLY_LIMIT,
+      windowMs: CONVERSATION_COLD_START_WINDOW_MS,
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  );
+}
+
 export function parseConversationId(value: unknown): string {
   if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
-    throw conversationValidationError(
-      'Conversation id must be a valid UUID.',
-    );
+    throw conversationValidationError('Conversation id must be a valid UUID.');
+  }
+  return value;
+}
+
+export function parseProviderId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_PATTERN.test(value)) {
+    throw conversationValidationError('providerId must be a valid UUID.');
   }
   return value;
 }
@@ -91,9 +125,7 @@ export function asAllowlistedBody(
  */
 export function parseMessageText(value: unknown): string {
   if (typeof value !== 'string') {
-    throw conversationValidationError(
-      'text is required and must be a string.',
-    );
+    throw conversationValidationError('text is required and must be a string.');
   }
   const trimmed = value.trim();
   if (!trimmed) {

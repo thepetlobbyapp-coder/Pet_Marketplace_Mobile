@@ -1,5 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
+import { StyleSheet, Text, View } from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface ScreenHeaderProps {
   kicker?: string;
@@ -25,13 +25,13 @@ const styles = StyleSheet.create({
   kicker: {
     color: colors.accent,
     fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   title: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   subtitle: {
     color: colors.muted,

@@ -25,6 +25,74 @@ export interface ProviderListingRow {
   bio: string | null;
 }
 
+export interface ConversationOpenColdStartRow {
+  status: 'ok' | 'rate_limited';
+  id: string | null;
+  provider_id: string | null;
+  last_message_text: string | null;
+  last_message_at: string | null;
+  last_message_from_provider: boolean | null;
+}
+
+export interface AdminUpdateReportStatusWithAuditRow {
+  id: string;
+  status: 'open' | 'in_review' | 'action_taken' | 'dismissed' | 'closed';
+  category:
+    | 'safety_concern'
+    | 'inappropriate_behaviour'
+    | 'harassment'
+    | 'spam_scam'
+    | 'no_show'
+    | 'other';
+  target_type: 'conversation' | 'message';
+  target_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TutorProfileOnboardingRow {
+  id: string;
+  display_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProviderProfileOnboardingRow {
+  id: string;
+  display_name: string;
+  status: 'active' | 'paused' | 'blocked' | 'deleted';
+  service_radius_km: number;
+  rating_average: number | null;
+  rating_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateBookingWithSlotsRow {
+  id: string;
+  provider_id: string;
+  pet_id: string;
+  service_label: string;
+  booking_date: string;
+  time_slot_id: string;
+  time_slot_ids: string[];
+  status: 'requested' | 'confirmed' | 'cancelled' | 'completed';
+  price_per_hour_snapshot: number;
+  estimated_total_amount: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubmitReviewRow {
+  id: string;
+  booking_id: string;
+  rating: number;
+  status: 'visible' | 'hidden_by_admin' | 'reported' | 'removed';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -38,6 +106,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          avatar_url: string | null;
         };
         Insert: {
           id: string;
@@ -48,6 +117,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          avatar_url?: string | null;
         };
         Update: {
           email?: string;
@@ -56,6 +126,7 @@ export interface Database {
           locale?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          avatar_url?: string | null;
         };
         Relationships: [];
       };
@@ -74,6 +145,41 @@ export interface Database {
         };
         Update: {
           role?: Database['public']['Enums']['profile_type'];
+        };
+        Relationships: [];
+      };
+      account_deletion_requests: {
+        Row: {
+          id: string;
+          user_id: string;
+          status: Database['public']['Enums']['account_deletion_request_status'];
+          requested_at: string;
+          estimated_completion_at: string;
+          processing_started_at: string | null;
+          completed_at: string | null;
+          internal_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          status?: Database['public']['Enums']['account_deletion_request_status'];
+          requested_at?: string;
+          estimated_completion_at?: string;
+          processing_started_at?: string | null;
+          completed_at?: string | null;
+          internal_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: Database['public']['Enums']['account_deletion_request_status'];
+          estimated_completion_at?: string;
+          processing_started_at?: string | null;
+          completed_at?: string | null;
+          internal_notes?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -255,6 +361,10 @@ export interface Database {
           booking_date: string;
           time_slot_id: string;
           status: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot: number;
+          estimated_total_amount: number;
+          currency: string;
+          tutor_confirmed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -267,9 +377,101 @@ export interface Database {
           booking_date: string;
           time_slot_id: string;
           status?: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot?: number;
+          estimated_total_amount?: number;
+          currency?: string;
+          tutor_confirmed_at?: string | null;
         };
         Update: {
           service_label?: string;
+          booking_date?: string;
+          time_slot_id?: string;
+          status?: Database['public']['Enums']['booking_status'];
+          price_per_hour_snapshot?: number;
+          estimated_total_amount?: number;
+          currency?: string;
+          tutor_confirmed_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      reviews: {
+        Row: {
+          id: string;
+          booking_id: string;
+          reviewer_user_id: string;
+          reviewed_provider_profile_id: string;
+          rating: number;
+          status: Database['public']['Enums']['review_status'];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          reviewer_user_id: string;
+          reviewed_provider_profile_id: string;
+          rating: number;
+          status?: Database['public']['Enums']['review_status'];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          rating?: number;
+          status?: Database['public']['Enums']['review_status'];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      provider_availability_rules: {
+        Row: {
+          id: string;
+          provider_profile_id: string;
+          weekday: number;
+          time_slot_id: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          provider_profile_id: string;
+          weekday: number;
+          time_slot_id: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          weekday?: number;
+          time_slot_id?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      booking_slots: {
+        Row: {
+          id: string;
+          booking_id: string;
+          provider_id: string;
+          booking_date: string;
+          time_slot_id: string;
+          status: Database['public']['Enums']['booking_status'];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          booking_id: string;
+          provider_id: string;
+          booking_date: string;
+          time_slot_id: string;
+          status?: Database['public']['Enums']['booking_status'];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
           booking_date?: string;
           time_slot_id?: string;
           status?: Database['public']['Enums']['booking_status'];
@@ -299,6 +501,7 @@ export interface Database {
           last_message_from_provider?: boolean;
         };
         Update: {
+          booking_id?: string | null;
           last_message_text?: string | null;
           last_message_at?: string | null;
           last_message_from_provider?: boolean;
@@ -326,9 +529,140 @@ export interface Database {
         };
         Relationships: [];
       };
+      reports: {
+        Row: {
+          id: string;
+          reporter_user_id: string;
+          reported_user_id: string | null;
+          target_type: 'conversation' | 'message';
+          target_id: string;
+          conversation_id: string;
+          message_id: string | null;
+          category: Database['public']['Enums']['report_category'];
+          description: string | null;
+          status: Database['public']['Enums']['report_status'];
+          assigned_admin_id: string | null;
+          internal_note: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reporter_user_id: string;
+          reported_user_id?: string | null;
+          target_type: 'conversation' | 'message';
+          target_id: string;
+          conversation_id: string;
+          message_id?: string | null;
+          category: Database['public']['Enums']['report_category'];
+          description?: string | null;
+          status?: Database['public']['Enums']['report_status'];
+          assigned_admin_id?: string | null;
+          internal_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: Database['public']['Enums']['report_status'];
+          assigned_admin_id?: string | null;
+          internal_note?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      user_blocks: {
+        Row: {
+          id: string;
+          blocker_user_id: string;
+          blocked_user_id: string;
+          conversation_id: string | null;
+          reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          blocker_user_id: string;
+          blocked_user_id: string;
+          conversation_id?: string | null;
+          reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          conversation_id?: string | null;
+          reason?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          actor_user_id: string | null;
+          action: string;
+          target_type: string | null;
+          target_id: string | null;
+          metadata: unknown;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_user_id?: string | null;
+          action: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: unknown;
+          created_at?: string;
+        };
+        Update: {
+          actor_user_id?: string | null;
+          action?: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: unknown;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      admin_update_report_status_with_audit: {
+        Args: {
+          p_admin_user_id: string;
+          p_report_id: string;
+          p_status: Database['public']['Enums']['report_status'];
+          p_internal_note: string | null;
+        };
+        Returns: AdminUpdateReportStatusWithAuditRow[];
+      };
+      create_booking_with_slots: {
+        Args: {
+          p_tutor_profile_id: string;
+          p_provider_id: string;
+          p_pet_id: string;
+          p_service_label: string;
+          p_booking_date: string;
+          p_time_slot_ids: string[];
+          p_price_per_hour: number;
+          p_currency?: string;
+        };
+        Returns: CreateBookingWithSlotsRow[];
+      };
+      submit_review: {
+        Args: {
+          p_booking_id: string;
+          p_reviewer_user_id: string;
+          p_rating: number;
+        };
+        Returns: SubmitReviewRow[];
+      };
+      recompute_provider_rating: {
+        Args: {
+          p_pp_id: string;
+        };
+        Returns: undefined;
+      };
       providers_list_near: {
         Args: {
           p_user_id: string;
@@ -346,13 +680,51 @@ export interface Database {
         };
         Returns: ProviderListingRow[];
       };
+      conversations_open_cold_start: {
+        Args: {
+          p_tutor_profile_id: string;
+          p_provider_id: string;
+          p_limit: number;
+          p_window_start: string;
+        };
+        Returns: ConversationOpenColdStartRow[];
+      };
+      ensure_tutor_profile: {
+        Args: {
+          p_user_id: string;
+          p_display_name: string;
+        };
+        Returns: TutorProfileOnboardingRow[];
+      };
+      ensure_provider_profile: {
+        Args: {
+          p_user_id: string;
+          p_display_name: string;
+        };
+        Returns: ProviderProfileOnboardingRow[];
+      };
     };
     Enums: {
       user_status: 'active' | 'blocked' | 'deleted';
       profile_type: 'tutor' | 'provider' | 'admin';
+      account_deletion_request_status: 'pending' | 'processing' | 'done';
       provider_status: 'active' | 'paused' | 'blocked' | 'deleted';
       provider_category: 'walk' | 'sitting' | 'transport' | 'boarding';
       booking_status: 'requested' | 'confirmed' | 'cancelled' | 'completed';
+      review_status: 'visible' | 'hidden_by_admin' | 'reported' | 'removed';
+      report_status:
+        | 'open'
+        | 'in_review'
+        | 'action_taken'
+        | 'dismissed'
+        | 'closed';
+      report_category:
+        | 'safety_concern'
+        | 'inappropriate_behaviour'
+        | 'harassment'
+        | 'spam_scam'
+        | 'no_show'
+        | 'other';
       pet_species: 'dog' | 'cat' | 'other';
       pet_size: 'small' | 'medium' | 'large' | 'giant' | 'unknown';
       location_precision: 'exact' | 'postcode' | 'approximate';

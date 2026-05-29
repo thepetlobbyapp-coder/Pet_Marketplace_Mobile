@@ -3,16 +3,33 @@
   "private": true,
   "version": "0.0.0",
   "description": "Painel admin Next.js - Pet Marketplace UK (en-GB).",
+  "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": ">=20"
+    "node": "22.x",
+    "pnpm": "10.30.3"
   },
   "scripts": {
-    "dev": "echo \"[bloco0] Next.js sera inicializado no Bloco 9\" && exit 0",
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "preview": "node scripts/admin-preview-server.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"[bloco0] ESLint sera configurado no Bloco 9\" && exit 0",
+    "lint": "eslint .",
     "test": "tsc -p tsconfig.test.json && node .tmp/test-build/tests/auth-session.test.js && node .tmp/test-build/tests/admin-shell.test.js && node .tmp/test-build/tests/admin-login.test.js && node .tmp/test-build/tests/admin-resource-client.test.js && node .tmp/test-build/tests/admin-dashboard-summary.test.js && node .tmp/test-build/tests/admin-table-view-models.test.js && node .tmp/test-build/tests/admin-list-page-view-models.test.js"
   },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.0",
+    "@types/node": "^20.14.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
     "typescript": "^5.9.3"
   },
   "license": "UNLICENSED"

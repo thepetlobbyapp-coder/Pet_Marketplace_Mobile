@@ -1,14 +1,12 @@
 import {
   ADMIN_DASHBOARD_SUMMARY_ERROR_MESSAGE,
+  AdminResourceContractError,
   createAdminDashboardSummary,
+  createAdminDashboardViewModel,
   loadAdminDashboardSummary,
-  type AdminAuditLogListItem,
-  type AdminBookingListItem,
-  type AdminProviderListItem,
-  type AdminReportListItem,
+  parseAdminDashboardSummary,
+  type AdminDashboardSummary,
   type AdminResourceClient,
-  type AdminReviewListItem,
-  type AdminUserListItem,
 } from "../src";
 
 const forbiddenValue = "must not appear in dashboard summary";
@@ -18,52 +16,84 @@ main().catch((error: unknown) => {
 });
 
 async function main(): Promise<void> {
-  testSummaryCalculatesTotals();
-  await testLoaderCallsEveryClientMethod();
+  testContractParserKeepsOnlyAggregateFields();
+  testContractParserRejectsInvalidCounts();
+  testSummaryCalculatesViewModel();
+  await testLoaderCallsDashboardEndpointOnly();
   await testLoaderReturnsGenericError();
 
   console.log("admin-dashboard-summary tests passed");
 }
 
-function testSummaryCalculatesTotals(): void {
-  const resources = createResources();
-  const summary = createAdminDashboardSummary(resources);
+function testContractParserKeepsOnlyAggregateFields(): void {
+  const summary = parseAdminDashboardSummary(
+    withForbiddenFields(createDashboardPayload()),
+  );
   const serialized = JSON.stringify(summary);
 
-  assert(summary.totalUsers === 4, "summary should count all users");
-  assert(summary.totalProviders === 2, "summary should count providers");
-  assert(summary.totalBookings === 3, "summary should count bookings");
+  assert(summary.totalUsers === 8, "summary should parse total users");
+  assert(summary.totalTutors === 7, "summary should parse total tutors");
+  assert(summary.totalProviders === 6, "summary should parse providers");
+  assert(summary.openReports === 5, "summary should parse open reports");
+  assert(summary.blockedUsers === 1, "summary should parse blocked users");
   assert(
-    summary.openReports === 2,
-    "summary should count open/pending reports only",
-  );
-  assert(
-    summary.reportedReviews === 2,
-    "summary should count reported/hidden reviews only",
-  );
-  assert(
-    summary.recentAuditLogCount === 2,
-    "summary should count recent audit logs",
-  );
-  assert(
-    summary.blockedOrSuspendedUsers === 2,
-    "summary should count blocked/suspended users",
+    summary.bookingsByStatus.requested === 4,
+    "summary should parse requested bookings",
   );
   assertNoForbiddenDashboardPayload(serialized);
 }
 
-async function testLoaderCallsEveryClientMethod(): Promise<void> {
+function testContractParserRejectsInvalidCounts(): void {
+  try {
+    parseAdminDashboardSummary({
+      ...createDashboardPayload(),
+      totalUsers: -1,
+    });
+  } catch (error) {
+    assert(
+      error instanceof AdminResourceContractError,
+      "invalid dashboard payload should throw a contract error",
+    );
+    return;
+  }
+
+  throw new Error("Expected dashboard contract error");
+}
+
+function testSummaryCalculatesViewModel(): void {
+  const summary = createAdminDashboardSummary({
+    dashboard: createDashboardSummary(),
+  });
+  const viewModel = createAdminDashboardViewModel(summary);
+  const serialized = JSON.stringify(viewModel);
+
+  assert(viewModel.kpiCards.length === 5, "dashboard should expose KPI cards");
+  assert(
+    viewModel.kpiCards.map((card) => card.id).join(",") ===
+      "totalUsers,totalTutors,totalProviders,openReports,blockedUsers",
+    "dashboard KPI order should stay stable",
+  );
+  assert(
+    viewModel.bookingStatusRows.map((row) => row.status).join(",") ===
+      "requested,confirmed,cancelled,completed",
+    "booking status row order should stay stable",
+  );
+  assert(viewModel.totalBookings === 10, "booking total should be derived");
+  assert(!viewModel.isEmpty, "dashboard with counts should not be empty");
+  assertNoForbiddenDashboardPayload(serialized);
+}
+
+async function testLoaderCallsDashboardEndpointOnly(): Promise<void> {
   const calls: string[] = [];
   const client = createMockClient(calls);
   const state = await loadAdminDashboardSummary(client);
 
   assert(state.status === "ready", "loader should return ready state");
   assert(
-    calls.join(",") ===
-      "users,providers,bookings,reports,reviews,auditLogs",
-    "loader should call every resource client method",
+    calls.join(",") === "dashboard",
+    "loader should call only the aggregate dashboard endpoint",
   );
-  assert(state.summary.totalUsers === 4, "loader should aggregate users");
+  assert(state.summary.openReports === 5, "loader should keep dashboard data");
   assertNoForbiddenDashboardPayload(JSON.stringify(state));
 }
 
@@ -88,181 +118,84 @@ function createMockClient(
   calls: string[],
   shouldFail = false,
 ): AdminResourceClient {
-  const resources = createResources();
-
   return {
-    listAdminAuditLogs: async () => {
-      calls.push("auditLogs");
-      return resources.auditLogs;
-    },
-    listAdminBookings: async () => {
-      calls.push("bookings");
-      return resources.bookings;
-    },
-    listAdminProviders: async () => {
-      calls.push("providers");
-      return resources.providers;
-    },
-    listAdminReports: async () => {
-      calls.push("reports");
-      return resources.reports;
-    },
-    listAdminReviews: async () => {
-      calls.push("reviews");
-      return resources.reviews;
-    },
-    listAdminUsers: async () => {
-      calls.push("users");
-
+    getAdminDashboardSummary: async () => {
+      calls.push("dashboard");
       if (shouldFail) {
         throw new Error(`raw backend payload ${forbiddenValue}`);
       }
 
-      return resources.users;
+      return createDashboardSummary();
     },
+    listAdminAuditLogs: async () => ({ items: [], nextCursor: null }),
+    listAdminBookings: async () => ({ items: [], nextCursor: null }),
+    listAdminProviders: async () => ({ items: [], nextCursor: null }),
+    listAdminReports: async () => ({ items: [], nextCursor: null }),
+    listAdminReviews: async () => ({ items: [], nextCursor: null }),
+    listAdminUsers: async () => ({ items: [], nextCursor: null }),
+    updateAdminReport: async () => ({
+      category: "safety_concern",
+      createdAt: "2026-05-18T12:00:00.000Z",
+      id: "report-1",
+      status: "open",
+      updatedAt: "2026-05-18T12:05:00.000Z",
+    }),
+    updateAdminReviewStatus: async () => ({
+      bookingId: "booking-1",
+      createdAt: "2026-05-18T12:00:00.000Z",
+      id: "review-1",
+      rating: 5,
+      status: "hidden_by_admin",
+      updatedAt: "2026-05-18T12:05:00.000Z",
+    }),
+    updateAdminUserStatus: async () => ({
+      createdAt: "2026-05-18T12:00:00.000Z",
+      email: "user@example.test",
+      id: "user-1",
+      roles: ["tutor"],
+      status: "blocked",
+      updatedAt: "2026-05-18T12:05:00.000Z",
+    }),
   };
 }
 
-function createResources(): {
-  readonly auditLogs: readonly AdminAuditLogListItem[];
-  readonly bookings: readonly AdminBookingListItem[];
-  readonly providers: readonly AdminProviderListItem[];
-  readonly reports: readonly AdminReportListItem[];
-  readonly reviews: readonly AdminReviewListItem[];
-  readonly users: readonly AdminUserListItem[];
-} {
+function createDashboardSummary(): AdminDashboardSummary {
+  return parseAdminDashboardSummary(createDashboardPayload());
+}
+
+function createDashboardPayload(): Record<string, unknown> {
   return {
-    auditLogs: [
-      {
-        action: "user.blocked",
-        actorEmail: "admin@teste.com",
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "audit-1",
-        targetId: "user-2",
-        targetType: "user",
-      },
-      {
-        action: "report.closed",
-        createdAt: "2026-05-18T12:10:00.000Z",
-        id: "audit-2",
-      },
-    ],
-    bookings: [
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "booking-1",
-        status: "requested",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "booking-2",
-        status: "accepted",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "booking-3",
-        status: "completed",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-    ],
-    providers: [
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "provider-1",
-        serviceCount: 2,
-        status: "active",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "provider-2",
-        status: "inactive",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-    ],
-    reports: [
-      {
-        category: "safety_concern",
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "report-1",
-        status: "open",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        category: "abuse",
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "report-2",
-        status: "pending",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        category: "spam",
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "report-3",
-        status: "closed",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-    ],
-    reviews: [
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "review-1",
-        rating: 2,
-        status: "reported",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "review-2",
-        rating: 1,
-        status: "hidden",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        id: "review-3",
-        rating: 5,
-        status: "published",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-    ],
-    users: [
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        email: "admin@teste.com",
-        id: "user-1",
-        roles: ["admin"],
-        status: "active",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        email: "blocked@example.com",
-        id: "user-2",
-        roles: ["tutor"],
-        status: "blocked",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        email: "suspended@example.com",
-        id: "user-3",
-        roles: ["provider"],
-        status: "suspended",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-      {
-        createdAt: "2026-05-18T12:00:00.000Z",
-        displayName: forbiddenValue,
-        email: "ok@example.com",
-        id: "user-4",
-        roles: ["tutor"],
-        status: "active",
-        updatedAt: "2026-05-18T12:05:00.000Z",
-      },
-    ],
+    blockedUsers: 1,
+    bookingsByStatus: {
+      cancelled: 1,
+      completed: 2,
+      confirmed: 3,
+      requested: 4,
+    },
+    openReports: 5,
+    totalProviders: 6,
+    totalTutors: 7,
+    totalUsers: 8,
+  };
+}
+
+function withForbiddenFields<T extends Record<string, unknown>>(item: T): T {
+  return {
+    ...item,
+    address: forbiddenValue,
+    coordinates: forbiddenValue,
+    description: forbiddenValue,
+    displayName: forbiddenValue,
+    email: forbiddenValue,
+    id: forbiddenValue,
+    location: forbiddenValue,
+    metadata: forbiddenValue,
+    phone: forbiddenValue,
+    rawMetadata: forbiddenValue,
+    serviceRole: forbiddenValue,
+    service_role: forbiddenValue,
+    targetId: forbiddenValue,
+    token: forbiddenValue,
   };
 }
 
@@ -273,9 +206,17 @@ function assertNoForbiddenDashboardPayload(serialized: string): void {
     "address",
     "location",
     "coordinates",
+    "email",
+    "displayName",
+    "description",
+    "metadata",
+    "targetId",
     forbiddenValue,
   ]) {
-    assert(!serialized.includes(value), `${value} should not appear in summary`);
+    assert(
+      !serialized.includes(value),
+      `${value} should not appear in summary`,
+    );
   }
 }
 

@@ -16,6 +16,13 @@ coverage/
 .env
 .env.*
 !.env.example
+Credenciais.txt
+credenciais*.txt
+credentials*.txt
+secret*.txt
+secrets*.txt
+*.credentials.local
+*.secrets.local
 
 # Logs
 *.log
@@ -43,6 +50,9 @@ GoogleService-Info.plist
 
 # Local agent/debug artifacts
 **/.codex/BUG_Debugger/
+.codex-runtime/
+Pet_Marketplace_Mobile/profile-logout-button.png
+Pet_Marketplace_Mobile/search-smoke-mobile.png
 
 # Local publish staging
 .publish/

@@ -1,5 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
 export interface DateOption {
   id: string;
@@ -52,7 +52,7 @@ export function DateStrip({ dates, selectedId, onSelect }: DateStripProps) {
 
 /** Builds the next `count` days starting today, for the demo date picker. */
 export function buildUpcomingDates(count: number): DateOption[] {
-  const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const out: DateOption[] = [];
   const base = new Date();
   for (let index = 0; index < count; index += 1) {
@@ -60,8 +60,8 @@ export function buildUpcomingDates(count: number): DateOption[] {
     date.setDate(base.getDate() + index);
     out.push({
       id: date.toISOString().slice(0, 10),
-      weekday: weekdays[date.getDay()] ?? '',
-      day: String(date.getDate()).padStart(2, '0'),
+      weekday: weekdays[date.getDay()] ?? "",
+      day: String(date.getDate()).padStart(2, "0"),
     });
   }
   return out;
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[1],
   },
   cell: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -93,13 +93,13 @@ const styles = StyleSheet.create({
   weekday: {
     color: colors.muted,
     fontSize: typography.caption,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
   day: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   textSelected: {
     color: colors.onAccent,

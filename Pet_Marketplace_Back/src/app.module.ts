@@ -16,6 +16,10 @@ import { AddressesModule } from './addresses/addresses.module';
 import { ProvidersModule } from './providers/providers.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { ConversationsModule } from './conversations/conversations.module';
+import { AccountDeletionModule } from './account-deletion/account-deletion.module';
+import { LegalModule } from './legal/legal.module';
+import { TrustSafetyModule } from './trust-safety/trust-safety.module';
+import { AdminModule } from './admin/admin.module';
 
 /**
  * Composição raiz — Bloco 1.
@@ -29,9 +33,7 @@ import { ConversationsModule } from './conversations/conversations.module';
     AppLoggerModule,
     CommonModule,
     AuditModule,
-    ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 60 },
-    ]),
+    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 60 }]),
     HealthModule,
     AuthModule,
     UsersModule,
@@ -40,6 +42,10 @@ import { ConversationsModule } from './conversations/conversations.module';
     ProvidersModule,
     BookingsModule,
     ConversationsModule,
+    TrustSafetyModule,
+    AdminModule,
+    AccountDeletionModule,
+    LegalModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

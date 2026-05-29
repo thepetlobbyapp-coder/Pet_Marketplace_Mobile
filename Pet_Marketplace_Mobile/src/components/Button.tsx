@@ -4,13 +4,13 @@ import {
   StyleSheet,
   Text,
   type PressableProps,
-} from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
+} from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
 
-interface ButtonProps extends Pick<PressableProps, 'disabled' | 'onPress'> {
+interface ButtonProps extends Pick<PressableProps, "disabled" | "onPress"> {
   isLoading?: boolean;
   label: string;
-  variant?: 'primary' | 'secondary';
+  variant?: "primary" | "secondary";
 }
 
 export function Button({
@@ -18,7 +18,7 @@ export function Button({
   isLoading = false,
   label,
   onPress,
-  variant = 'primary',
+  variant = "primary",
 }: ButtonProps) {
   const isDisabled = disabled || isLoading;
 
@@ -29,20 +29,20 @@ export function Button({
       onPress={onPress}
       style={({ pressed }) => [
         styles.base,
-        variant === 'primary' ? styles.primary : styles.secondary,
+        variant === "primary" ? styles.primary : styles.secondary,
         pressed && !isDisabled ? styles.pressed : null,
         isDisabled ? styles.disabled : null,
       ]}
     >
       {isLoading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.surface : colors.accent}
+          color={variant === "primary" ? colors.surface : colors.accent}
         />
       ) : (
         <Text
           style={[
             styles.label,
-            variant === 'primary' ? styles.primaryLabel : styles.secondaryLabel,
+            variant === "primary" ? styles.primaryLabel : styles.secondaryLabel,
           ]}
         >
           {label}
@@ -54,10 +54,10 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
   },
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   primaryLabel: {
     color: colors.surface,

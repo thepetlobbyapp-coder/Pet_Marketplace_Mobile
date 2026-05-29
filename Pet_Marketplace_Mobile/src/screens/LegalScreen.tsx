@@ -1,6 +1,6 @@
-import { StyleSheet, Text } from 'react-native';
-import { Screen } from '../components/Screen';
-import { colors, spacing, typography } from '../design/tokens';
+import { StyleSheet, Text } from "react-native";
+import { Screen } from "../components/Screen";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface LegalScreenProps {
   body: string;
@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
+    fontWeight: "800",
     marginBottom: spacing[4],
   },
   body: {

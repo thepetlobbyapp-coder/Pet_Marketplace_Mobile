@@ -1,8 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   BOOKING_STATUSES,
   type BookingRecord,
   type BookingStatus,
+  type BookingViewerRole,
+  type BookingPerspective,
 } from './booking-fields';
 
 /**
@@ -26,11 +28,68 @@ export class BookingResponseDto {
   @ApiProperty({ example: '09:00' })
   timeSlotId!: string;
 
+  @ApiProperty({ example: ['09:00', '10:00'], isArray: true })
+  timeSlotIds!: string[];
+
   @ApiProperty()
   service!: string;
 
   @ApiProperty({ enum: BOOKING_STATUSES })
   status!: BookingStatus;
+
+  @ApiPropertyOptional({ enum: ['tutor', 'provider', 'both'], nullable: true })
+  viewerRole?: BookingViewerRole | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  providerName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  tutorName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  petName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  counterpartName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, format: 'uri' })
+  counterpartAvatarUrl?: string | null;
+
+  @ApiPropertyOptional({ enum: ['tutor', 'provider'], nullable: true })
+  counterpartRole?: BookingPerspective | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Opaque grouping key for same participant, pet and day.',
+  })
+  bookingGroupKey?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'date-time',
+    description: 'When the tutor confirmed the service was delivered.',
+  })
+  tutorConfirmedAt?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Whether the viewing tutor may rate this completed service.',
+  })
+  canReview?: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Rating (1-5) the viewing tutor already gave, if any.',
+  })
+  myReviewRating?: number | null;
+
+  @ApiProperty({ example: 18.5, nullable: true })
+  pricePerHourSnapshot!: number | null;
+
+  @ApiProperty({ example: 37, nullable: true })
+  estimatedTotalAmount!: number | null;
+
+  @ApiProperty({ example: 'GBP' })
+  currency!: string;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
@@ -39,13 +98,117 @@ export class BookingResponseDto {
   updatedAt!: string;
 
   static fromRecord(record: BookingRecord): BookingResponseDto {
-    return {
+    const response: BookingResponseDto = {
       id: record.id,
       providerId: record.provider_id,
       petId: record.pet_id,
       date: record.booking_date,
       timeSlotId: record.time_slot_id,
+      timeSlotIds: record.time_slot_ids?.length
+        ? record.time_slot_ids
+        : [record.time_slot_id],
       service: record.service_label,
+      status: record.status,
+      pricePerHourSnapshot: toNullableNumber(record.price_per_hour_snapshot),
+      estimatedTotalAmount: toNullableNumber(record.estimated_total_amount),
+      currency: record.currency ?? 'GBP',
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    };
+
+    if (record.viewer_role) response.viewerRole = record.viewer_role;
+    if (record.provider_name !== undefined) {
+      response.providerName = record.provider_name;
+    }
+    if (record.tutor_name !== undefined) response.tutorName = record.tutor_name;
+    if (record.pet_name !== undefined) response.petName = record.pet_name;
+    if (record.counterpart_name !== undefined) {
+      response.counterpartName = record.counterpart_name;
+    }
+    if (record.counterpart_avatar_url !== undefined) {
+      response.counterpartAvatarUrl = record.counterpart_avatar_url;
+    }
+    if (record.counterpart_role !== undefined) {
+      response.counterpartRole = record.counterpart_role;
+    }
+    if (record.booking_group_key !== undefined) {
+      response.bookingGroupKey = record.booking_group_key;
+    }
+    if (record.tutor_confirmed_at !== undefined) {
+      response.tutorConfirmedAt = record.tutor_confirmed_at;
+    }
+    if (record.can_review !== undefined && record.can_review !== null) {
+      response.canReview = record.can_review;
+    }
+    if (record.my_review_rating !== undefined) {
+      response.myReviewRating = record.my_review_rating;
+    }
+
+    return response;
+  }
+}
+
+export class BookingListResponseDto {
+  @ApiProperty({ type: [BookingResponseDto] })
+  items!: BookingResponseDto[];
+
+  @ApiPropertyOptional({ nullable: true })
+  nextCursor!: string | null;
+
+  static fromRecords(
+    records: BookingRecord[],
+    nextCursor: string | null,
+  ): BookingListResponseDto {
+    return {
+      items: records.map((record) => BookingResponseDto.fromRecord(record)),
+      nextCursor,
+    };
+  }
+}
+
+function toNullableNumber(
+  value: number | string | null | undefined,
+): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Linha da RPC `submit_review` — não expõe o `reviewer_user_id`. */
+export interface ReviewRecord {
+  id: string;
+  booking_id: string;
+  rating: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Contrato seguro de uma avaliação. Nunca expõe a identidade do avaliador. */
+export class ReviewResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  bookingId!: string;
+
+  @ApiProperty({ example: 5 })
+  rating!: number;
+
+  @ApiProperty({ example: 'visible' })
+  status!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+
+  static fromRecord(record: ReviewRecord): ReviewResponseDto {
+    return {
+      id: record.id,
+      bookingId: record.booking_id,
+      rating: record.rating,
       status: record.status,
       createdAt: record.created_at,
       updatedAt: record.updated_at,

@@ -35,12 +35,20 @@ Bloco 0 (fundação) → 1 Backend → 2 Banco/PostGIS → 3 Mobile → 4 Perfis
 
 ## Setup
 
+Pre-requisitos:
+
+- Node 22 LTS (`22.x`), definido em `.nvmrc` e `.node-version`.
+- pnpm 10.30.3, definido em `packageManager`.
+- git.
+
 ```bash
+pnpm env:check        # valida Node 22.x e pnpm 10.30.3
 pnpm install            # na raiz e/ou por app
 pnpm sync               # propaga docs/ e .codex/ para os 3 apps
 ```
 
-Pré-requisitos: Node 20 LTS, pnpm 9+, git. Veja `.env.example` e `COMMITS.md`.
+No Windows, use um gerenciador de versao como `fnm` e rode `fnm use 22`
+antes dos comandos do projeto. Veja `.env.example` e `COMMITS.md`.
 
 ## Progresso
 

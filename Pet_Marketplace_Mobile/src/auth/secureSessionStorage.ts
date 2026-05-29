@@ -1,16 +1,16 @@
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 export const secureSessionStorage = {
   getItem: (key: string) => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       return Promise.resolve(getWebStorage()?.getItem(key) ?? null);
     }
 
     return SecureStore.getItemAsync(key);
   },
   setItem: (key: string, value: string) => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       getWebStorage()?.setItem(key, value);
       return Promise.resolve();
     }
@@ -20,7 +20,7 @@ export const secureSessionStorage = {
     });
   },
   removeItem: (key: string) => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       getWebStorage()?.removeItem(key);
       return Promise.resolve();
     }
@@ -30,7 +30,7 @@ export const secureSessionStorage = {
 };
 
 function getWebStorage(): Storage | null {
-  return typeof globalThis.localStorage === 'undefined'
+  return typeof globalThis.localStorage === "undefined"
     ? null
     : globalThis.localStorage;
 }

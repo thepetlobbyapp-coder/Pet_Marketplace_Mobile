@@ -4,8 +4,8 @@ import {
   TextInput,
   type TextInputProps,
   View,
-} from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
+} from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface TextFieldProps extends TextInputProps {
   label: string;
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.text,
     fontSize: typography.small,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   input: {
     backgroundColor: colors.surface,

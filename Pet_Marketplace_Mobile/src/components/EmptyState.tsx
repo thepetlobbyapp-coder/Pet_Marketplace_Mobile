@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
-import { Button } from './Button';
+import { StyleSheet, Text, View } from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
+import { Button } from "./Button";
 
 interface EmptyStateProps {
   actionLabel?: string;
@@ -28,20 +28,20 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[3],
     paddingVertical: spacing[5],
   },
   title: {
     color: colors.text,
     fontSize: typography.section,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
   },
   message: {
     color: colors.muted,
     fontSize: typography.body,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

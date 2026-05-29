@@ -1,16 +1,16 @@
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '../design/tokens';
+import type { ReactNode } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors, spacing } from "../design/tokens";
 
 interface ScreenProps {
   children: ReactNode;
   // 'centered' (default) keeps short placeholder content vertically centred.
   // 'top' anchors content to the top for scrollable, content-rich screens.
-  variant?: 'centered' | 'top';
+  variant?: "centered" | "top";
 }
 
-export function Screen({ children, variant = 'centered' }: ScreenProps) {
+export function Screen({ children, variant = "centered" }: ScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -21,7 +21,7 @@ export function Screen({ children, variant = 'centered' }: ScreenProps) {
         <View
           style={[
             styles.inner,
-            variant === 'top' ? styles.innerTop : styles.innerCentered,
+            variant === "top" ? styles.innerTop : styles.innerCentered,
           ]}
         >
           {children}
@@ -43,12 +43,12 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     gap: spacing[4],
-    width: '100%',
+    width: "100%",
   },
   innerCentered: {
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   innerTop: {
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
 });

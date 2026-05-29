@@ -1,4 +1,4 @@
-import { enGB } from './en-GB';
+import { enGB } from "./en-GB";
 
 type TranslationKey = keyof typeof enGB;
 

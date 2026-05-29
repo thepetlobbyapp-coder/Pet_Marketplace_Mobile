@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
-import { Avatar } from './Avatar';
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
+import { Avatar } from "./Avatar";
 
 interface ConversationRowProps {
   name: string;
@@ -23,11 +23,11 @@ export function ConversationRow({
 }: ConversationRowProps) {
   return (
     <Pressable
-      accessibilityHint="Abre a conversa"
+      accessibilityHint="Opens the conversation"
       accessibilityLabel={
         unread > 0
-          ? `Conversa com ${name}, ${unread} mensagens não lidas`
-          : `Conversa com ${name}`
+          ? `Conversation with ${name}, ${unread} unread messages`
+          : `Conversation with ${name}`
       }
       accessibilityRole="button"
       onPress={onPress}
@@ -62,12 +62,12 @@ export function ConversationRow({
 
 const styles = StyleSheet.create({
   row: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: radius.lg,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: spacing[3],
     padding: spacing[3],
   },
@@ -79,15 +79,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   topLine: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   name: {
     color: colors.text,
     flex: 1,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   time: {
     color: colors.muted,
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   service: {
     color: colors.accent,
     fontSize: typography.caption,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   preview: {
     color: colors.muted,
@@ -104,20 +104,20 @@ const styles = StyleSheet.create({
   },
   previewUnread: {
     color: colors.text,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   badge: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accent,
     borderRadius: radius.pill,
     height: 22,
-    justifyContent: 'center',
+    justifyContent: "center",
     minWidth: 22,
     paddingHorizontal: spacing[1],
   },
   badgeText: {
     color: colors.onAccent,
     fontSize: typography.caption,
-    fontWeight: '800',
+    fontWeight: "800",
   },
 });

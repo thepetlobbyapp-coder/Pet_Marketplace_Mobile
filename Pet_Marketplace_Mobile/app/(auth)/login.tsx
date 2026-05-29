@@ -1,19 +1,18 @@
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
-import { useAuth } from '../../src/auth/AuthProvider';
-import { Brandmark } from '../../src/components/Brandmark';
-import { Button } from '../../src/components/Button';
-import { Screen } from '../../src/components/Screen';
-import { TextField } from '../../src/components/TextField';
-import { colors, radius, spacing, typography } from '../../src/design/tokens';
+import { Link, router } from "expo-router";
+import { useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../../src/auth/AuthProvider";
+import { Brandmark } from "../../src/components/Brandmark";
+import { Button } from "../../src/components/Button";
+import { Screen } from "../../src/components/Screen";
+import { TextField } from "../../src/components/TextField";
+import { colors, radius, spacing, typography } from "../../src/design/tokens";
+import { t } from "../../src/i18n";
 
-// Copy inline em pt-BR para alinhar com as telas do marketplace.
-// As chaves auth.* de src/i18n/en-GB.ts foram preservadas para uso futuro.
 export default function LoginScreen() {
   const { isAuthConfigured, signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
@@ -22,32 +21,28 @@ export default function LoginScreen() {
     setIsSubmitting(false);
 
     if (!result.ok) {
-      Alert.alert('Não foi possível entrar', result.message);
+      Alert.alert(t("auth.login.errorTitle"), result.message);
       return;
     }
 
-    router.replace('/(tabs)/home');
+    router.replace("/(tabs)/profile");
   }
 
   return (
     <Screen>
       <View style={styles.brand}>
-        <Brandmark size={88} tagline="Pet care perto de você." />
+        <Brandmark size={88} tagline={t("auth.login.tagline")} />
       </View>
 
       <View style={styles.hero}>
-        <Text style={styles.title}>Bem-vindo de volta</Text>
-        <Text style={styles.subtitle}>
-          Entre para gerenciar a conta do seu pet.
-        </Text>
+        <Text style={styles.title}>{t("auth.login.title")}</Text>
+        <Text style={styles.subtitle}>{t("auth.login.subtitle")}</Text>
       </View>
 
       {!isAuthConfigured ? (
         <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>Login indisponível no momento</Text>
-          <Text style={styles.noticeBody}>
-            Tente novamente em alguns instantes.
-          </Text>
+          <Text style={styles.noticeTitle}>{t("auth.config.title")}</Text>
+          <Text style={styles.noticeBody}>{t("auth.config.body")}</Text>
         </View>
       ) : null}
 
@@ -56,18 +51,18 @@ export default function LoginScreen() {
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
-          label="E-mail"
+          label={t("auth.email.label")}
           onChangeText={setEmail}
-          placeholder="voce@exemplo.com"
+          placeholder={t("auth.email.placeholder")}
           textContentType="emailAddress"
           value={email}
         />
         <TextField
           autoCapitalize="none"
           autoComplete="password"
-          label="Senha"
+          label={t("auth.password.label")}
           onChangeText={setPassword}
-          placeholder="Digite sua senha"
+          placeholder={t("auth.password.placeholder")}
           secureTextEntry
           textContentType="password"
           value={password}
@@ -76,7 +71,7 @@ export default function LoginScreen() {
           <Button
             disabled={!isAuthConfigured || !email || !password || isSubmitting}
             isLoading={isSubmitting}
-            label="Entrar"
+            label={t("auth.login.button")}
             onPress={handleSubmit}
           />
         </View>
@@ -84,10 +79,10 @@ export default function LoginScreen() {
 
       <View style={styles.links}>
         <Link href="/(auth)/sign-up" style={styles.link}>
-          Criar conta
+          {t("auth.signUp.link")}
         </Link>
         <Link href="/(auth)/reset-password" style={styles.link}>
-          Esqueci a senha
+          {t("auth.reset.link")}
         </Link>
       </View>
     </Screen>
@@ -96,46 +91,46 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   brand: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: spacing[4],
   },
   hero: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[2],
     marginBottom: spacing[4],
   },
   title: {
     color: colors.text,
     fontSize: typography.display,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
   },
   subtitle: {
     color: colors.muted,
     fontSize: typography.body,
     lineHeight: 24,
-    textAlign: 'center',
+    textAlign: "center",
   },
   form: {
     gap: spacing[4],
   },
   submitWrap: {
-    alignSelf: 'center',
+    alignSelf: "center",
     marginTop: spacing[2],
     minWidth: 200,
-    width: '60%',
+    width: "60%",
   },
   links: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: spacing[6],
-    justifyContent: 'center',
+    justifyContent: "center",
     marginTop: spacing[6],
   },
   link: {
     color: colors.accent,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   notice: {
     backgroundColor: colors.warningSurface,
@@ -149,7 +144,7 @@ const styles = StyleSheet.create({
   noticeTitle: {
     color: colors.text,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   noticeBody: {
     color: colors.muted,

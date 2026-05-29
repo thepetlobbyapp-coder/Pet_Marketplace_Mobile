@@ -1,11 +1,11 @@
-import 'react-native-gesture-handler';
-import '../src/lib/supabase-polyfills';
+import "react-native-gesture-handler";
+import "../src/lib/supabase-polyfills";
 
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { AppProviders } from '../src/providers/AppProviders';
-import { colors } from '../src/design/tokens';
-import { t } from '../src/i18n';
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { AppProviders } from "../src/providers/AppProviders";
+import { colors } from "../src/design/tokens";
+import { t } from "../src/i18n";
 
 export default function RootLayout() {
   return (
@@ -15,7 +15,7 @@ export default function RootLayout() {
         screenOptions={{
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '700' },
+          headerTitleStyle: { fontWeight: "700" },
           contentStyle: { backgroundColor: colors.background },
         }}
       >
@@ -24,15 +24,15 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="legal/terms"
-          options={{ title: t('legal.terms.title') }}
+          options={{ title: t("legal.terms.title") }}
         />
         <Stack.Screen
           name="legal/privacy"
-          options={{ title: t('legal.privacy.title') }}
+          options={{ title: t("legal.privacy.title") }}
         />
         <Stack.Screen
           name="provider/[id]"
-          options={{ title: 'Detalhes do prestador' }}
+          options={{ title: t("provider.detail.header") }}
         />
       </Stack>
     </AppProviders>

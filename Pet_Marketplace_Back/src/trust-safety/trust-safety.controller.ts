@@ -1,0 +1,131 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AuditLogger } from '../audit/audit.logger';
+import { CurrentUser } from '../common/auth/current-user.decorator';
+import { Roles } from '../common/auth/roles.decorator';
+import type { AuthUser } from '../common/auth/auth-user';
+import { parseCursorPaginationQuery } from '../common/pagination/cursor-pagination';
+import { SupabaseAdminService } from '../common/supabase/supabase-admin.service';
+import {
+  parseCreateReportBody,
+  type CreateReportRequestDto,
+} from './dto/create-report-request.dto';
+import {
+  ReportListResponseDto,
+  ReportResponseDto,
+} from './dto/report-response.dto';
+import {
+  parseTrustSafetyUuid,
+  trustSafetyNotFound,
+} from './dto/trust-safety-fields';
+import {
+  parseUpdateReportBody,
+  type UpdateReportRequestDto,
+} from './dto/update-report-request.dto';
+import { UserBlockResponseDto } from './dto/user-block-response.dto';
+
+const ADMIN_REPORTS_DEFAULT_LIMIT = 50;
+const ADMIN_REPORTS_MAX_LIMIT = 100;
+
+@ApiTags('trust-safety')
+@Controller()
+export class TrustSafetyController {
+  constructor(
+    private readonly admin: SupabaseAdminService,
+    private readonly audit: AuditLogger,
+  ) {}
+
+  @Post('reports')
+  @ApiOkResponse({ type: ReportResponseDto })
+  async createReport(
+    @CurrentUser() user: AuthUser,
+    @Body() body: CreateReportRequestDto,
+  ): Promise<ReportResponseDto> {
+    const input = parseCreateReportBody(body);
+    const report = await this.admin.createTrustSafetyReport(user, input);
+    if (!report) throw trustSafetyNotFound();
+
+    await this.audit.record({
+      actorUserId: user.id,
+      action: 'trust_safety.report_created',
+      entityType: 'report',
+      entityId: report.id,
+      metadata: {
+        category: report.category,
+        status: report.status,
+        targetType: report.target_type,
+      },
+    });
+
+    return ReportResponseDto.fromRecord(report);
+  }
+
+  @Post('conversations/:id/block')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: UserBlockResponseDto })
+  async blockConversationParticipant(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ): Promise<UserBlockResponseDto> {
+    const conversationId = parseTrustSafetyUuid(id, 'conversation id');
+    const block = await this.admin.blockConversationParticipant(
+      user,
+      conversationId,
+    );
+    if (!block) throw trustSafetyNotFound();
+
+    await this.audit.record({
+      actorUserId: user.id,
+      action: 'trust_safety.user_blocked',
+      entityType: 'user_block',
+      entityId: block.id,
+      metadata: { conversationId: block.conversation_id },
+    });
+
+    return UserBlockResponseDto.fromRecord(block);
+  }
+
+  @Get('admin/reports')
+  @Roles('admin')
+  @ApiOkResponse({ type: ReportListResponseDto })
+  async listAdminReports(
+    @Query() query: unknown,
+  ): Promise<ReportListResponseDto> {
+    const pagination = parseCursorPaginationQuery(query, {
+      defaultLimit: ADMIN_REPORTS_DEFAULT_LIMIT,
+      maxLimit: ADMIN_REPORTS_MAX_LIMIT,
+    });
+    const page = await this.admin.listAdminReports(pagination);
+    return ReportListResponseDto.fromRecords(page.items, page.nextCursor);
+  }
+
+  @Patch('admin/reports/:id')
+  @Roles('admin')
+  @ApiOkResponse({ type: ReportResponseDto })
+  async updateAdminReport(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: UpdateReportRequestDto,
+  ): Promise<ReportResponseDto> {
+    const reportId = parseTrustSafetyUuid(id, 'report id');
+    const input = parseUpdateReportBody(body);
+    const report = await this.admin.updateAdminReportStatusWithAudit(
+      user.id,
+      reportId,
+      input,
+    );
+    if (!report) throw trustSafetyNotFound();
+
+    return ReportResponseDto.fromRecord(report);
+  }
+}

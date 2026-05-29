@@ -1,7 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
-import type { GestureResponderEvent } from 'react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { colors, radius, shadow } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import type { GestureResponderEvent } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { colors, radius, shadow } from "../design/tokens";
 
 interface CenterTabButtonProps {
   onPress?: (event: GestureResponderEvent) => void;
@@ -15,10 +15,13 @@ export function CenterTabButton({ onPress }: CenterTabButtonProps) {
   return (
     <View style={styles.slot}>
       <Pressable
-        accessibilityLabel="Agendar serviço"
+        accessibilityLabel="Request booking"
         accessibilityRole="button"
         onPress={onPress}
-        style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}
+        style={({ pressed }) => [
+          styles.button,
+          pressed ? styles.pressed : null,
+        ]}
       >
         <Ionicons color={colors.onAccent} name="add" size={30} />
       </Pressable>
@@ -28,18 +31,18 @@ export function CenterTabButton({ onPress }: CenterTabButtonProps) {
 
 const styles = StyleSheet.create({
   slot: {
-    alignItems: 'center',
+    alignItems: "center",
     flex: 1,
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   button: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accent,
     borderColor: colors.surface,
     borderRadius: radius.pill,
     borderWidth: 4,
     height: 58,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginTop: -18,
     width: 58,
     ...shadow.md,

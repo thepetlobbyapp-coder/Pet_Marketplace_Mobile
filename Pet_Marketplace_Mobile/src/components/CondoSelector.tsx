@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import { Pressable, StyleSheet, Text } from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
 
 interface CondoSelectorProps {
   condominium: string;
@@ -10,8 +10,8 @@ interface CondoSelectorProps {
 export function CondoSelector({ condominium, onPress }: CondoSelectorProps) {
   return (
     <Pressable
-      accessibilityHint="Trocar de condomínio"
-      accessibilityLabel={`Condomínio: ${condominium}`}
+      accessibilityHint="Change area"
+      accessibilityLabel={`Area: ${condominium}`}
       accessibilityRole="button"
       hitSlop={6}
       onPress={onPress}
@@ -28,8 +28,8 @@ export function CondoSelector({ condominium, onPress }: CondoSelectorProps) {
 
 const styles = StyleSheet.create({
   row: {
-    alignItems: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    flexDirection: "row",
     gap: spacing[1],
   },
   pressed: {
@@ -39,6 +39,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     flexShrink: 1,
     fontSize: typography.small,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

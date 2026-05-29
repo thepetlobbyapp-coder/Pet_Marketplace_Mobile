@@ -1,9 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
-import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../design/tokens';
+import { Ionicons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors, radius, spacing, typography } from "../design/tokens";
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 interface CategoryChipProps {
   label: string;
@@ -42,7 +42,7 @@ export function CategoryChip({
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: spacing[2],
     width: 68,
   },
@@ -50,11 +50,11 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   iconBox: {
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: colors.accentSoft,
     borderRadius: radius.lg,
     height: 60,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: 60,
   },
   iconBoxSelected: {
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.text,
     fontSize: typography.caption,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

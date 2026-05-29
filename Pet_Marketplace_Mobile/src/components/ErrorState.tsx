@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../design/tokens';
-import { Button } from './Button';
+import { StyleSheet, Text, View } from "react-native";
+import { colors, spacing, typography } from "../design/tokens";
+import { Button } from "./Button";
 
 interface ErrorStateProps {
   actionLabel: string;
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.danger,
     fontSize: typography.body,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   message: {
     color: colors.muted,

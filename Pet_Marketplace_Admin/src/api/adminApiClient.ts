@@ -33,7 +33,8 @@ export interface AdminApiClientOptions {
 }
 
 export interface AdminApiJsonRequestOptions extends AdminApiClientOptions {
-  readonly method?: "GET";
+  readonly body?: unknown;
+  readonly method?: "GET" | "PATCH";
   readonly path: string;
 }
 
@@ -59,6 +60,7 @@ export async function requestAdminApiJson({
   getAccessToken,
   method = "GET",
   path,
+  body,
 }: AdminApiJsonRequestOptions): Promise<unknown> {
   if (!fetchImpl) {
     throw new BackendUnavailableError("Fetch API is not available.");
@@ -70,11 +72,15 @@ export async function requestAdminApiJson({
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
+  if (body !== undefined) {
+    headers.set("Content-Type", "application/json");
+  }
 
   let response: Response;
 
   try {
     response = await fetchImpl(buildApiUrl(baseUrl, path), {
+      body: body === undefined ? undefined : JSON.stringify(body),
       credentials: "include",
       headers,
       method,
