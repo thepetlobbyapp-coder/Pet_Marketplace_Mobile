@@ -1,7 +1,7 @@
 # SPEC_PRIVACY_DATA_SAFETY — Privacidade, UK GDPR e Data Safety
 
-**Versão:** 1.6
-**Última revisão:** 2026-05-26
+**Versão:** 1.7
+**Última revisão:** 2026-05-29
 **País/mercado:** Inglaterra
 **Fase:** Play Store readiness documental
 
@@ -94,7 +94,7 @@ As perguntas e campos de aprovação ficam consolidados em
 | Mensagens texto | Mobile consome Chat real via REST quando o build inclui o recorte dos Checkpoints 063-074 e o cold-start tutor-provider do Checkpoint 093 | Comunicação do serviço | Texto apenas; sem anexos, mídia, realtime, push ou offline queue |
 | Denúncias/reports de Chat | Implementadas para conversa e mensagem no recorte Trust & Safety validado no Checkpoint 074 | Confiança, suporte e segurança | Exigem Terms/UGC e revisão humano/legal antes da declaração final |
 | Bloqueios de conversa | Implementados para Chat 1:1 no recorte Trust & Safety validado no Checkpoint 074 | Segurança e controle de interação direta | Envio pós-block retorna 403 e erro seguro no Mobile |
-| Avaliações/reviews | Não implementadas como fluxo real atual | Confiança futura | Não declarar como coleta/UGC real até existir no build |
+| Avaliações/reviews | Implementadas: nota 1–5 **sem comentário**, tutor→prestador, 1 por serviço, editável | Confiança e reputação do prestador | UGC numérico: declarar como conteúdo gerado pelo usuário; sem texto livre; `reviewer_user_id` nunca exposto; moderação admin ocultar/restaurar |
 | Logs técnicos | Limitados ao necessário | Segurança/diagnóstico | Evitar payload/PII; crash/analytics SDK não existe hoje |
 
 ---
@@ -244,6 +244,13 @@ Estado atual:
   se existir na lista autenticada do usuario.
 - Não há anexos, mídia, realtime, push, offline queue ou moderação automática.
 - Admin review existe via backend/API; Admin UI final não é parte deste recorte.
+- Avaliação 5★ implementada e deployada (backend dev): após o serviço ficar
+  `completed` e o tutor confirmar a realização (ou auto-liberação após 2 dias),
+  o tutor dá uma nota 1–5 **sem comentário** ao prestador (1 por serviço,
+  editável). É UGC numérico, sem texto livre; o agregado alimenta a média do
+  prestador. Moderação admin existe (ocultar/restaurar = `visible`/
+  `hidden_by_admin`) com auditoria sem PII, via Admin UI (`/admin/reviews`) e
+  API. Denúncia user-facing de avaliação ficou fora desta fase.
 - Antes de submissão, Terms/Data Safety finais ainda precisam de revisão
   humano/legal, sem inventar bases legais, classes exatas de retenção ou
   automação de exclusão/moderação.
@@ -292,7 +299,8 @@ Provável declaração preliminar:
 - conteúdo do usuário: pets, bookings e mensagens texto quando o build incluir
   o Chat real validado, incluindo abertura/retomada de conversa com provider;
   reports de conversa/mensagem e block quando o build incluir o recorte Trust &
-  Safety validado; reviews somente quando implementadas;
+  Safety validado; **avaliações 1–5 sem comentário (tutor→prestador)** —
+  implementadas, declarar como UGC numérico (sem texto livre);
 - app activity/logs técnicos: apenas o que existir de fato no build/SDKs;
 - camera/galeria/fotos do dispositivo: declarar quando o build incluir
   `expo-image-picker`/`AvatarUploader`; a foto de perfil e opcional e fornecida
