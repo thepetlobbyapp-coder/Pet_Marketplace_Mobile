@@ -9,6 +9,7 @@ import {
   createPet,
   createProviderProfile,
   createTutorProfile,
+  deleteAddress,
   deletePet,
   getAddresses,
   getOwnProviderAvailability,
@@ -137,6 +138,9 @@ export default function ProfileScreen() {
   const [addressSheet, setAddressSheet] = useState<AddressSheetState | null>(
     null,
   );
+  const [pendingDeleteAddressId, setPendingDeleteAddressId] = useState<
+    string | null
+  >(null);
   const [addressMessage, setAddressMessage] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<
     Record<CollapsibleSectionId, boolean>
@@ -317,6 +321,22 @@ export default function ProfileScreen() {
     },
   });
 
+  const deleteAddressMutation = useMutation({
+    mutationFn: (address: AddressResponse) =>
+      deleteAddress(accessToken, address.id),
+    onError: (error) => {
+      setAddressMessage(formatAddressError(error));
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: addressesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: meQueryKey }),
+      ]);
+      setPendingDeleteAddressId(null);
+      setAddressMessage(t("profile.addressesDeleteSuccess"));
+    },
+  });
+
   const createPetMutation = useMutation({
     mutationFn: (body: CreatePetRequest) => createPet(accessToken, body),
     onError: (error) => {
@@ -410,7 +430,11 @@ export default function ProfileScreen() {
   const isAddressSheetSubmitting =
     createAddressMutation.isPending || updateAddressMutation.isPending;
   const addressMutationsHaveError =
-    createAddressMutation.isError || updateAddressMutation.isError;
+    createAddressMutation.isError ||
+    updateAddressMutation.isError ||
+    deleteAddressMutation.isError;
+  const isAddressActionPending =
+    isAddressSheetSubmitting || deleteAddressMutation.isPending;
   const isPetSheetSubmitting =
     createPetMutation.isPending || updatePetMutation.isPending;
   const petMutationsHaveError =
@@ -423,11 +447,13 @@ export default function ProfileScreen() {
 
   function openCreateAddressSheet() {
     setAddressMessage(null);
+    setPendingDeleteAddressId(null);
     setAddressSheet({ mode: "create" });
   }
 
   function openEditAddressSheet(address: AddressResponse) {
     setAddressMessage(null);
+    setPendingDeleteAddressId(null);
     setAddressSheet({ mode: "edit", address });
   }
 
@@ -1071,34 +1097,79 @@ export default function ProfileScreen() {
                     />
                   ) : addressesQuery.data && addressesQuery.data.length > 0 ? (
                     <View style={styles.addressList}>
-                      {addressesQuery.data.map((address) => (
-                        <View key={address.id} style={styles.addressItem}>
-                          <View style={styles.addressSummary}>
-                            <Text style={styles.addressName}>
-                              {formatAddressTitle(address)}
-                            </Text>
-                            <Text style={styles.addressMeta}>
-                              {formatAddressMeta(address)}
-                            </Text>
-                            {address.isDefaultTutorAddress ? (
-                              <View style={styles.heroBadge}>
-                                <Badge
-                                  label={t("profile.addressDefaultActive")}
-                                  tone="info"
+                      {addressesQuery.data.map((address) => {
+                        const isConfirmingDelete =
+                          pendingDeleteAddressId === address.id;
+                        const isDeleting =
+                          deleteAddressMutation.isPending &&
+                          deleteAddressMutation.variables?.id === address.id;
+
+                        return (
+                          <View key={address.id} style={styles.addressItem}>
+                            <View style={styles.addressSummary}>
+                              <Text style={styles.addressName}>
+                                {formatAddressTitle(address)}
+                              </Text>
+                              <Text style={styles.addressMeta}>
+                                {formatAddressMeta(address)}
+                              </Text>
+                              {address.isDefaultTutorAddress ? (
+                                <View style={styles.heroBadge}>
+                                  <Badge
+                                    label={t("profile.addressDefaultActive")}
+                                    tone="info"
+                                  />
+                                </View>
+                              ) : null}
+                            </View>
+                            {isConfirmingDelete ? (
+                              <View style={styles.deleteConfirm}>
+                                <Text style={styles.deleteConfirmText}>
+                                  {t("profile.deleteAddressConfirm")}
+                                </Text>
+                                <View style={styles.actions}>
+                                  <Button
+                                    disabled={isDeleting}
+                                    label={t("common.cancel")}
+                                    onPress={() => {
+                                      setPendingDeleteAddressId(null);
+                                      setAddressMessage(null);
+                                    }}
+                                    variant="secondary"
+                                  />
+                                  <Button
+                                    disabled={deleteAddressMutation.isPending}
+                                    isLoading={isDeleting}
+                                    label={t("profile.deleteAddress")}
+                                    onPress={() => {
+                                      setAddressMessage(null);
+                                      deleteAddressMutation.mutate(address);
+                                    }}
+                                  />
+                                </View>
+                              </View>
+                            ) : (
+                              <View style={styles.actions}>
+                                <Button
+                                  disabled={isAddressActionPending}
+                                  label={t("profile.editAddress")}
+                                  onPress={() => openEditAddressSheet(address)}
+                                  variant="secondary"
+                                />
+                                <Button
+                                  disabled={deleteAddressMutation.isPending}
+                                  label={t("profile.deleteAddress")}
+                                  onPress={() => {
+                                    setPendingDeleteAddressId(address.id);
+                                    setAddressMessage(null);
+                                  }}
+                                  variant="secondary"
                                 />
                               </View>
-                            ) : null}
+                            )}
                           </View>
-                          <View style={styles.actions}>
-                            <Button
-                              disabled={isAddressSheetSubmitting}
-                              label={t("profile.editAddress")}
-                              onPress={() => openEditAddressSheet(address)}
-                              variant="secondary"
-                            />
-                          </View>
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   ) : (
                     <Text style={styles.body}>
@@ -1106,7 +1177,7 @@ export default function ProfileScreen() {
                     </Text>
                   )}
                   <Button
-                    disabled={isAddressSheetSubmitting}
+                    disabled={isAddressActionPending}
                     label={t("profile.createAddress")}
                     onPress={openCreateAddressSheet}
                   />
@@ -1625,6 +1696,7 @@ function formatAddressError(error: unknown): string {
 
   if (status === 401) return t("profile.addressesAuthError");
   if (status === 404) return t("profile.addressesNotFoundError");
+  if (status === 409) return t("profile.addressesConflictError");
   if (status === 400) return t("profile.addressesValidationError");
 
   return t("profile.addressesActionError");

@@ -287,6 +287,22 @@ export async function updateAddress(
   });
 }
 
+export async function deleteAddress(
+  accessToken: string | null,
+  addressId: string,
+): Promise<void> {
+  if (!accessToken) {
+    throw new ApiClientError("AUTH_SESSION_MISSING", 401);
+  }
+
+  return request<void>(addressPath(addressId), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    method: "DELETE",
+  });
+}
+
 export async function getProviders(
   accessToken: string | null,
   params: ListProvidersParams = {},

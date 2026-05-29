@@ -146,3 +146,46 @@ runtime `400` responses:
   typecheck/lint green.
 - Not executed: manual app smoke is blocked — the app is not available in Expo
   Go nor locally for the user; no deploy/EAS/Play action; no push.
+
+[2026-05-29] Diagnosed and repaired the `providers_list_near` radius regression:
+- Ran read-only coverage checks against the backend Supabase database. Result:
+  6 active provider listings existed, and all 6 active provider profiles lacked
+  `base_address_id`; tutor default addresses were geocoded for 3 tutors.
+- Confirmed the empty marketplace was caused by legacy active providers being
+  filtered out by the stricter 003 RPC before distance calculation.
+- Added migration `20260529_004_backfill_provider_base_addresses.sql` to backfill
+  active providers from their own geocoded default/oldest address when possible,
+  then pause any remaining active listing without a valid own geocoded base.
+- Kept `providers_list_near` strict and did not touch `providers_get_one`, so
+  marketplace discovery remains radius-gated while booking detail remains
+  reachable.
+- Added backend e2e coverage for same-postcode inclusion, outside-radius
+  exclusion, provider-without-base exclusion, and SQL guardrails.
+- Validation passed: Backend `pnpm typecheck`, `pnpm lint`, `pnpm test`;
+  Mobile `pnpm typecheck`, `pnpm lint`; root `npm run sync:win`;
+  `git diff --check`.
+- No remote write, migration application, deploy, push, EAS or Play action was
+  executed.
+
+[2026-05-29] Validated marketplace visibility for `israel@pet.com` and added
+address deletion:
+- Ran read-only Supabase checks for `israel@pet.com`. The user has tutor and
+  provider roles, a geocoded tutor default address at `SW1A 1AA`, and a
+  geocoded provider base address at `SW1A 1AA`.
+- Confirmed `providers_list_near` returns 2 providers for that tutor. Empty
+  results observed in the app are explained by category filters (`walk = 0`,
+  `boarding = 0`) and by the intentional own-provider exclusion: the user's own
+  `Boarding` listing is not shown to themselves.
+- Confirmed runtime provider data coverage after the 004 repair: active
+  providers have base addresses and base locations, so the 003 radius RPC is no
+  longer dropping all candidates.
+- Added authenticated `DELETE /api/v1/addresses/:id` with owner scoping and
+  `204`/`404`/`400` contracts.
+- Blocked deletion of an active provider's `base_address_id` with `409
+  CONFLICT`, preventing users from deleting the address that keeps their active
+  listing eligible for radius discovery.
+- Added Mobile address deletion from Profile with a confirmation state and
+  cache invalidation for both addresses and `/me`.
+- Validation passed: Backend `pnpm typecheck`, `pnpm lint`, `pnpm test`;
+  Mobile `pnpm typecheck`, `pnpm lint`; Backend `pnpm build`;
+  `git diff --check`; local backend and Expo endpoints healthy.

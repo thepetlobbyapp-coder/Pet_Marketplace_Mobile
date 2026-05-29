@@ -498,17 +498,23 @@ export const enGB = {
     "Enter UK coordinates: latitude 49 to 61 and longitude -9 to 2.",
   "profile.createAddress": "Create address",
   "profile.editAddress": "Edit address",
+  "profile.deleteAddress": "Delete",
+  "profile.deleteAddressConfirm":
+    "Delete this address? If it is your default, you will need another default address to see nearby providers.",
   "profile.saveAddress": "Save address",
   "profile.addressesLoading": "Loading addresses",
   "profile.addressesEmpty": "No addresses yet.",
   "profile.addressesError": "The app could not load your addresses.",
   "profile.addressesCreateSuccess": "Address created",
   "profile.addressesUpdateSuccess": "Address saved",
+  "profile.addressesDeleteSuccess": "Address deleted",
   "profile.addressesActionError":
     "The app could not update addresses. Try again.",
   "profile.addressesAuthError": "Sign in again to update addresses.",
   "profile.addressesValidationError": "Check the address fields and try again.",
   "profile.addressesNotFoundError": "This address is no longer available.",
+  "profile.addressesConflictError":
+    "Pause your provider listing before deleting its base address.",
   "profile.address.sheet.title": "Add address",
   "profile.address.sheet.titleEdit": "Edit address",
   "profile.address.sheet.close": "Close",

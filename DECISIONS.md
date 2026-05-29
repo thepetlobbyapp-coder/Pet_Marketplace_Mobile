@@ -38,3 +38,25 @@
 - `/me` exposes tutor address presence as the boolean `hasDefaultAddress` only.
   Address identifiers (`default_address_id`, `base_address_id`) and coordinates
   are never serialized to clients (UK GDPR forbidden-fields contract).
+- Legacy active providers created before the base-address publish invariant are
+  repaired by data migration, not by weakening the marketplace RPC. The repair
+  backfills `base_address_id` only from the provider owner's own geocoded
+  address; any remaining active listing without a valid own geocoded base
+  address is moved to `paused`. `providers_list_near` stays strict and
+  radius-gated; `providers_get_one` stays unfiltered for booking detail.
+
+## 2026-05-29
+
+- The marketplace keeps excluding the requesting user's own provider listing.
+  If a tutor/provider account cannot see its own advert, that is expected; use a
+  second tutor account or remove category filters for visibility smoke.
+- Address matching continues to use postcode-centroid coordinates only. Street,
+  house number or free-form area labels do not affect distance after postcode
+  lookup has produced latitude/longitude.
+- Users may delete their own saved addresses, including the tutor default
+  address. If the deleted address was the default, the tutor must set another
+  default address before marketplace discovery is available again.
+- Users may not delete the base address of an active provider listing. The API
+  returns `409 CONFLICT` and the app asks the user to pause the provider listing
+  first, preserving the publish invariant and preventing radius-discovery
+  regressions.

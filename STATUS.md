@@ -193,3 +193,47 @@ Location-flow hardening recorte (plan A+B) implemented locally:
   typecheck/lint green. Canonical docs updated and synced to the 3 apps.
 - Blocker: manual app smoke is pending — the app is not available in Expo Go nor
   locally for the user. No deploy/EAS/Play action and no push were performed.
+
+Radius regression follow-up:
+
+- Read-only Supabase checks found 6 active provider listings; all 6 lacked
+  `base_address_id`, which made the stricter 003 `providers_list_near` return an
+  empty marketplace before distance was even calculated.
+- Added pending migration
+  `Pet_Marketplace_Back/supabase/migrations/20260529_004_backfill_provider_base_addresses.sql`.
+  It backfills active providers from their own geocoded default/oldest address
+  where available and pauses any remaining active listing without a valid own
+  geocoded base address.
+- `providers_list_near` remains strict and radius-gated; `providers_get_one`
+  remains untouched for booking detail.
+- Added e2e regression coverage for same-postcode inclusion, outside-radius
+  exclusion, missing-base exclusion and SQL guardrails.
+- Validation passed locally: Backend `pnpm typecheck`, `pnpm lint`,
+  `pnpm test`; Mobile `pnpm typecheck`, `pnpm lint`; root `npm run sync:win`;
+  `git diff --check`.
+- Not yet executed: applying the new migration to the remote/runtime database
+  requires explicit authorization.
+
+Marketplace/address follow-up after runtime validation:
+
+- `israel@pet.com` was validated read-only against Supabase. The tutor default
+  address is geocoded, the provider base address is geocoded, and
+  `providers_list_near` returns 2 providers.
+- The observed empty views for that account are not caused by postcode data:
+  category filters currently return `walk = 0` and `boarding = 0`, and the
+  user's own active `Boarding` provider listing is hidden by the existing
+  own-provider exclusion rule.
+- Active provider coverage is repaired: active providers have `base_address_id`
+  and geocoded base addresses after the 004 backfill/pause policy.
+- Address deletion is implemented locally end-to-end:
+  - Backend `DELETE /api/v1/addresses/:id`;
+  - Mobile Profile delete button with confirmation;
+  - deletion of an active provider base address returns `409 CONFLICT` so an
+    active listing is not made invisible by accident.
+- Validation passed locally: Backend typecheck/lint/full e2e/build, Mobile
+  typecheck/lint, local HTTP route smoke and `git diff --check`.
+- Expo Go remains available locally at `exp://192.168.1.69:8081`; backend
+  runtime is healthy at `http://192.168.1.69:3000/api/v1/health`.
+- Next authorized actions: commit the recorte, apply pending migration 004 to
+  any target that has not received it, publish backend, publish/update Mobile,
+  then run post-deploy smoke.

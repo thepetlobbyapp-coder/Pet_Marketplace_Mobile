@@ -6353,3 +6353,99 @@ protegidas por autenticacao/autorizacao; o health remoto continuou respondendo.
   preparado.
 - Admin UI remoto deve ser tratado como alvo proprio, somente apos confirmar
   app/URL/branch e autorizacao literal.
+
+## Checkpoint 102 - Radius repair e exclusao de endereco
+
+- **Data:** 2026-05-29
+- **Tipo:** Correcao de dados/RPC local, validacao runtime read-only,
+  implementacao de API/UI de enderecos e preparacao para deploy controlado.
+- **Escopo:** Backend, Supabase migration, Mobile Profile, docs e smoke local.
+- **Fora de escopo neste checkpoint antes da autorizacao final:** Play Console,
+  pagamento, notificacoes push e alteracoes de privacidade alem do contrato de
+  enderecos existente.
+
+### Diagnostico e reparo da regressao de cuidadores
+
+- A migration `20260528_003_providers_radius_filter.sql` tornou
+  `providers_list_near` estrita: tutor e provider precisam ter localizacao e o
+  provider precisa cobrir o tutor pelo `service_radius_km`.
+- A validacao read-only encontrou provedores ativos legados sem
+  `base_address_id`, o que fazia a RPC descartar candidatos antes do calculo de
+  distancia.
+- Foi criada a migration
+  `Pet_Marketplace_Back/supabase/migrations/20260529_004_backfill_provider_base_addresses.sql`.
+  Ela:
+  - preenche `base_address_id` de providers ativos usando somente endereco
+    geocodado do proprio dono;
+  - pausa qualquer provider ativo que ainda fique sem base geocodada;
+  - preserva `providers_list_near` estrita e nao altera `providers_get_one`.
+- Foram adicionados testes e2e cobrindo:
+  - tutor e provider no mesmo postcode retornam resultado;
+  - provider fora do raio nao aparece;
+  - provider sem base address nao aparece;
+  - guardrails SQL para manter `providers_get_one` fora do filtro de raio.
+
+### Validacao cirurgica de `israel@pet.com`
+
+- Usuario encontrado como tutor e provider ativo.
+- Tutor default address:
+  - postcode `SW1A 1AA`;
+  - geocodado;
+  - `hasDefaultAddress = true`.
+- Provider profile:
+  - ativo;
+  - base address geocodado em `SW1A 1AA`;
+  - `service_radius_km = 5`;
+  - listing proprio na categoria `boarding`.
+- `providers_list_near` retornou 2 providers para esse tutor.
+- Por categoria, a RPC retornou:
+  - `walk = 0`;
+  - `sitting = 1`;
+  - `transport = 1`;
+  - `boarding = 0`.
+- Conclusao: o vazio observado para esse usuario nao era endereco/postcode. Os
+  motivos reais sao filtro de categoria sem resultado e a regra intencional de
+  nao mostrar o proprio provider no marketplace.
+
+### Exclusao de endereco
+
+- Backend ganhou `DELETE /api/v1/addresses/:id`.
+- A operacao e escopada ao usuario autenticado e segue contratos:
+  - `204` quando o endereco proprio e removido;
+  - `404` para endereco inexistente ou de outro usuario;
+  - `400` para UUID invalido;
+  - `409 CONFLICT` quando o endereco e a base de um provider ativo.
+- A regra de `409` evita que um provider ativo perca sua base address por
+  acidente e volte a ficar invisivel na descoberta por raio.
+- Mobile Profile ganhou botao `Delete` por endereco, confirmacao inline,
+  mensagem de conflito e invalidacao de cache de enderecos e `/me`.
+- A confirmacao avisa que apagar o endereco default exige escolher outro
+  default para continuar vendo providers proximos.
+
+### Validacoes
+
+- Backend `pnpm typecheck` - exit 0.
+- Backend `pnpm lint` - exit 0.
+- Backend `pnpm test` - exit 0, 19 suites / 193 testes.
+- Backend `pnpm build` - exit 0.
+- Mobile `pnpm typecheck` - exit 0.
+- Mobile `pnpm lint` - exit 0.
+- Smoke HTTP local da rota nova: `DELETE /api/v1/addresses/not-a-uuid` com token
+  renovado retornou `400 VALIDATION_ERROR`, confirmando rota ativa sem escrita.
+- Backend local saudavel em `http://192.168.1.69:3000/api/v1/health`.
+- Expo/Metro ativo para Expo Go em `exp://192.168.1.69:8081`.
+- `git diff --check` - exit 0.
+
+### Proximo passo autorizado
+
+- Documentar, commitar, aplicar/preservar migration 004 nos ambientes alvo,
+  publicar backend, publicar/update Mobile e rodar smoke pos-deploy.
+- Ordem operacional recomendada:
+  1. Commit local deste recorte.
+  2. Aplicar `20260529_004_backfill_provider_base_addresses.sql` somente onde
+     ainda nao foi aplicada.
+  3. Publicar Backend no repo/app conectado ao deploy.
+  4. Publicar update Mobile/Expo para expor o botao de exclusao fora do bundle
+     local.
+  5. Rodar smoke remoto: health, `/me`, `/providers`, contrato de privacidade e
+     fluxo manual de Profile/enderecos.
